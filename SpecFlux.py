@@ -5,7 +5,19 @@ import torchaudio
 
 
 class SpecFlux(nn.Module):
-    def __init__(self, sample_rate, device="cpu", n_fft=2048, win_length=1024, window='hann', center=False, pad_mode='reflect', eps=1e-10, lamb=0.1):
+    def __init__(
+            self,
+            sample_rate,
+            device="cpu",
+            n_fft=2048,
+            win_length=1024,
+            window='hann',
+            center=False,
+            pad_mode='reflect',
+            eps=1e-10,
+            lamb=0.1,
+            n_mels=82,
+    ):
         super(SpecFlux, self).__init__()
         self.sample_rate = sample_rate
         self.n_fft = n_fft
@@ -16,8 +28,9 @@ class SpecFlux(nn.Module):
         self.pad_mode = pad_mode
         self.eps = eps
         self.lamb = lamb
+        self.n_mels = n_mels
         self.filter_bank = torchaudio.transforms.MelScale(
-            n_mels=82, sample_rate=sample_rate, n_stft=n_fft // 2 + 1, f_min=0.0, f_max=20000
+            n_mels=n_mels, sample_rate=sample_rate, n_stft=n_fft // 2 + 1, f_min=0.0, f_max=20000
         )
         self.window = torch.tensor(
             librosa.filters.get_window(window="hann", fftbins=False, Nx=win_length),
@@ -25,12 +38,11 @@ class SpecFlux(nn.Module):
             dtype=torch.float32,
             device=device,
         )
-        self.drum_mask = torch.ones(82, requires_grad=True, device=device)
-        self.hihat_mask = torch.ones(82, requires_grad=True, device=device)
-        self.snare_mask = torch.ones(82, requires_grad=True, device=device)
+        self.drum_mask = torch.ones(n_mels, requires_grad=True, device=device)
+        self.hihat_mask = torch.ones(n_mels, requires_grad=True, device=device)
+        self.snare_mask = torch.ones(n_mels, requires_grad=True, device=device)
 
     def forward(self, x):
-
         spec = torch.stft(
             x,
             n_fft=self.n_fft,
