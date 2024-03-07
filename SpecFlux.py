@@ -48,11 +48,11 @@ class SpecFlux(nn.Module):
         spec_diff = spec[..., 1:] - spec[..., :-1]
         spec_diff = torch.cat((torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1)
 
-        drum_spec = torch.sum(spec_diff * self.drum_mask.unsqueeze(-1), dim=-2).unsqueeze(0)
-        hihat_spec = torch.sum(spec_diff * self.hihat_mask.unsqueeze(-1), dim=-2).unsqueeze(0)
-        snare_spec = torch.sum(spec_diff * self.snare_mask.unsqueeze(-1), dim=-2).unsqueeze(0)
+        drum_spec = torch.sum(spec_diff * self.drum_mask.unsqueeze(-1), dim=-2).unsqueeze(-2)
+        hihat_spec = torch.sum(spec_diff * self.hihat_mask.unsqueeze(-1), dim=-2).unsqueeze(-2)
+        snare_spec = torch.sum(spec_diff * self.snare_mask.unsqueeze(-1), dim=-2).unsqueeze(-2)
 
-        return torch.cat((drum_spec, snare_spec, hihat_spec), dim=0)
+        return torch.cat((drum_spec, snare_spec, hihat_spec), dim=-2)
 
 
 if __name__ == '__main__':
