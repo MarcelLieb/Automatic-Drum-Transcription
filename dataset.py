@@ -49,7 +49,10 @@ class RBMA_13(Dataset):
         annotations = load_rbma()
         self.annotations = {}
         split = split.lower()
-        assert split in ["train", "validation", "test"]
+        assert split in ["train", "validation", "test", "all"]
+        if split == "all":
+            self.annotations = annotations
+            return
         index = ["train", "validation", "test"].index(split)
         with open(os.path.join(root, "splits", f"3-fold_cv_{index}.txt")) as f:
             tracks = f.readlines()
@@ -75,11 +78,14 @@ class RBMA_13(Dataset):
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
 
         frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
-        labels = np.zeros(frames, dtype=np.int32)
+        labels = np.zeros((3, frames), dtype=np.int64)
         indices = (annotation[:, 0] * self.sample_rate) // self.hop_size
-        indices = indices.astype(np.int32)
-        labels[indices] = annotation[:, 1]
-        labels = torch.tensor(labels, dtype=torch.int32)
+        indices = indices.astype(np.int64)
+        for i in range(3):
+            inst_indices = indices[annotation[:, 1] == i]
+            labels[i, inst_indices] = 1
+        labels = torch.tensor(labels, dtype=torch.float32)
+        labels = labels.permute(1, 0)
 
         return audio, labels
 
@@ -92,8 +98,10 @@ def get_dataloader(root, split, batch_size, num_workers, sample_rate=48000, hop_
 
 def collate_fn(batch: list[tuple[torch.Tensor, torch.Tensor]]):
     audio, annotation = zip(*batch)
-    audio = torch.nn.utils.rnn.pad_sequence(audio, batch_first=True, padding_value=-1)
+    audio = torch.nn.utils.rnn.pad_sequence(audio, batch_first=True, padding_value=0.0)
+    annotation = list(annotation)
     annotation = torch.nn.utils.rnn.pad_sequence(annotation, batch_first=True, padding_value=-1)
+    annotation = annotation.permute(0, 2, 1)
     return audio, annotation
 
 
