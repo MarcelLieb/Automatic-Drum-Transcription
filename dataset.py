@@ -43,8 +43,12 @@ def rename_rbma_audio_files():
 
 
 class RBMA_13(Dataset):
-    def __init__(self, root, split, sample_rate=48000, hop_size=480, fft_size=2048):
+    def __init__(self, root, split, sample_rate=48000, hop_size=480, fft_size=2048, label_shift=-0.02):
         self.root = root
+        self.sample_rate = sample_rate
+        self.hop_size = hop_size
+        self.fft_size = fft_size
+        self.label_shift = label_shift
 
         annotations = load_rbma()
         self.annotations = {}
@@ -60,10 +64,6 @@ class RBMA_13(Dataset):
         for track in tracks:
             self.annotations[track] = annotations[track]
 
-        self.sample_rate = sample_rate
-        self.hop_size = hop_size
-        self.fft_size = fft_size
-
     def __len__(self):
         return len(self.annotations)
 
@@ -76,6 +76,8 @@ class RBMA_13(Dataset):
         audio, sample_rate = torchaudio.load(audio_path, normalize=True)
         audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=48000)(audio)
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
+
+        annotation[:, 0] += self.label_shift
 
         frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
         labels = np.zeros((3, frames), dtype=np.int64)
@@ -90,8 +92,8 @@ class RBMA_13(Dataset):
         return audio, labels
 
 
-def get_dataloader(root, split, batch_size, num_workers, sample_rate=48000, hop_size=480, fft_size=2048):
-    dataset = RBMA_13(root, split, sample_rate, hop_size, fft_size)
+def get_dataloader(root, split, batch_size, num_workers, sample_rate=48000, hop_size=480, fft_size=2048, label_shift=-0.02):
+    dataset = RBMA_13(root, split, sample_rate, hop_size, fft_size, label_shift=label_shift)
     is_train = split.lower() == "train"
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers, collate_fn=collate_fn)
     return dataloader
