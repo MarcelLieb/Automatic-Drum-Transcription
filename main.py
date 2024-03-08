@@ -70,6 +70,7 @@ def main(
                             weight_decay=1e-3)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
                                               epochs=epochs)
+    error = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     print("Starting Training")
     for epoch in range(epochs):
@@ -79,7 +80,7 @@ def main(
             audio = audio.to(device)
             lbl = lbl.to(device)
 
-            loss = step(model, torch.nn.KLDivLoss(reduction="none"), optimizer, audio, lbl, scheduler)
+            loss = step(model, error, optimizer, audio, lbl, scheduler)
             ema_model.update(model)
             total_loss += loss
         print(f"Epoch: {epoch + 1}\t Loss: {total_loss / len(dataloader_train) * 100:.4f}")
@@ -90,6 +91,15 @@ def main(
 
 if __name__ == '__main__':
     trained_model = main()
-    print(list(trained_model.drum_mask.cpu().detach().numpy()))
-    print(list(trained_model.snare_mask.cpu().detach().numpy()))
-    print(list(trained_model.hihat_mask.cpu().detach().numpy()))
+    trained_model.eval()
+    torch.no_grad()
+    # print weights of feature extractor
+    weight = trained_model.feature_extractor.weight.cpu().detach().squeeze()
+    weight = weight / torch.linalg.norm(weight, dim=1).unsqueeze(-1)
+    for i in range(3):
+        print(list(weight[i].numpy()))
+    # print thresholds
+    print(trained_model.drum_threshold.threshold.weight, trained_model.drum_threshold.threshold.bias)
+    print(trained_model.snare_threshold.threshold.weight, trained_model.snare_threshold.threshold.bias)
+    print(trained_model.hihat_threshold.threshold.weight, trained_model.hihat_threshold.threshold.bias)
+    print(trained_model.onset_threshold.threshold.weight, trained_model.onset_threshold.threshold.bias)
