@@ -21,8 +21,6 @@ def step(
     optimizer.zero_grad()
 
     prediction = model(audio_batch)
-    labels = lbl_batch
-    labels[labels == -1] = 16
     unfiltered = criterion(prediction, lbl_batch)
     unfiltered[lbl_batch == -1] = 0
     filtered = unfiltered.mean()

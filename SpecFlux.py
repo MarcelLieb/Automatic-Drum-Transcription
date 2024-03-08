@@ -38,9 +38,7 @@ class SpecFlux(nn.Module):
             dtype=torch.float32,
             device=device,
         )
-        self.drum_mask = torch.ones(n_mels, requires_grad=True, device=device)
-        self.hihat_mask = torch.ones(n_mels, requires_grad=True, device=device)
-        self.snare_mask = torch.ones(n_mels, requires_grad=True, device=device)
+        self.feature_extractor = nn.Conv1d(in_channels=n_mels, out_channels=3, kernel_size=1, padding=0, bias=False)
 
     def forward(self, x):
         spec = torch.stft(
@@ -58,11 +56,11 @@ class SpecFlux(nn.Module):
 
         spec = self.filter_bank(spec)
         spec_diff = spec[..., 1:] - spec[..., :-1]
+        spec_diff = torch.clamp(spec_diff, min=0.0)
         spec_diff = torch.cat((torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1)
 
-        drum_spec = torch.sum(spec_diff * self.drum_mask.unsqueeze(-1), dim=-2).unsqueeze(-2)
-        hihat_spec = torch.sum(spec_diff * self.hihat_mask.unsqueeze(-1), dim=-2).unsqueeze(-2)
-        snare_spec = torch.sum(spec_diff * self.snare_mask.unsqueeze(-1), dim=-2).unsqueeze(-2)
+        # self.feature_extractor = nn.Conv1d(n_mels, 3, 1, padding=0, bias=False)
+        features = self.feature_extractor(spec_diff)
 
         return torch.cat((drum_spec, snare_spec, hihat_spec), dim=-2)
 

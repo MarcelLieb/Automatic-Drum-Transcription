@@ -80,12 +80,13 @@ class RBMA_13(Dataset):
         annotation[:, 0] += self.label_shift
 
         frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
-        labels = np.zeros((3, frames), dtype=np.int64)
+        labels = np.zeros((4, frames), dtype=np.int64)
         indices = (annotation[:, 0] * self.sample_rate) // self.hop_size
         indices = indices.astype(np.int64)
         for i in range(3):
             inst_indices = indices[annotation[:, 1] == i]
             labels[i, inst_indices] = 1
+            labels[3, inst_indices] = 1
         labels = torch.tensor(labels, dtype=torch.float32)
         labels = labels.permute(1, 0)
 
