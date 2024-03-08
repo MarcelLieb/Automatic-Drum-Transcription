@@ -1,9 +1,11 @@
 import os
+import random
 
 import numpy as np
 import torch
 import torchaudio
 from torch.utils.data import Dataset
+from torchaudio.transforms import Vol, SpeedPerturbation
 
 rbma_13_path = "./data/rbma_13/"
 
@@ -77,6 +79,19 @@ class RBMA_13(Dataset):
         audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=48000)(audio)
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
 
+        transform = Gain(min_gain=-20, max_gain=-1)
+        audio = transform(audio)
+
+        p = random.random()
+        if p < 1/3:
+            audio = SpeedPerturbation(self.sample_rate, [0.8])(audio)[0]
+            annotation[:, 0] /= 0.8
+        elif p < 2/3:
+            audio = SpeedPerturbation(self.sample_rate, [1.2])(audio)[0]
+            annotation[:, 0] /= 1.2
+
+
+
         annotation[:, 0] += self.label_shift
 
         frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
@@ -106,6 +121,18 @@ def collate_fn(batch: list[tuple[torch.Tensor, torch.Tensor]]):
     annotation = torch.nn.utils.rnn.pad_sequence(annotation, batch_first=True, padding_value=-1)
     annotation = annotation.permute(0, 2, 1)
     return audio, annotation
+
+
+class Gain(torch.nn.Module):
+    def __init__(self, min_gain: float = -20.0, max_gain: float = -1):
+        super().__init__()
+        self.min_gain = min_gain
+        self.max_gain = max_gain
+
+    def forward(self, audio: torch.Tensor) -> torch.Tensor:
+        gain = random.uniform(self.min_gain, self.max_gain)
+        audio = Vol(gain, gain_type="db")(audio)
+        return audio
 
 
 if __name__ == '__main__':
