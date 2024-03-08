@@ -2,7 +2,7 @@ import torch
 from torch import optim
 from tqdm import tqdm
 
-from SpecFlux import SpecFlux
+from SpecFlux import SpecFlux, ModelEmaV2
 from dataset import rbma_13_path, get_dataloader
 
 def step(
@@ -35,8 +35,8 @@ def step(
 
 
 def main(
-        learning_rate: float = 2e-2,
-        epochs: int = 100,
+        learning_rate: float = 4e-2,
+        epochs: int = 25,
         batch_size: int = 4,
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -57,6 +57,8 @@ def main(
     )
     model.to(device)
 
+    ema_model = ModelEmaV2(model, decay=0.99, device=device)
+
     print("Initializing Dataloader")
     dataloader_train = get_dataloader(rbma_13_path, "all", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.02)
 
@@ -64,7 +66,7 @@ def main(
     initial_lr = max_lr / 25
     min_lr = initial_lr / 1e4
 
-    optimizer = optim.RAdam([model.drum_mask, model.snare_mask, model.hihat_mask], lr=initial_lr, decoupled_weight_decay=True,
+    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, decoupled_weight_decay=True,
                             weight_decay=1e-3)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
                                               epochs=epochs)
@@ -78,11 +80,12 @@ def main(
             lbl = lbl.to(device)
 
             loss = step(model, torch.nn.KLDivLoss(reduction="none"), optimizer, audio, lbl, scheduler)
+            ema_model.update(model)
             total_loss += loss
         print(f"Epoch: {epoch + 1}\t Loss: {total_loss / len(dataloader_train) * 100:.4f}")
 
 
-    return model
+    return ema_model.module
 
 
 if __name__ == '__main__':
