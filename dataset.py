@@ -55,9 +55,18 @@ class RBMA_13(Dataset):
         annotations = load_rbma()
         self.annotations = {}
         split = split.lower()
-        assert split in ["train", "validation", "test", "all"]
+        assert split in ["train", "train_big", "validation", "test", "all"]
         if split == "all":
             self.annotations = annotations
+            return
+        if split == "train_big":
+            with open(os.path.join(root, "splits", f"3-fold_cv_0.txt")) as f:
+                tracks = f.readlines()
+            with open(os.path.join(root, "splits", f"3-fold_cv_1.txt")) as f:
+                tracks += f.readlines()
+            tracks = [x.strip() for x in tracks]
+            for track in tracks:
+                self.annotations[track] = annotations[track]
             return
         index = ["train", "validation", "test"].index(split)
         with open(os.path.join(root, "splits", f"3-fold_cv_{index}.txt")) as f:
