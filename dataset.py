@@ -51,6 +51,7 @@ class RBMA_13(Dataset):
         self.hop_size = hop_size
         self.fft_size = fft_size
         self.label_shift = label_shift
+        self.train = "train" in split.lower()
 
         annotations = load_rbma()
         self.annotations = {}
@@ -88,18 +89,13 @@ class RBMA_13(Dataset):
         audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=48000)(audio)
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
 
-        transform = Gain(min_gain=-20, max_gain=-1)
-        audio = transform(audio)
+        if self.train:
+            transform = Gain(min_gain=-1, max_gain=0)
+            audio = transform(audio)
 
-        p = random.random()
-        if p < 1/3:
-            audio = SpeedPerturbation(self.sample_rate, [0.8])(audio)[0]
-            annotation[:, 0] /= 0.8
-        elif p < 2/3:
-            audio = SpeedPerturbation(self.sample_rate, [1.2])(audio)[0]
-            annotation[:, 0] /= 1.2
-
-
+            perturbation = round(random.uniform(0.8, 1.2), 1)
+            audio = SpeedPerturbation(self.sample_rate, [perturbation])(audio)[0]
+            annotation[:, 0] /= perturbation
 
         annotation[:, 0] += self.label_shift
 
