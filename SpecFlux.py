@@ -65,8 +65,10 @@ class SpecFlux(nn.Module):
             dtype=torch.float32,
             device=device,
         )
-        self.feature_extractor = nn.Conv1d(in_channels=n_mels, out_channels=3, kernel_size=1, padding=0, bias=False)
+        self.activation = nn.ReLU()
+        self.final_activation = nn.Softsign()
         self.feature_extractor = nn.Conv1d(in_channels=n_mels, out_channels=4, kernel_size=1, padding=0, bias=False)
+        P.register_parametrization(self.feature_extractor, "weight", nn.LeakyReLU())
         self.drum_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.snare_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.hihat_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
@@ -111,10 +113,11 @@ class Threshold(nn.Module):
         super(Threshold, self).__init__()
         self.threshold = nn.Conv1d(channels, channels, 1, padding=0, bias=True)
         P.register_parametrization(self.threshold, "weight", torch.nn.ReLU())
-        P.register_parametrization(self.threshold, "bias", torch.nn.ReLU())
+        P.register_parametrization(self.threshold, "bias", torch.nn.LeakyReLU())
         self.max = CausalMaxPool1d(kernel_size=max_range, **kwargs)
         self.mean = CausalAvgPool1d(kernel_size=mean_range, **kwargs)
         self.norm = CausalAvgPool1d(kernel_size=norm_range, **kwargs)
+        self.Relu = nn.ReLU()
 
     def forward(self, x):
         mean = self.mean(x)
