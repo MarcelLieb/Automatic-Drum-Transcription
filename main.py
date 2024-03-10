@@ -5,12 +5,69 @@ from tqdm import tqdm
 from SpecFlux import SpecFlux, ModelEmaV2
 from dataset import rbma_13_path, get_dataloader
 
+
+def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float) -> torch.Tensor:
+    """
+    @param labels: The label tensor that is returned by your data loader
+    @return: A tensor with the same shape as labels
+    """
+
+    negatives = ~labels
+    flattened = torch.flatten(labels, start_dim=1)
+    num_positives = torch.sum(flattened, dim=1)
+    num_negatives = num_positives * neg_ratio
+    max_samples = flattened.shape[1]
+    # make sure negative examples are bounded by available examples
+    num_negatives = torch.min(max_samples - num_positives, num_negatives)
+    random = torch.rand_like(labels.float()) * negatives
+    out = torch.zeros_like(labels)
+    for i in range(labels.shape[0]):
+        random_flat = torch.flatten(random[i])
+        _, indices = torch.topk(random_flat, int(num_negatives[i]), dim=0)
+        mask = torch.zeros_like(random_flat)
+        mask[indices] = 1
+        mask = torch.reshape(mask, labels[i].shape)
+        mask = mask + labels[i]
+        assert torch.sum(mask) == num_positives[i] + num_negatives[i]
+        out[i] = mask
+    assert out.shape == labels.shape
+    return out
+
+
+def hard_negative_mining(labels: torch.Tensor, predictions: torch.Tensor, neg_ratio: float) -> torch.Tensor:
+    """
+    @param labels: The label tensor that is returned by your data loader
+    @param predictions: The prediction tensor that is returned by your model
+    @return: A tensor with the same shape as labels
+    """
+    negatives = ~labels
+    flattened = torch.flatten(labels, start_dim=1)
+    num_positives = torch.sum(flattened, dim=1)
+    num_negatives = num_positives * neg_ratio
+    max_samples = flattened.shape[1]
+    # make sure negative examples are bounded by available examples
+    num_negatives = torch.min(max_samples - num_positives, num_negatives)
+    out = torch.zeros_like(labels)
+    for i in range(labels.shape[0]):
+        negative = ((predictions[i]) * negatives[0]).flatten()
+        _, indices = torch.topk(negative, int(num_negatives[i]), largest=True, dim=0)
+        mask = torch.zeros_like(negative)
+        mask[indices] = 1
+        mask = torch.reshape(mask, labels[i].shape)
+        mask = mask + labels[i]
+        assert torch.sum(mask) == num_positives[i] + num_negatives[i]
+        out[i] = mask
+
+    return out
+
+
 def step(
         model: torch.nn.Module,
         criterion,
         optimizer: optim.Optimizer,
         audio_batch: torch.Tensor,
         lbl_batch: torch.Tensor,
+        negative_ratio: float,
         scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     """Performs one update step for the model
@@ -22,8 +79,12 @@ def step(
 
     prediction = model(audio_batch)
     unfiltered = criterion(prediction, lbl_batch)
-    unfiltered[lbl_batch == -1] = 0
-    filtered = unfiltered.mean()
+    labels = lbl_batch * (lbl_batch != -1)
+    labels = labels.bool()
+    no_silence = unfiltered * (lbl_batch != -1)
+    # mask = hard_negative_mining(labels, no_silence, negative_ratio)
+    mask = get_random_sampling_mask(labels, negative_ratio)
+    filtered = (no_silence * mask).mean()
 
     filtered.backward()
     optimizer.step()
