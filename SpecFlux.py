@@ -127,6 +127,13 @@ class Threshold(nn.Module):
         max_diff = maximums - threshold
         threshold_diff = x - threshold
         x = self.Relu(max_diff) * self.Relu(threshold_diff) * x
+        mask = x[..., 1:] > 0
+        mask = torch.cat((mask, torch.zeros_like(x[..., 0].bool().unsqueeze(-1))), dim=-1)
+        x = x * ~mask
+        mask = x[..., 2:] > 0
+        mask = torch.cat((mask, torch.zeros_like(x[..., :2].bool())), dim=-1)
+        x = x * ~mask
+
         return x
 
 
