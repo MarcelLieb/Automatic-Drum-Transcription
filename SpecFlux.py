@@ -124,9 +124,9 @@ class Threshold(nn.Module):
         maximums = self.max(x)
         norm = self.norm(x)
         threshold = self.threshold(norm) + mean
-        mask = (x >= maximums) & (x >= threshold)
-        x[~mask] = 0
-        x[mask] = 1
+        max_diff = maximums - threshold
+        threshold_diff = x - threshold
+        x = self.Relu(max_diff) * self.Relu(threshold_diff) * x
         return x
 
 
