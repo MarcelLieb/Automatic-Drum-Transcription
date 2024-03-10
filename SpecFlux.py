@@ -66,6 +66,7 @@ class SpecFlux(nn.Module):
             device=device,
         )
         self.feature_extractor = nn.Conv1d(in_channels=n_mels, out_channels=3, kernel_size=1, padding=0, bias=False)
+        self.feature_extractor = nn.Conv1d(in_channels=n_mels, out_channels=4, kernel_size=1, padding=0, bias=False)
         self.drum_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.snare_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.hihat_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
@@ -92,15 +93,17 @@ class SpecFlux(nn.Module):
 
         # self.feature_extractor = nn.Conv1d(n_mels, 3, 1, padding=0, bias=False)
         features = self.feature_extractor(spec_diff)
+        # features = self.activation(features)
 
         drum_spec = self.drum_threshold(features[:, 0, :].unsqueeze(-2))
         hihat_spec = self.hihat_threshold(features[:, 1, :].unsqueeze(-2))
         snare_spec = self.snare_threshold(features[:, 2, :].unsqueeze(-2))
 
-        spec_flux = torch.sum(features, dim=-2, keepdim=True)
-        spec_flux = self.onset_threshold(spec_flux)
-
-        return torch.cat((drum_spec, hihat_spec, snare_spec, spec_flux), dim=-2)
+        # spec_flux = torch.sum(spec_diff, dim=-2, keepdim=True)
+        spec_flux = self.onset_threshold(features[:, 3, :].unsqueeze(-2))
+        out = torch.cat((drum_spec, hihat_spec, snare_spec, spec_flux), dim=-2)
+        # out = self.final_activation(out)
+        return out
 
 
 class Threshold(nn.Module):
