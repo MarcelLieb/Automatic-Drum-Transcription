@@ -121,9 +121,12 @@ def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, cr
 
 
 def main(
-        learning_rate: float = 4e-2,
-        epochs: int = 25,
+        learning_rate: float = 1e-2,
+        epochs: int =  50,
         batch_size: int = 4,
+        negative_ratio = 15,
+        ema: bool = False,
+        scheduler: bool = False
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -143,7 +146,7 @@ def main(
     )
     model.to(device)
 
-    ema_model = ModelEmaV2(model, decay=0.99, device=device)
+    ema_model = ModelEmaV2(model, decay=0.99, device=device) if ema else None
 
     print("Initializing Dataloader")
     dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.01)
@@ -153,29 +156,37 @@ def main(
     initial_lr = max_lr / 25
     min_lr = initial_lr / 1e4
 
-    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, decoupled_weight_decay=True,
-                            weight_decay=1e-3)
+    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
-                                              epochs=epochs)
+                                              epochs=epochs) if scheduler else None
     error = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     print("Starting Training")
     for epoch in range(epochs):
         total_loss = 0
-        for i, data in tqdm(enumerate(dataloader_train)):
+        total_over = 0
+        for _, data in tqdm(enumerate(dataloader_train)):
             audio, lbl = data
             audio = audio.to(device)
             lbl = lbl.to(device)
 
-            loss = step(model, error, optimizer, audio, lbl, scheduler)
-            ema_model.update(model)
+            loss, over = step(
+                model=model,
+                criterion=error,
+                optimizer=optimizer,
+                audio_batch=audio,
+                lbl_batch=lbl,
+                negative_ratio=negative_ratio,
+                scheduler=scheduler
+            )
+            if ema_model is not None:
+                ema_model.update(model)
             total_loss += loss
             total_over += over
         val_loss, val_over = evaluate(model, dataloader_val, error, device)
         print(f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
 
-
-    return ema_model.module
+    return ema_model.module if ema_model is not None else model
 
 
 if __name__ == '__main__':
@@ -184,8 +195,7 @@ if __name__ == '__main__':
     torch.no_grad()
     # print weights of feature extractor
     weight = trained_model.feature_extractor.weight.cpu().detach().squeeze()
-    weight = weight / torch.linalg.norm(weight, dim=1).unsqueeze(-1)
-    for i in range(3):
+    for i in range(4):
         print(list(weight[i].numpy()))
     # print thresholds
     print(trained_model.drum_threshold.threshold.weight, trained_model.drum_threshold.threshold.bias)
