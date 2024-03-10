@@ -122,8 +122,8 @@ class Threshold(nn.Module):
     def forward(self, x):
         mean = self.mean(x)
         maximums = self.max(x)
-        norm = self.norm(x)
-        threshold = self.threshold(norm) + mean
+        # norm = self.norm(x)
+        threshold = self.threshold.bias + mean
         max_diff = maximums - threshold
         threshold_diff = x - threshold
         x = self.Relu(max_diff) * self.Relu(threshold_diff) * x
