@@ -69,7 +69,7 @@ def step(
         lbl_batch: torch.Tensor,
         negative_ratio: float,
         scheduler: optim.lr_scheduler.LRScheduler = None,
-) -> float:
+) -> (float, float):
     """Performs one update step for the model
 
     @return: The loss for the specified batch. Return a float and not a PyTorch tensor
@@ -85,14 +85,39 @@ def step(
     # mask = hard_negative_mining(labels, no_silence, negative_ratio)
     mask = get_random_sampling_mask(labels, negative_ratio)
     filtered = (no_silence * mask).mean()
+    # filtered = no_silence.mean()
+
+    over_detected = torch.sum(prediction[lbl_batch != -1].cpu().detach() > 0) - torch.sum(lbl_batch[lbl_batch != -1].cpu().detach())
 
     filtered.backward()
     optimizer.step()
     if scheduler is not None:
         scheduler.step()
 
-    return filtered.item()
+    return filtered.item(), over_detected.item()
 
+
+def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, criterion, device) -> (float, float):
+    """Evaluates the model on the specified dataset
+
+    @return: The loss for the specified dataset. Return a float and not a PyTorch tensor
+    """
+    model.eval()
+    total_loss = 0
+    total_over_detected = 0
+    with torch.no_grad():
+        for data in tqdm(dataloader):
+            audio, lbl = data
+            audio = audio.to(device)
+            lbl = lbl.to(device)
+            prediction = model(audio)
+            loss = criterion(prediction, lbl)
+            loss = (loss * (lbl == 1)).mean()
+            total_loss += loss.item()
+            over_detected = torch.sum(prediction[lbl != -1].cpu().detach() > 0) - torch.sum(
+                lbl[lbl != -1].cpu().detach())
+            total_over_detected += over_detected.item()
+    return total_loss / len(dataloader), total_over_detected / len(dataloader)
 
 
 def main(
@@ -121,7 +146,8 @@ def main(
     ema_model = ModelEmaV2(model, decay=0.99, device=device)
 
     print("Initializing Dataloader")
-    dataloader_train = get_dataloader(rbma_13_path, "all", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.02)
+    dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.01)
+    dataloader_val = get_dataloader(rbma_13_path, "test", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.01)
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25
@@ -144,7 +170,9 @@ def main(
             loss = step(model, error, optimizer, audio, lbl, scheduler)
             ema_model.update(model)
             total_loss += loss
-        print(f"Epoch: {epoch + 1}\t Loss: {total_loss / len(dataloader_train) * 100:.4f}")
+            total_over += over
+        val_loss, val_over = evaluate(model, dataloader_val, error, device)
+        print(f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
 
 
     return ema_model.module
