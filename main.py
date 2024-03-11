@@ -64,7 +64,7 @@ def hard_negative_mining(labels: torch.Tensor, predictions: torch.Tensor, neg_ra
 
 
 def step(
-        model: torch.nn.Module,
+        model: SpecFlux,
         criterion,
         optimizer: optim.Optimizer,
         audio_batch: torch.Tensor,
@@ -88,10 +88,11 @@ def step(
     mask = get_random_sampling_mask(labels, negative_ratio, mask=(lbl_batch != -1))
     filtered = (no_silence * mask).mean()
     # filtered = no_silence.mean()
+    loss = filtered / model.feature_extractor.weight.abs().sum()
 
     over_detected = torch.sum(prediction[lbl_batch != -1].cpu().detach() > 0) - torch.sum(lbl_batch[lbl_batch != -1].cpu().detach())
 
-    filtered.backward()
+    loss.backward()
     optimizer.step()
     if scheduler is not None:
         scheduler.step()
