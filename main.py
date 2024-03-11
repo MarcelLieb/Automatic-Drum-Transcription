@@ -6,7 +6,7 @@ from SpecFlux import SpecFlux, ModelEmaV2
 from dataset import rbma_13_path, get_dataloader
 
 
-def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float) -> torch.Tensor:
+def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float, mask: torch.Tensor = None) -> torch.Tensor:
     """
     @param labels: The label tensor that is returned by your data loader
     @return: A tensor with the same shape as labels
@@ -20,6 +20,8 @@ def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float) -> torch.Te
     # make sure negative examples are bounded by available examples
     num_negatives = torch.min(max_samples - num_positives, num_negatives)
     random = torch.rand_like(labels.float()) * negatives
+    if mask is not None:
+        random = random * mask
     out = torch.zeros_like(labels)
     for i in range(labels.shape[0]):
         random_flat = torch.flatten(random[i])
@@ -83,7 +85,7 @@ def step(
     labels = labels.bool()
     no_silence = unfiltered * (lbl_batch != -1)
     # mask = hard_negative_mining(labels, no_silence, negative_ratio)
-    mask = get_random_sampling_mask(labels, negative_ratio)
+    mask = get_random_sampling_mask(labels, negative_ratio, mask=(lbl_batch != -1))
     filtered = (no_silence * mask).mean()
     # filtered = no_silence.mean()
 
