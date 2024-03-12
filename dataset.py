@@ -143,5 +143,29 @@ class Gain(torch.nn.Module):
 
 
 if __name__ == '__main__':
-    dataset = RBMA_13(rbma_13_path, "train")
-    _audio, _annotation = dataset[0]
+    dataset = RBMA_13(rbma_13_path, "all", 48000, 480, 2048, label_shift=-0.01, pad_annotations=1)
+    spectrogram = torchaudio.transforms.Spectrogram(n_fft=2048, hop_length=480, win_length=1024, power=2, center=False, pad_mode="constant", normalized=False, onesided=True)
+    mel_scale = torchaudio.transforms.MelScale(n_mels=82, sample_rate=48000, n_stft=1025, f_min=0.0, f_max=20000, norm=None, mel_scale="htk")
+    averages = torch.zeros((4, 82))
+    total = torch.zeros(4)
+    for i in range(len(dataset)):
+        audio, labels = dataset[i]
+        spec = spectrogram(audio)
+        log = torch.log1p(spec * 0.1)
+        mel = mel_scale(log)
+        spec_diff = mel[..., 1:] - mel[..., :-1]
+        spec_diff = torch.clamp(spec_diff, min=0.0)
+        spec_diff = torch.cat((torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1)
+        labels = labels.permute(1, 0)
+        spec_diff = spec_diff * labels.unsqueeze(-2)
+        mask = labels == 1
+        for j in range(4):
+            positives = spec_diff[j][:, mask[j, :]].sum(dim=-1)
+            negatives = spec_diff[j][:, ~mask[j, :]].sum(dim=-1)
+            total[j] += mask[j, :].sum()
+            averages[j, :] += positives
+
+    averages /= total.unsqueeze(-1)
+    averages = averages / averages.max(dim=-1, keepdim=True).values
+    print([list(values) for values in averages.numpy()])
+
