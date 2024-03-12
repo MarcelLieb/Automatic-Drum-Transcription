@@ -45,7 +45,7 @@ def rename_rbma_audio_files():
 
 
 class RBMA_13(Dataset):
-    def __init__(self, root, split, sample_rate=48000, hop_size=480, fft_size=2048, label_shift=-0.02):
+    def __init__(self, root, split, sample_rate=48000, hop_size=480, fft_size=2048, label_shift=-0.02, pad_annotations=3):
         self.root = root
         self.sample_rate = sample_rate
         self.hop_size = hop_size
