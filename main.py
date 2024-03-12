@@ -101,7 +101,7 @@ def step(
     return filtered.item(), over_detected.item()
 
 
-def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, criterion, device) -> (float, float):
+def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, criterion, device, neg_ratio: float) -> (float, float):
     """Evaluates the model on the specified dataset
 
     @return: The loss for the specified dataset. Return a float and not a PyTorch tensor
@@ -110,13 +110,15 @@ def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, cr
     total_loss = 0
     total_over_detected = 0
     with torch.no_grad():
-        for data in tqdm(dataloader):
+        for data in tqdm(dataloader, total=len(dataloader)):
             audio, lbl = data
             audio = audio.to(device)
             lbl = lbl.to(device)
             prediction = model(audio)
             loss = criterion(prediction, lbl)
-            loss = (loss * (lbl == 1)).mean()
+            labels = (lbl * (lbl != -1)).bool()
+            mask = get_random_sampling_mask(labels, neg_ratio // 16, mask=(lbl != -1))
+            loss = (loss * mask).mean()
             total_loss += loss.item()
             over_detected = torch.sum(prediction[lbl != -1].cpu().detach() > 0) - torch.sum(
                 lbl[lbl != -1].cpu().detach())
@@ -167,6 +169,9 @@ def main(
                                               epochs=epochs) if scheduler else None
     error = torch.nn.BCEWithLogitsLoss(reduction="none")
 
+    best_loss = float("inf")
+    best_detection = float("inf")
+    last_improvement = 0
     print("Starting Training")
     for epoch in range(epochs):
         total_loss = 0
@@ -189,8 +194,16 @@ def main(
                 ema_model.update(model)
             total_loss += loss
             total_over += over
-        val_loss, val_over = evaluate(model, dataloader_val, error, device)
+        val_loss, val_over = evaluate(model, dataloader_val, error, device, negative_ratio)
         print(f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
+        last_improvement += 1
+        if val_loss <= best_loss:
+            best_loss = val_loss
+            last_improvement = 0
+            if abs(val_over) <= abs(best_detection):
+                best_detection = val_over
+        if last_improvement > 20:
+            break
 
     return ema_model.module if ema_model is not None else model
 
