@@ -55,7 +55,7 @@ class RBMA_13(Dataset):
 
         annotations = load_rbma()
         self.annotations = {}
-        self.label_spreader = torch.nn.MaxPool1d(3, stride=1, padding=1)
+        self.label_spreader = torch.nn.MaxPool1d(pad_annotations, stride=1, padding=pad_annotations // 2)
         split = split.lower()
         assert split in ["train", "train_big", "validation", "test", "all"]
         if split == "all":
