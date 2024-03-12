@@ -20,8 +20,9 @@ def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float, mask: torch
     # make sure negative examples are bounded by available examples
     num_negatives = torch.min(max_samples - num_positives, num_negatives)
     random = torch.rand_like(labels.float()) * negatives
-    if mask is not None:
-        random = random * mask
+    if mask is None:
+        mask = torch.ones_like(labels)
+    random = random * mask
     out = torch.zeros_like(labels)
     for i in range(labels.shape[0]):
         random_flat = torch.flatten(random[i])
@@ -33,6 +34,7 @@ def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float, mask: torch
         assert torch.sum(mask) == num_positives[i] + num_negatives[i]
         out[i] = mask
     assert out.shape == labels.shape
+    out = out * (labels.bool() | mask.bool())
     return out
 
 
@@ -81,8 +83,7 @@ def step(
 
     prediction = model(audio_batch)
     unfiltered = criterion(prediction, lbl_batch)
-    labels = lbl_batch * (lbl_batch != -1)
-    labels = labels.bool()
+    labels = (lbl_batch * (lbl_batch != -1)).bool()
     no_silence = unfiltered * (lbl_batch != -1)
     # mask = hard_negative_mining(labels, no_silence, negative_ratio)
     mask = get_random_sampling_mask(labels, negative_ratio, mask=(lbl_batch != -1))
@@ -134,6 +135,8 @@ def main(
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
 
+    print(f"Settings: Learning Rate: {learning_rate}, Epochs: {epochs}, Batch Size: {batch_size}, Negative Ratio: {negative_ratio}, EMA: {ema}, Scheduler: {scheduler}")
+
     print("Initializing Spectral Flux")
     model = SpecFlux(
         sample_rate=48000,
@@ -153,13 +156,13 @@ def main(
 
     print("Initializing Dataloader")
     dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.01)
-    dataloader_val = get_dataloader(rbma_13_path, "test", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.01)
+    dataloader_val = get_dataloader(rbma_13_path, "test", 4, 4, 48000, 480, 2048, label_shift=-0.01)
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25
     min_lr = initial_lr / 1e4
 
-    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8)
+    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=0)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
                                               epochs=epochs) if scheduler else None
     error = torch.nn.BCEWithLogitsLoss(reduction="none")
@@ -168,7 +171,7 @@ def main(
     for epoch in range(epochs):
         total_loss = 0
         total_over = 0
-        for _, data in tqdm(enumerate(dataloader_train)):
+        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train)):
             audio, lbl = data
             audio = audio.to(device)
             lbl = lbl.to(device)
