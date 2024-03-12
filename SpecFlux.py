@@ -56,6 +56,7 @@ class SpecFlux(nn.Module):
         self.eps = eps
         self.lamb = lamb
         self.n_mels = n_mels
+        self.spectrum = torchaudio.transforms.Spectrogram(n_fft=n_fft, hop_length=self.hop_length, win_length=win_length, power=2, center=center, pad_mode=pad_mode, normalized=False, onesided=True)
         self.filter_bank = torchaudio.transforms.MelScale(
             n_mels=n_mels, sample_rate=sample_rate, n_stft=n_fft // 2 + 1, f_min=0.0, f_max=20000, norm=None, mel_scale="htk",
         )
@@ -75,21 +76,11 @@ class SpecFlux(nn.Module):
         self.onset_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
 
     def forward(self, x):
-        spec = torch.stft(
-            x,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            window=self.window,
-            win_length=self.win_length,
-            center=self.center,
-            pad_mode=self.pad_mode,
-            return_complex=True,
-        )
-        spec = abs(spec)
+        spec = self.spectrum(x)
         spec = torch.log1p(spec * self.lamb)
 
-        spec = self.filter_bank(spec)
-        spec_diff = spec[..., 1:] - spec[..., :-1]
+        mel = self.filter_bank(spec)
+        spec_diff = mel[..., 1:] - mel[..., :-1]
         spec_diff = torch.clamp(spec_diff, min=0.0)
         spec_diff = torch.cat((torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1)
 
