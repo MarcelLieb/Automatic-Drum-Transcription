@@ -1,9 +1,11 @@
 import torch
-from torch import optim
+from torch import optim, nn
 from tqdm import tqdm
 
-from SpecFlux import SpecFlux, ModelEmaV2
-from dataset import rbma_13_path, get_dataloader
+from model.SpecFlux import SpecFlux
+from model.cnn import CNN
+from model.model import ModelEmaV2
+from dataset.RBMA13 import rbma_13_path, get_dataloader
 
 
 def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float, mask: torch.Tensor = None) -> torch.Tensor:
@@ -66,12 +68,13 @@ def hard_negative_mining(labels: torch.Tensor, predictions: torch.Tensor, neg_ra
 
 
 def step(
-        model: SpecFlux,
+        model: nn.Module,
         criterion,
         optimizer: optim.Optimizer,
         audio_batch: torch.Tensor,
         lbl_batch: torch.Tensor,
         negative_ratio: float,
+        negative_mining: bool = False,
         scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> (float, float):
     """Performs one update step for the model
@@ -86,10 +89,11 @@ def step(
     labels = (lbl_batch * (lbl_batch != -1)).bool()
     no_silence = unfiltered * (lbl_batch != -1)
     # mask = hard_negative_mining(labels, no_silence, negative_ratio)
-    mask = get_random_sampling_mask(labels, negative_ratio, mask=(lbl_batch != -1))
-    filtered = (no_silence * mask).mean()
-    # filtered = no_silence.mean()
-    loss = filtered / model.feature_extractor.weight.abs().sum()
+    if negative_mining:
+        mask = get_random_sampling_mask(labels, negative_ratio, mask=(lbl_batch != -1))
+        no_silence = no_silence * mask
+    filtered = no_silence.mean()
+    loss = filtered
 
     over_detected = torch.sum(prediction[lbl_batch != -1].cpu().detach() > 0) - torch.sum(lbl_batch[lbl_batch != -1].cpu().detach())
 
@@ -117,8 +121,9 @@ def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, cr
             prediction = model(audio)
             loss = criterion(prediction, lbl)
             labels = (lbl * (lbl != -1)).bool()
-            mask = get_random_sampling_mask(labels, neg_ratio // 16, mask=(lbl != -1))
-            loss = (loss * mask).mean()
+            # mask = get_random_sampling_mask(labels, neg_ratio // 16, mask=(lbl != -1))
+            # loss = (loss * mask).mean()
+            loss = loss.mean()
             total_loss += loss.item()
             over_detected = torch.sum(prediction[lbl != -1].cpu().detach() > 0) - torch.sum(
                 lbl[lbl != -1].cpu().detach())
@@ -127,12 +132,13 @@ def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, cr
 
 
 def main(
-        learning_rate: float = 1e-2,
-        epochs: int =  50,
+        learning_rate: float = 5e-4,
+        epochs: int =  90,
         batch_size: int = 4,
-        negative_ratio = 15,
+        negative_ratio = 50,
         ema: bool = False,
-        scheduler: bool = False
+        scheduler: bool = True,
+        n_mels: int = 82
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -141,33 +147,28 @@ def main(
 
     print("Initializing Spectral Flux")
     model = SpecFlux(
-        sample_rate=48000,
-        device=device,
-        n_fft=2048,
-        win_length=1024,
-        window='hann',
-        center=False,
-        pad_mode='constant',
         eps=1e-10,
         lamb=0.1,
         n_mels=82,
     )
+    model = CNN(n_mels=n_mels, n_classes=4)
     model.to(device)
+    num_workers = min(8, batch_size)
 
-    ema_model = ModelEmaV2(model, decay=0.99, device=device) if ema else None
+    ema_model = ModelEmaV2(model, decay=0.95, device=device) if ema else None
 
     print("Initializing Dataloader")
-    dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, batch_size, 48000, 480, 2048, label_shift=-0.01)
-    dataloader_val = get_dataloader(rbma_13_path, "test", 4, 4, 48000, 480, 2048, label_shift=-0.01)
+    dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, num_workers, 48000, 480, 2048, label_shift=-0.01, pad_annotations=1, n_mels=n_mels)
+    dataloader_val = get_dataloader(rbma_13_path, "test", min(batch_size, 9), min(num_workers, 9), 48000, 480, 2048, label_shift=-0.01, pad_annotations=1, n_mels=n_mels)
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25
     min_lr = initial_lr / 1e4
 
-    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=0)
+    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
                                               epochs=epochs) if scheduler else None
-    error = torch.nn.BCEWithLogitsLoss(reduction="none")
+    error = torch.nn.MSELoss(reduction="none")
 
     best_loss = float("inf")
     best_detection = float("inf")
@@ -194,7 +195,7 @@ def main(
                 ema_model.update(model)
             total_loss += loss
             total_over += over
-        val_loss, val_over = evaluate(model, dataloader_val, error, device, negative_ratio)
+        val_loss, val_over = evaluate(model if ema_model is None else ema_model.module, dataloader_val, error, device, negative_ratio)
         print(f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
         last_improvement += 1
         if val_loss <= best_loss:
@@ -202,7 +203,7 @@ def main(
             last_improvement = 0
             if abs(val_over) <= abs(best_detection):
                 best_detection = val_over
-        if last_improvement > 20:
+        if last_improvement > 10:
             break
 
     return ema_model.module if ema_model is not None else model
@@ -211,7 +212,9 @@ def main(
 if __name__ == '__main__':
     trained_model = main()
     trained_model.eval()
+    trained_model = trained_model.cpu()
     torch.no_grad()
+    """
     # print weights of feature extractor
     weight = trained_model.feature_extractor.weight.cpu().detach().squeeze()
     for i in range(4):
@@ -221,3 +224,4 @@ if __name__ == '__main__':
     print(trained_model.snare_threshold.threshold.weight, trained_model.snare_threshold.threshold.bias)
     print(trained_model.hihat_threshold.threshold.weight, trained_model.hihat_threshold.threshold.bias)
     print(trained_model.onset_threshold.threshold.weight, trained_model.onset_threshold.threshold.bias)
+    """
