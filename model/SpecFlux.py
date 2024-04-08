@@ -13,6 +13,7 @@ class SpecFlux(nn.Module):
             eps=1e-10,
             lamb=0.1,
             n_mels=82,
+            threshold=True,
     ):
         super(SpecFlux, self).__init__()
         self.eps = eps
@@ -21,11 +22,12 @@ class SpecFlux(nn.Module):
         self.activation = nn.ELU()
         self.final_activation = nn.Tanh()
         self.feature_extractor = nn.Conv1d(in_channels=n_mels, out_channels=4, kernel_size=1, padding=0, bias=False)
-        P.register_parametrization(self.feature_extractor, "weight", nn.LeakyReLU())
+        P.register_parametrization(self.feature_extractor, "weight", nn.SELU())
         self.drum_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.snare_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.hihat_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.onset_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
+        self.threshold = threshold
 
     def forward(self, x):
         mel = torch.log1p(x * self.lamb)
@@ -37,6 +39,9 @@ class SpecFlux(nn.Module):
         features = self.feature_extractor(spec_diff)
         features = self.activation(features)
 
+        if not self.threshold:
+            out = self.final_activation(features)
+            return out
         drum_spec = self.drum_threshold(features[:, 0, :].unsqueeze(-2))
         hihat_spec = self.hihat_threshold(features[:, 1, :].unsqueeze(-2))
         snare_spec = self.snare_threshold(features[:, 2, :].unsqueeze(-2))
@@ -44,7 +49,7 @@ class SpecFlux(nn.Module):
         # spec_flux = torch.sum(spec_diff, dim=-2, keepdim=True)
         spec_flux = self.onset_threshold(features[:, 3, :].unsqueeze(-2))
         out = torch.cat((drum_spec, hihat_spec, snare_spec, spec_flux), dim=-2)
-        # out = self.final_activation(features)
+        out = self.final_activation(out)
         return out
 
 
@@ -52,8 +57,8 @@ class Threshold(nn.Module):
     def __init__(self, channels=1, mean_range=1, max_range=1, norm_range=1, **kwargs):
         super(Threshold, self).__init__()
         self.threshold = nn.Conv1d(channels, channels, 1, padding=0, bias=True)
-        P.register_parametrization(self.threshold, "weight", torch.nn.ELU())
-        P.register_parametrization(self.threshold, "bias", torch.nn.ELU())
+        P.register_parametrization(self.threshold, "weight", torch.nn.LeakyReLU())
+        P.register_parametrization(self.threshold, "bias", torch.nn.LeakyReLU())
         self.max = CausalMaxPool1d(kernel_size=max_range, **kwargs)
         self.mean = CausalAvgPool1d(kernel_size=mean_range, **kwargs)
         self.norm = CausalAvgPool1d(kernel_size=norm_range, **kwargs)
