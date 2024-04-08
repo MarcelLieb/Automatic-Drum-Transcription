@@ -132,13 +132,14 @@ def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, cr
 
 
 def main(
-        learning_rate: float = 5e-4,
+        learning_rate: float = 5e-2,
         epochs: int =  90,
-        batch_size: int = 4,
+        batch_size: int = 3,
         negative_ratio = 50,
         ema: bool = False,
         scheduler: bool = True,
-        n_mels: int = 82
+        n_mels: int = 82,
+        early_stopping: bool = False,
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -155,11 +156,11 @@ def main(
     model.to(device)
     num_workers = min(8, batch_size)
 
-    ema_model = ModelEmaV2(model, decay=0.95, device=device) if ema else None
+    ema_model = ModelEmaV2(model, decay=0.8, device=device) if ema else None
 
     print("Initializing Dataloader")
-    dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, num_workers, 48000, 480, 2048, label_shift=-0.01, pad_annotations=1, n_mels=n_mels)
-    dataloader_val = get_dataloader(rbma_13_path, "test", min(batch_size, 9), min(num_workers, 9), 48000, 480, 2048, label_shift=-0.01, pad_annotations=1, n_mels=n_mels)
+    dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, num_workers, 48000, 480, 2048, label_shift=0.02, pad_annotations=1, n_mels=n_mels)
+    dataloader_val = get_dataloader(rbma_13_path, "test", min(batch_size, 9), min(num_workers, 9), 48000, 480, 2048, label_shift=0.02, pad_annotations=1, n_mels=n_mels)
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25
@@ -203,7 +204,7 @@ def main(
             last_improvement = 0
             if abs(val_over) <= abs(best_detection):
                 best_detection = val_over
-        if last_improvement > 10:
+        if last_improvement > 10 and early_stopping:
             break
 
     return ema_model.module if ema_model is not None else model
@@ -214,14 +215,12 @@ if __name__ == '__main__':
     trained_model.eval()
     trained_model = trained_model.cpu()
     torch.no_grad()
-    """
-    # print weights of feature extractor
-    weight = trained_model.feature_extractor.weight.cpu().detach().squeeze()
-    for i in range(4):
-        print(list(weight[i].numpy()))
-    # print thresholds
-    print(trained_model.drum_threshold.threshold.weight, trained_model.drum_threshold.threshold.bias)
-    print(trained_model.snare_threshold.threshold.weight, trained_model.snare_threshold.threshold.bias)
-    print(trained_model.hihat_threshold.threshold.weight, trained_model.hihat_threshold.threshold.bias)
-    print(trained_model.onset_threshold.threshold.weight, trained_model.onset_threshold.threshold.bias)
-    """
+    if trained_model is not None and isinstance(trained_model, SpecFlux):
+        weight = trained_model.feature_extractor.weight.cpu().detach().squeeze()
+        for i in range(4):
+            print(list(weight[i].numpy()))
+        # print thresholds
+        print(trained_model.drum_threshold.threshold.weight, trained_model.drum_threshold.threshold.bias)
+        print(trained_model.snare_threshold.threshold.weight, trained_model.snare_threshold.threshold.bias)
+        print(trained_model.hihat_threshold.threshold.weight, trained_model.hihat_threshold.threshold.bias)
+        print(trained_model.onset_threshold.threshold.weight, trained_model.onset_threshold.threshold.bias)
