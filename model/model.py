@@ -41,6 +41,19 @@ class CausalConv1d(nn.Module):
         return x
 
 
+class CausalConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation=1, **kwargs):
+        super(CausalConv2d, self).__init__()
+        self.kernel_size = kernel_size
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=(kernel_size // 2,(kernel_size - 1) * dilation), dilation=dilation, **kwargs)
+
+    def forward(self, x):
+        x = self.conv(x)
+        if self.conv.padding[1] != 0:
+            x = x[..., :-self.conv.padding[1]]
+        return x
+
+
 class CausalMaxPool1d(nn.Module):
     def __init__(self, kernel_size, stride=1, dilation=1, **kwargs):
         super(CausalMaxPool1d, self).__init__()
