@@ -133,7 +133,7 @@ def get_dataloader(root, split, batch_size, num_workers, sample_rate=48000, hop_
     dataset = RBMA_13(root, split, sample_rate, hop_size, fft_size, label_shift=label_shift, **kwargs)
     is_train = split.lower() == "train"
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers,
-                                             collate_fn=collate_fn, drop_last=is_train)
+                                             collate_fn=collate_fn, drop_last=False, pin_memory=True)
     return dataloader
 
 
