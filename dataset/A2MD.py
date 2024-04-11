@@ -7,7 +7,6 @@ import torchaudio
 from torch.utils.data import Dataset
 import os
 
-
 A2MD_PATH = "./data/a2md_public/"
 
 # Mapping identical to the one used in "Towards multi-instrument drum transcription"
@@ -35,32 +34,32 @@ drum_midi_mapping = {
 drum_midi_mapping = {key: tuple(value) for key, value in drum_midi_mapping.items()}
 
 three_class_mapping = (
-    ("BD", ), # Bass Drum
-    ("SD", "SS", "CLP"), # Snare Drum + alike
-    ("CHH", "PHH", "OHH") # Hi-Hat
+    ("BD",),  # Bass Drum
+    ("SD", "SS", "CLP"),  # Snare Drum + alike
+    ("CHH", "PHH", "OHH")  # Hi-Hat
 )
 
 # Commonly used mapping
 three_class_standard_mapping = (
-    ("BD", ), # Bass Drum
-    ("SD",), # Snare Drum + alike
-    ("CHH", "PHH", "OHH") # Hi-Hat
+    ("BD",),  # Bass Drum
+    ("SD",),  # Snare Drum + alike
+    ("CHH", "PHH", "OHH")  # Hi-Hat
 )
 
 four_class_mapping = (
-    ("BD", ), # Bass Drum
-    ("SD", "SS", "CLP"), # Snare Drum + alike
-    ("CHH", "PHH", "OHH"), # Hi-Hat
-    ("LT", "MT", "HT") # Toms
+    ("BD",),  # Bass Drum
+    ("SD", "SS", "CLP"),  # Snare Drum + alike
+    ("CHH", "PHH", "OHH"),  # Hi-Hat
+    ("LT", "MT", "HT")  # Toms
 )
 
 # Mapping used in ADTOF
 five_class_mapping = (
-    ("BD", ), # Bass Drum
-    ("SD", "SS", "CLP"), # Snare Drum + alike
-    ("CHH", "PHH", "OHH"), # Hi-Hat
-    ("LT", "MT", "HT"), # Toms
-    ("CRC", "SPC", "CHC", "RD", "RB") # Cymbal + Ride
+    ("BD",),  # Bass Drum
+    ("SD", "SS", "CLP"),  # Snare Drum + alike
+    ("CHH", "PHH", "OHH"),  # Hi-Hat
+    ("LT", "MT", "HT"),  # Toms
+    ("CRC", "SPC", "CHC", "RD", "RB")  # Cymbal + Ride
 )
 
 
@@ -74,7 +73,7 @@ def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
     return reverse_map
 
 
-def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...]=three_class_mapping):
+def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...] = three_class_mapping):
     drum_instruments = [instrument for instrument in midi.instruments if instrument.is_drum]
     notes = np.array([(note.pitch, note.start) for instrument in drum_instruments for note in instrument.notes])
     n_classes = len(mapping)
@@ -92,9 +91,10 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...]
     return drum_classes
 
 
-
 class A2MD(Dataset):
-    def __init__(self, split: str, path: Path | str=A2MD_PATH, mapping: tuple[tuple[str, ...], ...]=three_class_mapping, time_shift = 0.0, sample_rate=44100, hop_size=512, fft_size=2048, n_mels=82, center=False,
+    def __init__(self, split: str, path: Path | str = A2MD_PATH,
+                 mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0, sample_rate=44100,
+                 hop_size=512, fft_size=2048, n_mels=82, center=False,
                  pad_mode="constant", use_dataloader=False):
         self.path = path
         self.sample_rate = sample_rate
@@ -134,7 +134,8 @@ class A2MD(Dataset):
                                                           win_length=self.fft_size // 2, power=2, center=self.center,
                                                           pad_mode=self.pad_mode, normalized=False, onesided=True)
         self.filter_bank = torchaudio.transforms.MelScale(n_mels=self.n_mels, sample_rate=self.sample_rate,
-                                                          f_min=0.0, f_max=self.sample_rate / 2, n_stft=self.fft_size // 2 + 1)
+                                                          f_min=0.0, f_max=self.sample_rate / 2,
+                                                          n_stft=self.fft_size // 2 + 1)
 
     def __len__(self):
         return len(self.annotations)
