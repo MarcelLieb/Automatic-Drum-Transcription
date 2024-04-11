@@ -5,7 +5,9 @@ import numpy as np
 import torch
 import torchaudio
 from torch.utils.data import Dataset
-from torchaudio.transforms import Vol, SpeedPerturbation
+from torchaudio.transforms import SpeedPerturbation
+
+from dataset.dataset import audio_collate, Gain
 
 rbma_13_path = "./data/rbma_13/"
 
@@ -133,30 +135,8 @@ def get_dataloader(root, split, batch_size, num_workers, sample_rate=48000, hop_
     dataset = RBMA_13(root, split, sample_rate, hop_size, fft_size, label_shift=label_shift, **kwargs)
     is_train = split.lower() == "train"
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers,
-                                             collate_fn=collate_fn, drop_last=False, pin_memory=True)
+                                             collate_fn=audio_collate, drop_last=False, pin_memory=True)
     return dataloader
-
-
-def collate_fn(batch: list[tuple[torch.Tensor, torch.Tensor]]):
-    audio, annotation = zip(*batch)
-    audio = torch.nn.utils.rnn.pad_sequence(audio, batch_first=True, padding_value=0.0)
-    annotation = list(annotation)
-    annotation = torch.nn.utils.rnn.pad_sequence(annotation, batch_first=True, padding_value=-1)
-    audio = audio.permute(0, 2, 1)
-    annotation = annotation.permute(0, 2, 1)
-    return audio, annotation
-
-
-class Gain(torch.nn.Module):
-    def __init__(self, min_gain: float = -20.0, max_gain: float = -1):
-        super().__init__()
-        self.min_gain = min_gain
-        self.max_gain = max_gain
-
-    def forward(self, audio: torch.Tensor) -> torch.Tensor:
-        gain = random.uniform(self.min_gain, self.max_gain)
-        audio = Vol(gain, gain_type="db")(audio)
-        return audio
 
 
 if __name__ == '__main__':
@@ -171,10 +151,7 @@ if __name__ == '__main__':
     total_pos = torch.zeros(4)
     total_neg = torch.zeros(4)
     for i in range(len(dataset)):
-        audio, labels = dataset[i]
-        spec = spectrogram(audio)
-        log = torch.log1p(spec * 0.1)
-        mel = mel_scale(log)
+        mel, labels = dataset[i]
         spec_diff = mel[..., 1:] - mel[..., :-1]
         spec_diff = torch.clamp(spec_diff, min=0.0)
         spec_diff = torch.cat((torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1)
