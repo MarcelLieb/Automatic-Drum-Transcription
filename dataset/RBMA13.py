@@ -140,7 +140,7 @@ def get_dataloader(root, split, batch_size, num_workers, sample_rate=48000, hop_
 
 
 if __name__ == '__main__':
-    dataset = RBMA_13(rbma_13_path, "all", 48000, 480, 2048, label_shift=-0.01, pad_annotations=3)
+    dataset = RBMA_13("../data/rbma_13/", "all", 48000, 480, 2048, label_shift=-0.01, pad_annotations=3)
     spectrogram = torchaudio.transforms.Spectrogram(n_fft=2048, hop_length=480, win_length=1024, power=2, center=False,
                                                     pad_mode="constant", normalized=False, onesided=True)
     mel_scale = torchaudio.transforms.MelScale(n_mels=82, sample_rate=48000, n_stft=1025, f_min=0.0, f_max=20000,

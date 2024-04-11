@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 import os
 
 
-A2MD_PATH = "../data/a2md_public/"
+A2MD_PATH = "./data/a2md_public/"
 
 # Mapping identical to the one used in "Towards multi-instrument drum transcription"
 drum_midi_mapping = {
@@ -106,6 +106,7 @@ class A2MD(Dataset):
         self.split = split
         self.mapping = mapping
         self.use_dataloader = use_dataloader
+        self.time_shift = time_shift
 
         cut_off = {
             "L": 0.7,
@@ -158,6 +159,8 @@ class A2MD(Dataset):
         labels[0, beat_indices] = 1
         labels[1, down_beat_indices] = 1
 
+        drums = [drum + self.time_shift for drum in drums if drum is not None]
+
         drum_indices = [(drum * self.sample_rate) // self.hop_size for drum in drums]
         for i, drum_class in enumerate(drum_indices):
             drum_class = torch.tensor(drum_class, dtype=torch.long)
@@ -175,4 +178,4 @@ class A2MD(Dataset):
 
 
 if __name__ == '__main__':
-    _dataset = A2MD("S", mapping=five_class_mapping)
+    _dataset = A2MD("S", mapping=five_class_mapping, path="../data/a2md_public/")
