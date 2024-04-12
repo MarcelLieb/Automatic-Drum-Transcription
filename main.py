@@ -1,19 +1,16 @@
 import torch
 from torch import optim, nn
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from dataset.dataset import get_dataset
+from dataset.A2MD import five_class_mapping
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
 from model.model import ModelEmaV2
-from dataset.RBMA13 import rbma_13_path, get_dataloader
 
 
 def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float, mask: torch.Tensor = None) -> torch.Tensor:
-    """
-    @param labels: The label tensor that is returned by your data loader
-    @return: A tensor with the same shape as labels
-    """
-
     negatives = ~labels
     flattened = torch.flatten(labels, start_dim=1)
     num_positives = torch.sum(flattened, dim=1)
@@ -73,8 +70,6 @@ def step(
         optimizer: optim.Optimizer,
         audio_batch: torch.Tensor,
         lbl_batch: torch.Tensor,
-        negative_ratio: float,
-        negative_mining: bool = False,
         scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> (float, float):
     """Performs one update step for the model
@@ -86,12 +81,7 @@ def step(
 
     prediction = model(audio_batch)
     unfiltered = criterion(prediction, lbl_batch)
-    labels = (lbl_batch * (lbl_batch != -1)).bool()
     no_silence = unfiltered * (lbl_batch != -1)
-    # mask = hard_negative_mining(labels, no_silence, negative_ratio)
-    if negative_mining:
-        mask = get_random_sampling_mask(labels, negative_ratio, mask=(lbl_batch != -1))
-        no_silence = no_silence * mask
     filtered = no_silence.mean()
     loss = filtered
 
@@ -105,7 +95,7 @@ def step(
     return filtered.item(), over_detected.item()
 
 
-def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, criterion, device, neg_ratio: float) -> (float, float):
+def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) -> (float, float):
     """Evaluates the model on the specified dataset
 
     @return: The loss for the specified dataset. Return a float and not a PyTorch tensor
@@ -132,10 +122,9 @@ def evaluate(model: torch.nn.Module, dataloader: torch.utils.data.DataLoader, cr
 
 
 def main(
-        learning_rate: float = 5e-2,
-        epochs: int =  90,
-        batch_size: int = 3,
-        negative_ratio = 50,
+        learning_rate: float = 5e-4,
+        epochs: int =  10,
+        batch_size: int = 8,
         ema: bool = False,
         scheduler: bool = True,
         n_mels: int = 82,
@@ -144,23 +133,26 @@ def main(
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
 
-    print(f"Settings: Learning Rate: {learning_rate}, Epochs: {epochs}, Batch Size: {batch_size}, Negative Ratio: {negative_ratio}, EMA: {ema}, Scheduler: {scheduler}")
+    print(f"Settings: Learning Rate: {learning_rate}, Epochs: {epochs}, Batch Size: {batch_size}, EMA: {ema}, Scheduler: {scheduler}")
 
-    print("Initializing Spectral Flux")
+    num_workers = min(8, batch_size)
+
+    mapping = five_class_mapping
+    dataloader_train, dataloader_val, dataloader_test = get_dataset(
+        batch_size, num_workers,
+        splits=[0.8, 0.1, 0.1], version="S",
+        time_shift=0.02, mapping=mapping,
+    )
+
     model = SpecFlux(
         eps=1e-10,
         lamb=0.1,
         n_mels=82,
     )
-    model = CNN(n_mels=n_mels, n_classes=4)
+    model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2)
     model.to(device)
-    num_workers = min(8, batch_size)
 
     ema_model = ModelEmaV2(model, decay=0.8, device=device) if ema else None
-
-    print("Initializing Dataloader")
-    dataloader_train = get_dataloader(rbma_13_path, "train_big", batch_size, num_workers, 48000, 480, 2048, label_shift=0.02, pad_annotations=1, n_mels=n_mels)
-    dataloader_val = get_dataloader(rbma_13_path, "test", min(batch_size, 9), min(num_workers, 9), 48000, 480, 2048, label_shift=0.02, pad_annotations=1, n_mels=n_mels)
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25
@@ -189,14 +181,13 @@ def main(
                 optimizer=optimizer,
                 audio_batch=audio,
                 lbl_batch=lbl,
-                negative_ratio=negative_ratio,
                 scheduler=scheduler
             )
             if ema_model is not None:
                 ema_model.update(model)
             total_loss += loss
             total_over += over
-        val_loss, val_over = evaluate(model if ema_model is None else ema_model.module, dataloader_val, error, device, negative_ratio)
+        val_loss, val_over = evaluate(model if ema_model is None else ema_model.module, dataloader_val, error, device)
         print(f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
         last_improvement += 1
         if val_loss <= best_loss:
