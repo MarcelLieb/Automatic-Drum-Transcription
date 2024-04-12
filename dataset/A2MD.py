@@ -155,14 +155,17 @@ class A2MD(Dataset):
 
         beat_indices = (beats * self.sample_rate) // self.hop_size
         beat_indices = torch.tensor(beat_indices, dtype=torch.long)
+        beat_indices = beat_indices[beat_indices < frames]
         down_beat_indices = (down_beats * self.sample_rate) // self.hop_size
         down_beat_indices = torch.tensor(down_beat_indices, dtype=torch.long)
+        down_beat_indices = down_beat_indices[down_beat_indices < frames]
         labels[0, beat_indices] = 1
         labels[1, down_beat_indices] = 1
 
         drums = [drum + self.time_shift for drum in drums if drum is not None]
 
         drum_indices = [(drum * self.sample_rate) // self.hop_size for drum in drums]
+        drum_indices = [drum[drum < frames] for drum in drum_indices]
         for i, drum_class in enumerate(drum_indices):
             drum_class = torch.tensor(drum_class, dtype=torch.long)
             labels[2 + i, drum_class] = 1
