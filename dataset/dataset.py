@@ -1,7 +1,12 @@
 import random
+from typing import Generic, TypeVar
 
 import torch
 from torchaudio.transforms import Vol
+from torch.utils.data import Dataset, Subset
+
+from dataset.A2MD import A2MD, five_class_mapping
+from torch.utils.data import DataLoader
 
 
 def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor]]):
@@ -30,3 +35,27 @@ def get_dataloader(dataset, batch_size, num_workers, is_train=False):
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers,
                                              collate_fn=audio_collate, drop_last=False, pin_memory=True)
     return dataloader
+
+
+T = TypeVar('T')
+
+
+def get_splits(dataset: Dataset[Generic[T]], splits: list[float]) -> list[Subset[T]]:
+    generator = torch.Generator().manual_seed(42)
+    return torch.utils.data.random_split(dataset, splits, generator=generator)
+
+
+def get_dataset(batch_size, num_workers, splits=None,
+                version="L",time_shift=0.0, mapping=five_class_mapping,
+                sample_rate=44100, hop_size=441, fft_size=2048, n_mels=82, center=False, pad_mode="constant"
+                ) -> tuple[DataLoader[tuple[torch.Tensor, torch.Tensor]], DataLoader[tuple[torch.Tensor, torch.Tensor]], DataLoader[tuple[torch.Tensor, torch.Tensor]]]:
+    if splits is None:
+        splits = [0.8, 0.1, 0.1]
+    A2md = A2MD(version, mapping=mapping, path="./data/a2md_public/", time_shift=time_shift,
+                sample_rate=sample_rate, use_dataloader=True,
+                hop_size=hop_size, fft_size=fft_size, n_mels=n_mels, center=center, pad_mode=pad_mode)
+    train, val, test = get_splits(A2md, splits)
+    dataloader_train = get_dataloader(train, batch_size, num_workers, is_train=True)
+    dataloader_val = get_dataloader(val, batch_size, num_workers, is_train=False)
+    dataloader_test = get_dataloader(test, batch_size, num_workers, is_train=False)
+    return dataloader_train, dataloader_val, dataloader_test
