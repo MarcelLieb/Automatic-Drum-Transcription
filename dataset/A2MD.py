@@ -91,7 +91,7 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...]
     return drum_classes
 
 
-class A2MD(Dataset):
+class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     def __init__(self, split: str, path: Path | str = A2MD_PATH,
                  mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0, sample_rate=44100,
                  hop_size=512, fft_size=2048, n_mels=82, center=False,
@@ -107,6 +107,7 @@ class A2MD(Dataset):
         self.mapping = mapping
         self.use_dataloader = use_dataloader
         self.time_shift = time_shift
+        self.n_classes = len(mapping) + 2
 
         cut_off = {
             "L": 0.7,
@@ -150,8 +151,7 @@ class A2MD(Dataset):
 
         frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
 
-        # Labels = n_drum_classes + 2 (beats, downbeats)
-        labels = torch.zeros((len(self.mapping) + 2, frames), dtype=torch.int64)
+        labels = torch.zeros((self.n_classes, frames), dtype=torch.float32)
 
         beat_indices = (beats * self.sample_rate) // self.hop_size
         beat_indices = torch.tensor(beat_indices, dtype=torch.long)
@@ -162,7 +162,7 @@ class A2MD(Dataset):
         labels[0, beat_indices] = 1
         labels[1, down_beat_indices] = 1
 
-        drums = [drum + self.time_shift for drum in drums if drum is not None]
+        drums = [drum + self.time_shift for drum in drums]
 
         drum_indices = [(drum * self.sample_rate) // self.hop_size for drum in drums]
         drum_indices = [drum[drum < frames] for drum in drum_indices]
@@ -183,3 +183,5 @@ class A2MD(Dataset):
 
 if __name__ == '__main__':
     _dataset = A2MD("S", mapping=five_class_mapping, path="../data/a2md_public/")
+    _test = _dataset[0]
+    _audio, _labels = _test
