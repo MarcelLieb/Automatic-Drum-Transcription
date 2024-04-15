@@ -46,9 +46,11 @@ def get_splits(dataset: Dataset[Generic[T]], splits: list[float]) -> list[Subset
 
 
 def get_dataset(batch_size, num_workers, splits=None,
-                version="L",time_shift=0.0, mapping=five_class_mapping,
-                sample_rate=44100, hop_size=441, fft_size=2048, n_mels=82, center=False, pad_mode="constant"
-                ) -> tuple[DataLoader[tuple[torch.Tensor, torch.Tensor]], DataLoader[tuple[torch.Tensor, torch.Tensor]], DataLoader[tuple[torch.Tensor, torch.Tensor]]]:
+                version="L", time_shift=0.0, mapping=five_class_mapping,
+                sample_rate=44100, hop_size=256, fft_size=1024, n_mels=82, center=False, pad_mode="constant"
+                ) -> tuple[
+    DataLoader[tuple[torch.Tensor, torch.Tensor]], DataLoader[tuple[torch.Tensor, torch.Tensor]], DataLoader[
+        tuple[torch.Tensor, torch.Tensor]]]:
     if splits is None:
         splits = [0.8, 0.1, 0.1]
     A2md = A2MD(version, mapping=mapping, path="./data/a2md_public/", time_shift=time_shift,
