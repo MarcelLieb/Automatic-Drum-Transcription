@@ -59,8 +59,21 @@ five_class_mapping = (
     ("SD", "SS", "CLP"),  # Snare Drum + alike
     ("CHH", "PHH", "OHH"),  # Hi-Hat
     ("LT", "MT", "HT"),  # Toms
-    ("CRC", "SPC", "CHC", "RD", "RB")  # Cymbal + Ride
+    ("CRC", "SPC", "CHC", "RD")  # Cymbal + Ride
 )
+
+eight_class_mapping = (
+    ("BD",),  # Bass Drum
+    ("SD", "SS", "CLP"),  # Snare Drum + alike
+    ("LT", "MT", "HT"),  # Toms
+    ("CHH", "PHH", "OHH"),  # Hi-Hat
+    ("CRC", "SPC", "CHC"),  # Cymbal
+    ("RD", ),  # Ride
+    ("RB", "CB"),  # Bell
+    ("CL", )  # Clave/Sticks
+)
+
+eighteen_class_mapping = tuple(drum_midi_mapping.keys())
 
 
 def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
