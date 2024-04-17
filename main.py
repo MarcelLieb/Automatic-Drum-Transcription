@@ -7,6 +7,7 @@ from dataset.dataset import get_dataset
 from dataset.A2MD import five_class_mapping
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
+from model import ModelEmaV2
 
 
 def step(
@@ -30,7 +31,8 @@ def step(
     filtered = no_silence.mean()
     loss = filtered
 
-    over_detected = torch.sum(prediction[lbl_batch != -1].cpu().detach() > 0) - torch.sum(lbl_batch[lbl_batch != -1].cpu().detach())
+    over_detected = torch.sum(prediction[lbl_batch != -1].cpu().detach() > 0) - torch.sum(
+        lbl_batch[lbl_batch != -1].cpu().detach())
 
     loss.backward()
     optimizer.step()
@@ -55,9 +57,6 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
             lbl = lbl.to(device)
             prediction = model(audio)
             loss = criterion(prediction, lbl)
-            labels = (lbl * (lbl != -1)).bool()
-            # mask = get_random_sampling_mask(labels, neg_ratio // 16, mask=(lbl != -1))
-            # loss = (loss * mask).mean()
             loss = loss.mean()
             total_loss += loss.item()
             over_detected = torch.sum(prediction[lbl != -1].cpu().detach() > 0) - torch.sum(
@@ -67,37 +66,35 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
 
 
 def main(
-        learning_rate: float = 5e-4,
-        epochs: int =  10,
-        batch_size: int = 8,
+        learning_rate: float = 1e-4,
+        epochs: int = 20,
+        batch_size: int = 4,
         ema: bool = False,
         scheduler: bool = True,
-        n_mels: int = 82,
+        n_mels: int = 84,
         early_stopping: bool = False,
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
 
-    print(f"Settings: Learning Rate: {learning_rate}, Epochs: {epochs}, Batch Size: {batch_size}, EMA: {ema}, Scheduler: {scheduler}")
+    print(
+        f"Settings: Learning Rate: {learning_rate}, Epochs: {epochs}, Batch Size: {batch_size}, EMA: {ema}, Scheduler: {scheduler}")
 
     num_workers = min(8, batch_size)
 
     mapping = five_class_mapping
     dataloader_train, dataloader_val, dataloader_test = get_dataset(
         batch_size, num_workers,
-        splits=[0.8, 0.1, 0.1], version="S",
+        splits=[0.8, 0.1, 0.1],
+        version="M",
         time_shift=0.02, mapping=mapping,
+        n_mels=n_mels,
     )
 
-    model = SpecFlux(
-        eps=1e-10,
-        lamb=0.1,
-        n_mels=82,
-    )
     model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2)
     model.to(device)
 
-    ema_model = ModelEmaV2(model, decay=0.8, device=device) if ema else None
+    ema_model = ModelEmaV2(model, decay=0.8, device="cpu") if ema else None
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25
@@ -133,7 +130,8 @@ def main(
             total_loss += loss
             total_over += over
         val_loss, val_over = evaluate(model if ema_model is None else ema_model.module, dataloader_val, error, device)
-        print(f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
+        print(
+            f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
         last_improvement += 1
         if val_loss <= best_loss:
             best_loss = val_loss
