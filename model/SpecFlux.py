@@ -1,10 +1,8 @@
-import librosa.filters
 import torch
 import torch.nn as nn
-import torchaudio
 import torch.nn.utils.parametrize as P
 
-from model.model import CausalMaxPool1d, CausalAvgPool1d
+from model import CausalMaxPool1d, CausalAvgPool1d
 
 
 class SpecFlux(nn.Module):

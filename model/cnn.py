@@ -1,6 +1,6 @@
 from torch import nn
-from torch.nn import functional as F
-from model.model import CausalConv2d
+from torch.nn import functional as f
+from model import Conv2dNormActivationPool
 
 
 class CNN(nn.Module):

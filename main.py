@@ -7,61 +7,6 @@ from dataset.dataset import get_dataset
 from dataset.A2MD import five_class_mapping
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
-from model.model import ModelEmaV2
-
-
-def get_random_sampling_mask(labels: torch.Tensor, neg_ratio: float, mask: torch.Tensor = None) -> torch.Tensor:
-    negatives = ~labels
-    flattened = torch.flatten(labels, start_dim=1)
-    num_positives = torch.sum(flattened, dim=1)
-    num_negatives = num_positives * neg_ratio
-    max_samples = flattened.shape[1]
-    # make sure negative examples are bounded by available examples
-    num_negatives = torch.min(max_samples - num_positives, num_negatives)
-    random = torch.rand_like(labels.float()) * negatives
-    if mask is None:
-        mask = torch.ones_like(labels)
-    random = random * mask
-    out = torch.zeros_like(labels)
-    for i in range(labels.shape[0]):
-        random_flat = torch.flatten(random[i])
-        _, indices = torch.topk(random_flat, int(num_negatives[i]), dim=0)
-        mask = torch.zeros_like(random_flat)
-        mask[indices] = 1
-        mask = torch.reshape(mask, labels[i].shape)
-        mask = mask + labels[i]
-        assert torch.sum(mask) == num_positives[i] + num_negatives[i]
-        out[i] = mask
-    assert out.shape == labels.shape
-    out = out * (labels.bool() | mask.bool())
-    return out
-
-
-def hard_negative_mining(labels: torch.Tensor, predictions: torch.Tensor, neg_ratio: float) -> torch.Tensor:
-    """
-    @param labels: The label tensor that is returned by your data loader
-    @param predictions: The prediction tensor that is returned by your model
-    @return: A tensor with the same shape as labels
-    """
-    negatives = ~labels
-    flattened = torch.flatten(labels, start_dim=1)
-    num_positives = torch.sum(flattened, dim=1)
-    num_negatives = num_positives * neg_ratio
-    max_samples = flattened.shape[1]
-    # make sure negative examples are bounded by available examples
-    num_negatives = torch.min(max_samples - num_positives, num_negatives)
-    out = torch.zeros_like(labels)
-    for i in range(labels.shape[0]):
-        negative = ((predictions[i]) * negatives[0]).flatten()
-        _, indices = torch.topk(negative, int(num_negatives[i]), largest=True, dim=0)
-        mask = torch.zeros_like(negative)
-        mask[indices] = 1
-        mask = torch.reshape(mask, labels[i].shape)
-        mask = mask + labels[i]
-        assert torch.sum(mask) == num_positives[i] + num_negatives[i]
-        out[i] = mask
-
-    return out
 
 
 def step(
