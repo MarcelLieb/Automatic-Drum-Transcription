@@ -57,13 +57,16 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
     model.eval()
     total_loss = 0
     total_over_detected = 0
+    device_str = str(device)
+    device_str = "cuda" if "cuda" in device_str else "cpu"
     with torch.no_grad():
         for data in tqdm(dataloader, total=len(dataloader)):
             audio, lbl = data
             audio = audio.to(device)
             lbl = lbl.to(device)
-            prediction = model(audio)
-            loss = criterion(prediction, lbl)
+            with torch.autocast(device_type=device_str, dtype=torch.float16):
+                prediction = model(audio)
+                loss = criterion(prediction, lbl)
             loss = loss.mean()
             total_loss += loss.item()
             over_detected = torch.sum(prediction[lbl != -1].cpu().detach() > 0) - torch.sum(
@@ -75,7 +78,7 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
 def main(
         learning_rate: float = 1e-4,
         epochs: int = 20,
-        batch_size: int = 4,
+        batch_size: int = 6,
         ema: bool = False,
         scheduler: bool = True,
         n_mels: int = 84,
