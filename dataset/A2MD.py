@@ -193,6 +193,7 @@ class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
 
         spectrum = self.spectrum(audio)
         mel = self.filter_bank(spectrum)
+        mel = torch.log1p(mel)
 
         if self.use_dataloader:
             # allows use of torch.nn.utils.rnn.pad_sequence
