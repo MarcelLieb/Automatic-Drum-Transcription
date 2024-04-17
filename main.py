@@ -16,6 +16,7 @@ def step(
         optimizer: optim.Optimizer,
         audio_batch: torch.Tensor,
         lbl_batch: torch.Tensor,
+        scaler: torch.cuda.amp.GradScaler,
         scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> (float, float):
     """Performs one update step for the model
@@ -25,17 +26,23 @@ def step(
     model.train()
     optimizer.zero_grad()
 
-    prediction = model(audio_batch)
-    unfiltered = criterion(prediction, lbl_batch)
-    no_silence = unfiltered * (lbl_batch != -1)
-    filtered = no_silence.mean()
-    loss = filtered
+    device = str(audio_batch.device)
+    device = "cuda" if "cuda" in device else "cpu"
+
+    with torch.autocast(device_type=device, dtype=torch.float16):
+        prediction = model(audio_batch)
+        unfiltered = criterion(prediction, lbl_batch)
+        no_silence = unfiltered * (lbl_batch != -1)
+        filtered = no_silence.mean()
+        loss = filtered
 
     over_detected = torch.sum(prediction[lbl_batch != -1].cpu().detach() > 0) - torch.sum(
         lbl_batch[lbl_batch != -1].cpu().detach())
 
-    loss.backward()
-    optimizer.step()
+    scaler.scale(loss).backward()
+    scaler.step(optimizer)
+    scaler.update()
+
     if scheduler is not None:
         scheduler.step()
 
@@ -105,6 +112,7 @@ def main(
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
                                               epochs=epochs) if scheduler else None
     error = torch.nn.MSELoss(reduction="none")
+    scaler = torch.cuda.amp.GradScaler()
 
     best_loss = float("inf")
     best_detection = float("inf")
@@ -124,6 +132,7 @@ def main(
                 optimizer=optimizer,
                 audio_batch=audio,
                 lbl_batch=lbl,
+                scaler=scaler,
                 scheduler=scheduler
             )
             if ema_model is not None:
