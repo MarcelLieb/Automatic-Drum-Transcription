@@ -116,8 +116,9 @@ def get_annotation(path: str, folder: str, identifier: str, mapping: tuple[tuple
 
 class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     def __init__(self, split: str, path: Path | str = A2MD_PATH,
-                 mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0, sample_rate=44100,
-                 hop_size=512, fft_size=2048, n_mels=82, center=False,
+                 pad_annotation: bool = True, pad_value: float = 0.5,
+                 mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0,
+                 sample_rate=44100, hop_size=512, fft_size=2048, n_mels=82, center=False,
                  pad_mode="constant", use_dataloader=False):
         self.path = path
         self.sample_rate = sample_rate
@@ -131,6 +132,8 @@ class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         self.use_dataloader = use_dataloader
         self.time_shift = time_shift
         self.n_classes = len(mapping) + 2
+        self.pad = torch.nn.MaxPool1d(3, stride=1, padding=1) if pad_annotation else None
+        self.pad_value = pad_value
 
         cut_off = {
             "L": 0.7,
@@ -191,6 +194,9 @@ class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
             drum_class = torch.tensor(drum_class, dtype=torch.long)
             labels[2 + i, drum_class] = 1
 
+        if self.pad is not None:
+            padded = self.pad(labels.unsqueeze(0)).squeeze(0) * self.pad_value
+            labels = torch.maximum(labels, padded)
         spectrum = self.spectrum(audio)
         mel = self.filter_bank(spectrum)
         mel = torch.log1p(mel)
