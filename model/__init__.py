@@ -90,5 +90,6 @@ class Conv2dNormActivationPool(nn.Module):
         x = self.conv(x)
         x = self.norm(x)
         x = self.activation(x)
-        x = self.pooling(x)
+        if self.pooling is not None:
+            x = self.pooling(x)
         return x
