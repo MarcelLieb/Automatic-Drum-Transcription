@@ -76,3 +76,19 @@ class CausalAvgPool1d(nn.Module):
         x = nn.functional.pad(x, self.padding)
         x = self.avg_pool(x)
         return x
+
+
+class Conv2dNormActivationPool(nn.Module):
+    def __init__(self, causal, in_channels, out_channels, kernel_size, activation=nn.ELU(), pooling=nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1)), **kwargs):
+        super(Conv2dNormActivationPool, self).__init__()
+        self.conv = CausalConv2d(in_channels, out_channels, kernel_size, **kwargs) if causal else nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
+        self.activation = activation
+        self.norm = nn.BatchNorm2d(out_channels)
+        self.pooling = pooling
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.norm(x)
+        x = self.activation(x)
+        x = self.pooling(x)
+        return x
