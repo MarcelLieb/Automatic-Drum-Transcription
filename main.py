@@ -3,7 +3,7 @@ from torch import optim, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataset.dataset import get_dataset
+from dataset import get_dataset
 from dataset.A2MD import five_class_mapping
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN

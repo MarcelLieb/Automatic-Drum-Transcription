@@ -7,7 +7,7 @@ import torchaudio
 from torch.utils.data import Dataset
 from torchaudio.transforms import SpeedPerturbation
 
-from dataset.dataset import audio_collate, Gain
+from dataset import audio_collate, Gain
 
 rbma_13_path = "./data/rbma_13/"
 
