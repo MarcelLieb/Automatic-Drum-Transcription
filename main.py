@@ -73,6 +73,7 @@ def main(
         scheduler: bool = True,
         n_mels: int = 84,
         early_stopping: bool = False,
+        version: str = "L"
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -86,7 +87,7 @@ def main(
     dataloader_train, dataloader_val, dataloader_test = get_dataset(
         batch_size, num_workers,
         splits=[0.8, 0.1, 0.1],
-        version="M",
+        version=version,
         time_shift=0.02, mapping=mapping,
         n_mels=n_mels,
     )
