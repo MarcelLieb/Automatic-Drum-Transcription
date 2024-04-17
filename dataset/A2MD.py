@@ -68,9 +68,9 @@ eight_class_mapping = (
     ("LT", "MT", "HT"),  # Toms
     ("CHH", "PHH", "OHH"),  # Hi-Hat
     ("CRC", "SPC", "CHC"),  # Cymbal
-    ("RD", ),  # Ride
+    ("RD",),  # Ride
     ("RB", "CB"),  # Bell
-    ("CL", )  # Clave/Sticks
+    ("CL",)  # Clave/Sticks
 )
 
 eighteen_class_mapping = tuple(drum_midi_mapping.keys())
@@ -104,6 +104,16 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...]
     return drum_classes
 
 
+def get_annotation(path: str, folder: str, identifier: str, mapping: tuple[tuple[str, ...], ...] = three_class_mapping):
+    midi = pretty_midi.PrettyMIDI(midi_file=os.path.join(path, "align_mid", folder, f"align_mid_{identifier}.mid"))
+    drums = get_drums(midi, mapping=mapping)
+    if drums is None:
+        return None
+    beats = midi.get_beats()
+    down_beats = midi.get_downbeats()
+    return folder, identifier, drums, beats, down_beats
+
+
 class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
     def __init__(self, split: str, path: Path | str = A2MD_PATH,
                  mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0, sample_rate=44100,
@@ -130,19 +140,17 @@ class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
 
         folders = [f"dist0p{x:02}" for x in range(0, int(cut_off[split] * 100), 10)]
 
-        self.annotations = []
-
+        args = []
         for folder in folders:
             for root, dirs, files in os.walk(os.path.join(path, "align_mid", folder)):
                 for file in files:
                     identifier = "_".join(file.split(".")[0].split("_")[2:4])
-                    midi = pretty_midi.PrettyMIDI(midi_file=os.path.join(root, file))
-                    drums = get_drums(midi, mapping=self.mapping)
-                    if drums is None:
-                        continue
-                    beats = midi.get_beats()
-                    down_beats = midi.get_downbeats()
-                    self.annotations.append((folder, identifier, drums, beats, down_beats))
+                    args.append((path, folder, identifier, mapping))
+
+        with torch.multiprocessing.Pool() as pool:
+            self.annotations = pool.starmap(get_annotation, args)
+            # filter tracks without drums
+            self.annotations = [annotation for annotation in self.annotations if annotation is not None]
 
         self.spectrum = torchaudio.transforms.Spectrogram(n_fft=self.fft_size, hop_length=self.hop_size,
                                                           win_length=self.fft_size // 2, power=2, center=self.center,
