@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
@@ -5,6 +6,7 @@ from tqdm import tqdm
 
 from dataset import get_dataset
 from dataset.A2MD import five_class_mapping
+from evallib import peak_pick_max_mean
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
 from model import ModelEmaV2
@@ -59,6 +61,8 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
     total_over_detected = 0
     device_str = str(device)
     device_str = "cuda" if "cuda" in device_str else "cpu"
+    predictions = []
+    labels = []
     with torch.no_grad():
         for data in tqdm(dataloader, total=len(dataloader)):
             audio, lbl = data
@@ -67,10 +71,16 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
             with torch.autocast(device_type=device_str, dtype=torch.float16):
                 prediction = model(audio)
                 loss = criterion(prediction, lbl)
+            peaks = peak_pick_max_mean(prediction.cpu().detach().float())
+            predictions.extend(peaks)
+            labels.extend(lbl)
             loss = loss.mean()
             total_loss += loss.item()
-            over_detected = torch.sum(prediction[lbl != -1].cpu().detach() > 0) - torch.sum(
-                lbl[lbl != -1].cpu().detach())
+            detected = 0
+            for i, j in np.ndindex(lbl.shape[:2]):
+                detected += peaks[i][j].shape[1]
+            total_labels = torch.sum(lbl != -1).cpu().detach()
+            over_detected = (detected - total_labels) / total_labels
             total_over_detected += over_detected.item()
     return total_loss / len(dataloader), total_over_detected / len(dataloader)
 
@@ -78,7 +88,7 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
 def main(
         learning_rate: float = 1e-4,
         epochs: int = 20,
-        batch_size: int = 6,
+        batch_size: int = 2,
         ema: bool = False,
         scheduler: bool = True,
         n_mels: int = 84,
@@ -127,7 +137,7 @@ def main(
     for epoch in range(epochs):
         total_loss = 0
         total_over = 0
-        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="batch",
+        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="song",
                             unit_scale=batch_size, smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
                             desc="Training"):
             audio, lbl = data
@@ -151,7 +161,7 @@ def main(
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t "
-            f"Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}"
+            f"Val Loss: {val_loss * 100:.4f} Val Over: {val_over * 100:.4f}"
         )
         last_improvement += 1
         if val_loss <= best_loss:
