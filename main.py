@@ -89,7 +89,10 @@ def main(
     device = torch.device(device)
 
     print(
-        f"Settings: Learning Rate: {learning_rate}, Epochs: {epochs}, Batch Size: {batch_size}, EMA: {ema}, Scheduler: {scheduler}")
+        f"Settings: Learning Rate: {learning_rate}, "
+        f"Epochs: {epochs}, Batch Size: {batch_size}, "
+        f"EMA: {ema}, Scheduler: {scheduler}"
+    )
 
     num_workers = min(8, batch_size)
 
@@ -124,7 +127,9 @@ def main(
     for epoch in range(epochs):
         total_loss = 0
         total_over = 0
-        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train)):
+        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="batch",
+                            unit_scale=batch_size, smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
+                            desc="Training"):
             audio, lbl = data
             audio = audio.to(device)
             lbl = lbl.to(device)
@@ -144,7 +149,10 @@ def main(
             total_over += over
         val_loss, val_over = evaluate(model if ema_model is None else ema_model.module, dataloader_val, error, device)
         print(
-            f"Epoch: {epoch + 1} Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}")
+            f"Epoch: {epoch + 1} "
+            f"Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t "
+            f"Val Loss: {val_loss * 100:.4f} Val Over: {val_over: .0f}"
+        )
         last_improvement += 1
         if val_loss <= best_loss:
             best_loss = val_loss
