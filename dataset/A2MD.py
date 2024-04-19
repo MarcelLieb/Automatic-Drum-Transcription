@@ -73,7 +73,7 @@ eight_class_mapping = (
     ("CL",)  # Clave/Sticks
 )
 
-eighteen_class_mapping = tuple(drum_midi_mapping.keys())
+eighteen_class_mapping = tuple([(key, ) for key in drum_midi_mapping.keys()])
 
 
 def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
