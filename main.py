@@ -3,10 +3,12 @@ import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 
 from dataset import get_dataset
-from dataset.A2MD import five_class_mapping
-from evallib import peak_pick_max_mean
+from dataset.A2MD import five_class_mapping, eighteen_class_mapping, three_class_mapping, three_class_standard_mapping, \
+    A2MD
+from evallib import peak_pick_max_mean, calculate_pr
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
 from model import ModelEmaV2
@@ -20,7 +22,7 @@ def step(
         lbl_batch: torch.Tensor,
         scaler: torch.cuda.amp.GradScaler,
         scheduler: optim.lr_scheduler.LRScheduler = None,
-) -> (float, float):
+) -> float:
     """Performs one update step for the model
 
     @return: The loss for the specified batch. Return a float and not a PyTorch tensor
@@ -38,9 +40,6 @@ def step(
         filtered = no_silence.mean()
         loss = filtered
 
-    over_detected = torch.sum(prediction[lbl_batch != -1].cpu().detach() > 0) - torch.sum(
-        lbl_batch[lbl_batch != -1].cpu().detach())
-
     scaler.scale(loss).backward()
     scaler.step(optimizer)
     scaler.update()
@@ -48,21 +47,22 @@ def step(
     if scheduler is not None:
         scheduler.step()
 
-    return filtered.item(), over_detected.item()
+    return filtered.item()
 
 
-def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) -> (float, float):
+def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criterion, device) -> (float, float):
     """Evaluates the model on the specified dataset
 
     @return: The loss for the specified dataset. Return a float and not a PyTorch tensor
     """
     model.eval()
     total_loss = 0
-    total_over_detected = 0
     device_str = str(device)
     device_str = "cuda" if "cuda" in device_str else "cpu"
+    dataset: A2MD = dataloader.dataset.dataset
+    sample_rate, hop_size = dataset.sample_rate, dataset.hop_size
     predictions = []
-    labels = []
+    groundtruth = []
     with torch.no_grad():
         for data in tqdm(dataloader, total=len(dataloader)):
             audio, lbl, gts = data
@@ -71,9 +71,9 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
             with torch.autocast(device_type=device_str, dtype=torch.float16):
                 prediction = model(audio)
                 loss = criterion(prediction, lbl)
-            peaks = peak_pick_max_mean(prediction.cpu().detach().float())
+            peaks = peak_pick_max_mean(prediction.cpu().detach().float(), sample_rate, hop_size)
             predictions.extend(peaks)
-            labels.extend(lbl)
+            groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
             detected = 0
@@ -131,12 +131,11 @@ def main(
     scaler = torch.cuda.amp.GradScaler()
 
     best_loss = float("inf")
-    best_detection = float("inf")
+    best_score = float("inf")
     last_improvement = 0
     print("Starting Training")
     for epoch in range(epochs):
         total_loss = 0
-        total_over = 0
         for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="song",
                             unit_scale=batch_size, smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
                             desc="Training"):
@@ -144,7 +143,7 @@ def main(
             audio = audio.to(device)
             lbl = lbl.to(device)
 
-            loss, over = step(
+            loss = step(
                 model=model,
                 criterion=error,
                 optimizer=optimizer,
@@ -156,19 +155,19 @@ def main(
             if ema_model is not None:
                 ema_model.update(model)
             total_loss += loss
-            total_over += over
-        val_loss, val_over = evaluate(model if ema_model is None else ema_model.module, dataloader_val, error, device)
+        val_loss, f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_val, error,
+                                     device)
         print(
             f"Epoch: {epoch + 1} "
-            f"Loss: {total_loss / len(dataloader_train) * 100:.4f} Over: {total_over / len(dataloader_train): .0f}\t "
-            f"Val Loss: {val_loss * 100:.4f} Val Over: {val_over * 100:.4f}"
+            f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
+            f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score * 100:.4f}"
         )
         last_improvement += 1
         if val_loss <= best_loss:
             best_loss = val_loss
             last_improvement = 0
-            if abs(val_over) <= abs(best_detection):
-                best_detection = val_over
+            if abs(f_score) <= abs(best_score):
+                best_score = f_score
         if last_improvement > 10 and early_stopping:
             break
 
