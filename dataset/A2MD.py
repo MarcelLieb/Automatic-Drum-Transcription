@@ -183,16 +183,17 @@ class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         down_beat_indices = (down_beats * self.sample_rate) // self.hop_size
         down_beat_indices = torch.tensor(down_beat_indices, dtype=torch.long)
         down_beat_indices = down_beat_indices[down_beat_indices < frames]
-        labels[0, beat_indices] = 1
-        labels[1, down_beat_indices] = 1
+        labels[0, down_beat_indices] = 1
+        labels[1, beat_indices] = 1
 
-        drums = [drum + self.time_shift for drum in drums]
+        hop_length = self.hop_size / self.sample_rate
 
         drum_indices = [(drum * self.sample_rate) // self.hop_size for drum in drums]
         drum_indices = [drum[drum < frames] for drum in drum_indices]
         for i, drum_class in enumerate(drum_indices):
-            drum_class = torch.tensor(drum_class, dtype=torch.long)
-            labels[2 + i, drum_class] = 1
+            for j in range(round(self.time_shift // hop_length) + 1):
+                shifted_drum_class = drum_class + j
+                labels[2 + i, shifted_drum_class[shifted_drum_class < frames]] = 1
 
         if self.pad is not None:
             padded = self.pad(labels.unsqueeze(0)).squeeze(0) * self.pad_value
