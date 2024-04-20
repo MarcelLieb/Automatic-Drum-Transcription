@@ -81,7 +81,7 @@ class CausalAvgPool1d(nn.Module):
 class Conv2dNormActivationPool(nn.Module):
     def __init__(self, causal, in_channels, out_channels, kernel_size, activation=nn.ELU(), pooling=nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1)), **kwargs):
         super(Conv2dNormActivationPool, self).__init__()
-        self.conv = CausalConv2d(in_channels, out_channels, kernel_size, **kwargs) if causal else nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
+        self.conv = CausalConv2d(in_channels, out_channels, kernel_size, bias=False, **kwargs) if causal else nn.Conv2d(in_channels, out_channels, kernel_size, bias=False, **kwargs)
         self.activation = activation
         self.norm = nn.BatchNorm2d(out_channels)
         self.pooling = pooling
@@ -98,10 +98,10 @@ class Conv2dNormActivationPool(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=(3, 3), dilation=1, causal=True, **kwargs):
         super(ResidualBlock, self).__init__()
-        self.conv1 = CausalConv2d(in_channels, out_channels, kernel_size, dilation=dilation, **kwargs) \
-            if causal else nn.Conv2d(in_channels, out_channels, kernel_size, dilation=dilation, **kwargs)
-        self.conv2 = CausalConv2d(out_channels, out_channels, kernel_size, dilation=dilation, **kwargs) \
-            if causal else nn.Conv2d(out_channels, out_channels, kernel_size, dilation=dilation, **kwargs)
+        self.conv1 = CausalConv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs) \
+            if causal else nn.Conv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs)
+        self.conv2 = CausalConv2d(out_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs) \
+            if causal else nn.Conv2d(out_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs)
         self.norm1 = nn.BatchNorm2d(out_channels)
         self.norm2 = nn.BatchNorm2d(out_channels)
         self.activation = nn.ELU()
