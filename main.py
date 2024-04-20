@@ -104,7 +104,7 @@ def main(
         f"EMA: {ema}, Scheduler: {scheduler}"
     )
 
-    num_workers = min(8, batch_size)
+    num_workers = 16
 
     mapping = five_class_mapping
     dataloader_train, dataloader_val, dataloader_test = get_dataset(
