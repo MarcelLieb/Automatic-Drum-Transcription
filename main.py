@@ -65,7 +65,7 @@ def evaluate(model: torch.nn.Module, dataloader: DataLoader, criterion, device) 
     labels = []
     with torch.no_grad():
         for data in tqdm(dataloader, total=len(dataloader)):
-            audio, lbl = data
+            audio, lbl, gts = data
             audio = audio.to(device)
             lbl = lbl.to(device)
             with torch.autocast(device_type=device_str, dtype=torch.float16):
@@ -140,7 +140,7 @@ def main(
         for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="song",
                             unit_scale=batch_size, smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
                             desc="Training"):
-            audio, lbl = data
+            audio, lbl, _ = data
             audio = audio.to(device)
             lbl = lbl.to(device)
 

@@ -114,7 +114,7 @@ def get_annotation(path: str, folder: str, identifier: str, mapping: tuple[tuple
     return folder, identifier, drums, beats, down_beats
 
 
-class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
+class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
     def __init__(self, split: str, path: Path | str = A2MD_PATH,
                  pad_annotation: bool = True, pad_value: float = 0.5,
                  mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0,
@@ -202,12 +202,14 @@ class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         mel = self.filter_bank(spectrum)
         mel = torch.log1p(mel)
 
+        gt_labels = [down_beats, beats, *drums]
+
         if self.use_dataloader:
             # allows use of torch.nn.utils.rnn.pad_sequence
             # it expects the variable length dimension to be the first dimension
-            return mel.permute(1, 0), labels.permute(1, 0)
+            return mel.permute(1, 0), labels.permute(1, 0), gt_labels
 
-        return mel, labels
+        return mel, labels, gt_labels
 
 
 if __name__ == '__main__':
