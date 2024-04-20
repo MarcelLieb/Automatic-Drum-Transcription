@@ -88,14 +88,14 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
 
 
 def main(
-        learning_rate: float = 1e-4,
-        epochs: int = 20,
+        learning_rate: float = 3e-7,
+        epochs: int = 30,
         batch_size: int = 2,
         ema: bool = False,
         scheduler: bool = True,
         n_mels: int = 84,
         early_stopping: bool = False,
-        version: str = "L"
+        version: str = "M"
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -108,19 +108,19 @@ def main(
 
     num_workers = 16
 
-    mapping = five_class_mapping
+    mapping = three_class_mapping
     dataloader_train, dataloader_val, dataloader_test = get_dataset(
         batch_size, num_workers,
         splits=[0.8, 0.1, 0.1],
         version=version,
-        time_shift=0.02, mapping=mapping,
+        time_shift=0.01, mapping=mapping,
         n_mels=n_mels,
     )
 
     model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2)
     model.to(device)
 
-    ema_model = ModelEmaV2(model, decay=0.8, device="cpu") if ema else None
+    ema_model = ModelEmaV2(model, decay=0.98, device=device) if ema else None
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25

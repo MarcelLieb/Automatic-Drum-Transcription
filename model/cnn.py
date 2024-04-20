@@ -4,7 +4,7 @@ from model import Conv2dNormActivationPool, ResidualBlock
 
 
 class CNN(nn.Module):
-    def __init__(self, n_mels=82, n_classes=3, num_channels=24, dropout=0.1, num_residual_blocks=3):
+    def __init__(self, n_mels=82, n_classes=3, num_channels=24, dropout=0.2, num_residual_blocks=4):
         super(CNN, self).__init__()
         self.n_mels = n_mels
         self.conv1 = Conv2dNormActivationPool(causal=True, in_channels=1, out_channels=num_channels, kernel_size=3)
@@ -27,11 +27,13 @@ class CNN(nn.Module):
         x = self.conv2(x)
         for residual in self.residuals:
             x = residual(x)
+            x = self.dropout(x)
         x = x.reshape((batch_size, self.num_channels * (self.n_mels // 4), -1))
         x = x.permute(0, 2, 1)
         x = f.selu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
         x = f.tanh(x)
+        # x = f.sigmoid(x)
         x = x.permute(0, 2, 1)
         return x
