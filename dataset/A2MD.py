@@ -89,6 +89,7 @@ def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
 def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...] = three_class_mapping):
     drum_instruments = [instrument for instrument in midi.instruments if instrument.is_drum]
     notes = np.array([(note.pitch, note.start) for instrument in drum_instruments for note in instrument.notes])
+    notes = np.array(sorted(notes, key=lambda x: x[1]))
     n_classes = len(mapping)
     midi_to_class = get_midi_to_class(mapping)
     if len(notes) == 0:
