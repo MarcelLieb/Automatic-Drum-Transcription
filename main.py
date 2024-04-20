@@ -76,13 +76,15 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-            detected = 0
-            for i, j in np.ndindex(lbl.shape[:2]):
-                detected += peaks[i][j].shape[1]
-            total_labels = torch.sum(lbl != -1).cpu().detach()
-            over_detected = (detected - total_labels) / total_labels
-            total_over_detected += over_detected.item()
-    return total_loss / len(dataloader), total_over_detected / len(dataloader)
+    p, r, f, threshold = calculate_pr(predictions, groundtruth, ignore_beats=True)
+    plt.plot(r, p)
+    plt.xlabel("Recall")
+    plt.xlim([0, 1])
+    plt.ylabel("Precision")
+    plt.ylim([0, 1])
+    plt.savefig(f"./plots/pr_curve_{epoch}.png")
+    plt.clf()
+    return total_loss / len(dataloader), f
 
 
 def main(
