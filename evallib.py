@@ -35,17 +35,19 @@ def peak_pick_max_mean(data: torch.tensor, sample_rate: int, hop_size: int, mean
     return out
 
 
-def calculate_pr(peaks: list[list[torch.Tensor]], groundtruth: list[list[torch.Tensor]]):
+def calculate_pr(peaks: list[list[torch.Tensor]], groundtruth: list[list[torch.Tensor]], ignore_beats: bool = False):
     songs = []
     for i in range(len(peaks)):
         songs.extend([
             torch.stack((
                 *peaks[i][j],
                 torch.zeros(peaks[i][j].shape[1]) + i,
-                torch.zeros(peaks[i][j].shape[1]) + j
+                torch.zeros(peaks[i][j].shape[1]) + j - 2 * int(ignore_beats)
             ), dim=0)
-            for j in range(len(peaks[i]))
+            for j in range(2 * int(ignore_beats), len(peaks[i]))
         ])
+    if ignore_beats:
+        groundtruth = [gt[2:] for gt in groundtruth]
     all_detections = torch.cat(songs, dim=1)
     all_detections = all_detections.T
     precision, recall, f_score, threshold = rust_calculate_pr(np.array(all_detections), groundtruth, 0.03)
