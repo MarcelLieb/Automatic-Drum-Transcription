@@ -5,13 +5,14 @@
 //: rayon = "1.8.0"
 
 use pyo3::prelude::*;
+use rayon::prelude::*;
 
 #[pyfunction]
 fn calculate_pr(
-    predictions: Vec<[f64; 4]>,
-    ground_truths: Vec<Vec<Vec<f64>>>,
-    detect_window: f64,
-) -> (Vec<f64>, Vec<f64>, f64, f64) {
+    predictions: Vec<[f32; 4]>,
+    ground_truths: Vec<Vec<Vec<f32>>>,
+    detect_window: f32,
+) -> (Vec<f32>, Vec<f32>, f32, f32) {
     let mut predictions = predictions;
     let mut ground_truths = ground_truths;
     let mut tp: usize = 0;
@@ -21,12 +22,12 @@ fn calculate_pr(
         .flat_map(|song| song.iter().map(|chan| chan.len()))
         .sum();
     let mut max_f_score = 0.0;
-    let mut threshold = f64::INFINITY;
+    let mut threshold = f32::INFINITY;
 
     let mut precisions = Vec::new();
     let mut recalls = Vec::new();
 
-    predictions.sort_unstable_by(|a, b| a[1].partial_cmp(&b[1]).unwrap());
+    predictions.par_sort_unstable_by(|a, b| a[1].partial_cmp(&b[1]).unwrap());
     predictions.reverse();
 
     for pred in predictions {
@@ -68,9 +69,9 @@ fn calculate_pr(
 }
 
 #[inline(always)]
-fn _calculate_prf(tp: usize, fp: usize, r#fn: usize) -> (f64, f64, f64){
-    let precision = tp as f64 / (tp + fp) as f64;
-    let recall = tp as f64 / (tp + r#fn) as f64;
-    let f_measure = (2 * tp) as f64 / (2 * tp + fp + r#fn) as f64;
+fn _calculate_prf(tp: usize, fp: usize, r#fn: usize) -> (f32, f32, f32){
+    let precision = tp as f32 / (tp + fp) as f32;
+    let recall = tp as f32 / (tp + r#fn) as f32;
+    let f_measure = (2 * tp) as f32 / (2 * tp + fp + r#fn) as f32;
     (precision, recall, f_measure)
 }
