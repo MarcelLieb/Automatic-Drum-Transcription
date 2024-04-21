@@ -32,7 +32,8 @@ class ModelEmaV2(nn.Module):
 class CausalConv1d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation=1, **kwargs):
         super(CausalConv1d, self).__init__()
-        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, padding=(kernel_size - 1) * dilation, dilation=dilation, **kwargs)
+        self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, padding=(kernel_size - 1) * dilation,
+                              dilation=dilation, **kwargs)
 
     def forward(self, x):
         x = self.conv(x)
@@ -45,7 +46,8 @@ class CausalConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation=1, **kwargs):
         super(CausalConv2d, self).__init__()
         self.kernel_size = kernel_size
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=(kernel_size // 2, (kernel_size - 1) * dilation), dilation=dilation, **kwargs)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size,
+                              padding=(kernel_size // 2, (kernel_size - 1) * dilation), dilation=dilation, **kwargs)
 
     def forward(self, x):
         x = self.conv(x)
@@ -79,9 +81,12 @@ class CausalAvgPool1d(nn.Module):
 
 
 class Conv2dNormActivationPool(nn.Module):
-    def __init__(self, causal, in_channels, out_channels, kernel_size, activation=nn.ELU(), pooling=nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1)), **kwargs):
+    def __init__(self, causal, in_channels, out_channels, kernel_size, activation=nn.ELU(),
+                 pooling=nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1)), **kwargs):
         super(Conv2dNormActivationPool, self).__init__()
-        self.conv = CausalConv2d(in_channels, out_channels, kernel_size, bias=False, **kwargs) if causal else nn.Conv2d(in_channels, out_channels, kernel_size, bias=False, **kwargs)
+        self.conv = CausalConv2d(in_channels, out_channels, kernel_size, bias=False, **kwargs) if causal else nn.Conv2d(
+            in_channels, out_channels, kernel_size, bias=False, padding=(kernel_size[0] // 2, kernel_size[1] // 2)
+            if isinstance(kernel_size, tuple) else kernel_size // 2, **kwargs)
         self.activation = activation
         self.norm = nn.BatchNorm2d(out_channels)
         self.pooling = pooling
@@ -99,9 +104,14 @@ class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=(3, 3), dilation=1, causal=True, **kwargs):
         super(ResidualBlock, self).__init__()
         self.conv1 = CausalConv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs) \
-            if causal else nn.Conv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs)
+            if causal else nn.Conv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False,
+                                     padding=(kernel_size[0] // 2, kernel_size[1] // 2)
+                                     if isinstance(kernel_size, tuple) else kernel_size // 2, **kwargs)
         self.conv2 = CausalConv2d(out_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs) \
-            if causal else nn.Conv2d(out_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs)
+            if causal else nn.Conv2d(out_channels, out_channels, kernel_size, dilation=dilation, bias=False,
+                                     padding=(kernel_size[0] // 2, kernel_size[1] // 2)
+                                     if isinstance(kernel_size, tuple) else kernel_size // 2,
+                                     **kwargs)
         self.norm1 = nn.BatchNorm2d(out_channels)
         self.norm2 = nn.BatchNorm2d(out_channels)
         self.activation = nn.ELU()
