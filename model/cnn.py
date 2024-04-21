@@ -4,15 +4,15 @@ from model import Conv2dNormActivationPool, ResidualBlock
 
 
 class CNN(nn.Module):
-    def __init__(self, n_mels=82, n_classes=3, num_channels=24, dropout=0.2, num_residual_blocks=4):
+    def __init__(self, n_mels=82, n_classes=3, num_channels=24, dropout=0.2, num_residual_blocks=4, causal=True):
         super(CNN, self).__init__()
         self.n_mels = n_mels
-        self.conv1 = Conv2dNormActivationPool(causal=True, in_channels=1, out_channels=num_channels, kernel_size=3)
-        self.conv2 = Conv2dNormActivationPool(causal=True, in_channels=num_channels, out_channels=num_channels, kernel_size=3)
+        self.conv1 = Conv2dNormActivationPool(causal=causal, in_channels=1, out_channels=num_channels, kernel_size=3)
+        self.conv2 = Conv2dNormActivationPool(causal=causal, in_channels=num_channels, out_channels=num_channels, kernel_size=3)
 
         self.residuals = nn.ModuleList()
         for _ in range(num_residual_blocks):
-            self.residuals.append(ResidualBlock(num_channels, num_channels, kernel_size=3, causal=True))
+            self.residuals.append(ResidualBlock(num_channels, num_channels, kernel_size=3, causal=causal))
 
         self.fc1 = nn.Linear(num_channels * (n_mels // 4), 2**10)
         self.dropout = nn.Dropout(dropout)
