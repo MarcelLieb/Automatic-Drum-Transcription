@@ -7,6 +7,7 @@ from torch.utils.data import Dataset, Subset
 
 from dataset.A2MD import A2MD, five_class_mapping
 from torch.utils.data import DataLoader
+from dataset.generics import ADTDataset
 
 
 def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
@@ -52,7 +53,7 @@ def get_dataset(batch_size, num_workers, splits=None,
                 ) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], DataLoader[
         tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], DataLoader[
-        tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]]:
+        tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], ADTDataset]:
     if splits is None:
         splits = [0.8, 0.1, 0.1]
     A2md = A2MD(version, mapping=mapping, path="./data/a2md_public/", time_shift=time_shift,
@@ -62,4 +63,4 @@ def get_dataset(batch_size, num_workers, splits=None,
     dataloader_train = get_dataloader(train, batch_size, num_workers, is_train=True)
     dataloader_val = get_dataloader(val, batch_size, num_workers, is_train=False)
     dataloader_test = get_dataloader(test, batch_size, num_workers, is_train=False)
-    return dataloader_train, dataloader_val, dataloader_test
+    return dataloader_train, dataloader_val, dataloader_test, A2md

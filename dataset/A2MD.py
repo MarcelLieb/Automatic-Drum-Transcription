@@ -4,8 +4,9 @@ import numpy as np
 import pretty_midi
 import torch
 import torchaudio
-from torch.utils.data import Dataset
 import os
+
+from dataset.generics import ADTDataset
 
 A2MD_PATH = "./data/a2md_public/"
 
@@ -115,7 +116,7 @@ def get_annotation(path: str, folder: str, identifier: str, mapping: tuple[tuple
     return folder, identifier, drums, beats, down_beats
 
 
-class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
+class A2MD(ADTDataset):
     def __init__(self, split: str, path: Path | str = A2MD_PATH,
                  pad_annotation: bool = True, pad_value: float = 0.5,
                  mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0,
@@ -211,6 +212,9 @@ class A2MD(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
             return mel.permute(1, 0), labels.permute(1, 0), gt_labels
 
         return mel, labels, gt_labels
+
+    def adjust_time_shift(self, time_shift: float):
+        self.time_shift = time_shift
 
 
 if __name__ == '__main__':
