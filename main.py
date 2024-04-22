@@ -64,7 +64,8 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
     predictions = []
     groundtruth = []
     with torch.no_grad():
-        for data in tqdm(dataloader, total=len(dataloader)):
+        for data in tqdm(dataloader, total=len(dataloader), unit="song", unit_scale=dataloader.batch_size,
+                         smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader), desc="Evaluation"):
             audio, lbl, gts = data
             audio = audio.to(device)
             lbl = lbl.to(device)
