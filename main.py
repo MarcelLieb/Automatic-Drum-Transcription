@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from dataset import get_dataset
 from dataset.A2MD import five_class_mapping, eighteen_class_mapping, three_class_mapping, three_class_standard_mapping, \
-    A2MD
+    A2MD, four_class_mapping
 from evallib import peak_pick_max_mean, calculate_pr
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
@@ -119,7 +119,8 @@ def main(
         n_mels=n_mels,
     )
 
-    model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2)
+    model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2, causal=True,
+                num_channels=24, num_residual_blocks=4, dropout=0.3)
     model.to(device)
 
     ema_model = ModelEmaV2(model, decay=0.98, device=device) if ema else None
@@ -135,7 +136,7 @@ def main(
     scaler = torch.cuda.amp.GradScaler()
 
     best_loss = float("inf")
-    best_score = float("inf")
+    best_score = 0
     last_improvement = 0
     print("Starting Training")
     for epoch in range(epochs):
@@ -166,12 +167,26 @@ def main(
             f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
             f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score * 100:.4f}"
         )
+        if f_score > 0.7:
+            test_loss, test_f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_test,
+                                               error, device)
+            dataset.adjust_time_shift(0.0)
+            print(f"Test Loss: {test_loss * 100:.4f} F-Score: {test_f_score * 100:.4f}")
+            if test_f_score > 0.73:
+                break
         last_improvement += 1
+        if best_score <= f_score:
+            best_score = f_score
+            last_improvement = 0
+        elif last_improvement >= 5 and time_shift > 0.0:
+            last_improvement = 0
+            optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
+            best_score = f_score
+            dataset.adjust_time_shift(max(time_shift - 0.005, 0))
+            time_shift = dataset.time_shift
+            print(f"Adjusting time shift to {time_shift}")
         if val_loss <= best_loss:
             best_loss = val_loss
-            last_improvement = 0
-            if abs(f_score) <= abs(best_score):
-                best_score = f_score
         if last_improvement > 10 and early_stopping:
             break
 
