@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
     @abstractmethod
     def __init__(self, **kwargs):
-        pass
+        self.time_shift = None
 
     @abstractmethod
     def __len__(self):
