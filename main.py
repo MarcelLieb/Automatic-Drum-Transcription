@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
@@ -89,15 +88,15 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
 
 
 def main(
-        learning_rate: float = 3e-7,
-        epochs: int = 30,
+        learning_rate: float = 3e-5,
+        epochs: int = 10,
         batch_size: int = 2,
         ema: bool = False,
-        scheduler: bool = True,
+        scheduler: bool = False,
         n_mels: int = 84,
         early_stopping: bool = False,
-        version: str = "M"
-        time_shift: float = 0.015,
+        version: str = "M",
+        time_shift: float = 0.01,
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -111,7 +110,7 @@ def main(
     num_workers = 16
 
     mapping = three_class_mapping
-    dataloader_train, dataloader_val, dataloader_test = get_dataset(
+    dataloader_train, dataloader_val, dataloader_test, dataset = get_dataset(
         batch_size, num_workers,
         splits=[0.8, 0.1, 0.1],
         version=version,
@@ -123,7 +122,7 @@ def main(
                 num_channels=24, num_residual_blocks=4, dropout=0.3)
     model.to(device)
 
-    ema_model = ModelEmaV2(model, decay=0.98, device=device) if ema else None
+    ema_model = ModelEmaV2(model, decay=0.999, device=device) if ema else None
 
     max_lr = learning_rate * 2
     initial_lr = max_lr / 25
