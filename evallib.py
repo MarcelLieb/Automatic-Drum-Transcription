@@ -50,6 +50,6 @@ def calculate_pr(peaks: list[list[torch.Tensor]], groundtruth: list[list[torch.T
         groundtruth = [gt[2:] for gt in groundtruth]
     all_detections = torch.cat(songs, dim=1)
     all_detections = all_detections.T
-    precision, recall, f_score, threshold = rust_calculate_pr(np.array(all_detections), groundtruth, 0.03)
+    precision, recall, f_score, threshold = rust_calculate_pr(np.array(all_detections), groundtruth, 0.015)
 
     return torch.tensor(precision), torch.tensor(recall), f_score, threshold
