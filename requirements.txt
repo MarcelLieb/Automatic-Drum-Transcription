@@ -6,3 +6,5 @@ librosa~=0.10.1
 tqdm~=4.66.2
 pretty_midi~=0.2.10
 nnAudio~=0.3.1
+matplotlib~=3.8.4
+rustimport~=1.4.0
