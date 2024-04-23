@@ -9,63 +9,93 @@ use rayon::prelude::*;
 
 #[pyfunction]
 fn calculate_pr(
-    predictions: Vec<[f32; 4]>,
+    predictions: Vec<Vec<[f32; 3]>>,
     ground_truths: Vec<Vec<Vec<f32>>>,
     detect_window: f32,
-) -> (Vec<f32>, Vec<f32>, f32, f32) {
-    let mut predictions = predictions;
-    let mut ground_truths = ground_truths;
-    let mut tp: usize = 0;
-    let mut fp: usize = 0;
-    let mut r#fn: usize = ground_truths
-        .iter()
-        .flat_map(|song| song.iter().map(|chan| chan.len()))
-        .sum();
-    let mut max_f_score = 0.0;
-    let mut threshold = f32::INFINITY;
+) -> (Vec<(Vec<f32>, Vec<f32>)>, Vec<f32>, f32) {
+    let out: Vec<(
+        Vec<(f32, usize, usize, usize)>,
+        Vec<f32>,
+        Vec<f32>,
+        f32,
+        usize,
+        usize,
+        usize,
+    )> = predictions
+        .into_par_iter()
+        .zip(ground_truths)
+        .map(|(values, labels)| {
+            let mut tp: usize = 0;
+            let mut fp: usize = 0;
+            let mut r#fn: usize = labels.iter().map(|song| song.len()).sum();
+            let mut max_f_score = 0.0;
+            let (mut max_tp, mut max_fp, mut max_fn) = (tp, fp, r#fn);
+            let mut threshold = f32::INFINITY;
+            let mut pn = Vec::new();
 
-    let mut precisions = Vec::new();
-    let mut recalls = Vec::new();
+            let mut precisions = Vec::new();
+            let mut recalls = Vec::new();
+            let mut labels = labels;
+            let mut values = values;
+            values.par_sort_by(|a, b| a[1].total_cmp(&b[1]));
+            values.reverse();
 
-    predictions.par_sort_unstable_by(|a, b| a[1].partial_cmp(&b[1]).unwrap());
-    predictions.reverse();
+            for pred in values {
+                let [time, score, song] = pred;
+                let song = song as usize;
+                let annotations = &mut labels[song];
+                if annotations.is_empty() {
+                    fp += 1;
+                    continue;
+                }
+                let index = annotations.partition_point(|a| a < &time);
+                let prev = index.saturating_sub(1);
+                let next = index.min(annotations.len() - 1);
+                if (annotations[prev] + detect_window > time)
+                    || annotations[next] - detect_window < time
+                {
+                    tp += 1;
+                    r#fn -= 1;
 
-    for pred in predictions {
-        let [time, score, song, class] = pred;
-        let song = song as usize;
-        let class = class as usize;
-        let annotations = &mut ground_truths[song][class];
-        if annotations.is_empty() {
-            fp += 1;
-            continue;
-        }
-        let index = annotations.partition_point(|a| a < &time);
-        let prev = index.saturating_sub(1);
-        let next = index.min(annotations.len() - 1);
-        if (annotations[prev] + detect_window < time) || annotations[next] - detect_window < time {
-            tp += 1;
-            r#fn -= 1;
+                    if time - annotations[prev] < annotations[next] - time {
+                        annotations.remove(prev);
+                    } else {
+                        annotations.remove(next);
+                    }
+                } else {
+                    fp += 1;
+                }
 
-            if time - annotations[prev] < annotations[next] - time {
-                annotations.remove(prev);
-            } else {
-                annotations.remove(next);
+                let (p, r, f) = _calculate_prf(tp, fp, r#fn);
+                if f > max_f_score {
+                    max_f_score = f;
+                    threshold = score;
+                    (max_tp, max_fp, max_fn) = (tp, fp, r#fn);
+                }
+                pn.push((threshold, tp, fp, r#fn));
+
+                precisions.push(p);
+                recalls.push(r);
             }
-        } else {
-            fp += 1;
-        }
+            (pn, precisions, recalls, threshold, max_tp, max_fp, max_fn)
+        })
+        .collect();
 
-        let (p, r, f) = _calculate_prf(tp, fp, r#fn);
-        if f > max_f_score {
-            max_f_score = f;
-            threshold = score;
-        }
+    let (a, b, c) = out
+        .iter()
+        .map(|class| (class.4, class.5, class.6))
+        .fold((0, 0, 0), |acc, (a, b, c)| {
+            (acc.0 + a, acc.1 + b, acc.2 + c)
+        });
+    let (_, _, f_score) = _calculate_prf(a, b, c);
 
-        precisions.push(p);
-        recalls.push(r);
-    }
-
-    (precisions, recalls, max_f_score, threshold)
+    (
+        out.iter()
+            .map(|class| (class.1.clone(), class.2.clone()))
+            .collect(),
+        out.iter().cloned().map(|class| class.3).collect(),
+        f_score,
+    )
 }
 
 #[inline(always)]

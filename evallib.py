@@ -36,20 +36,23 @@ def peak_pick_max_mean(data: torch.tensor, sample_rate: int, hop_size: int, mean
 
 
 def calculate_pr(peaks: list[list[torch.Tensor]], groundtruth: list[list[torch.Tensor]], ignore_beats: bool = False):
-    songs = []
+    classes = []
+    gt = []
+
+    for _ in range(len(peaks[0]) - 2 * int(ignore_beats)):
+        classes.append([])
+        gt.append([])
     for i in range(len(peaks)):
-        songs.extend([
-            torch.stack((
-                *peaks[i][j],
-                torch.zeros(peaks[i][j].shape[1]) + i,
-                torch.zeros(peaks[i][j].shape[1]) + j - 2 * int(ignore_beats)
-            ), dim=0)
-            for j in range(2 * int(ignore_beats), len(peaks[i]))
-        ])
+        for j in range(2 * int(ignore_beats), len(peaks[i])):
+            classes[j - 2 * int(ignore_beats)].append(torch.stack((*peaks[i][j], torch.zeros(peaks[i][j].shape[1]) + i)))
+    for i in range(len(classes)):
+        classes[i] = np.array(torch.cat(classes[i], dim=1).T)
     if ignore_beats:
         groundtruth = [gt[2:] for gt in groundtruth]
-    all_detections = torch.cat(songs, dim=1)
-    all_detections = all_detections.T
-    precision, recall, f_score, threshold = rust_calculate_pr(np.array(all_detections), groundtruth, 0.015)
 
-    return torch.tensor(precision), torch.tensor(recall), f_score, threshold
+    for i in range(len(groundtruth)):
+        for j in range(len(groundtruth[i])):
+            gt[j].append(groundtruth[i][j])
+    prs, thresholds, f_score = rust_calculate_pr(classes, gt, 0.025)
+
+    return torch.tensor(prs[0][0]), torch.tensor(prs[0][0]), f_score, torch.tensor(thresholds)
