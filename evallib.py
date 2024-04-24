@@ -55,4 +55,4 @@ def calculate_pr(peaks: list[list[torch.Tensor]], groundtruth: list[list[torch.T
             gt[j].append(groundtruth[i][j])
     prs, thresholds, f_score = rust_calculate_pr(classes, gt, 0.025)
 
-    return torch.tensor(prs[0][0]), torch.tensor(prs[0][0]), f_score, torch.tensor(thresholds)
+    return torch.tensor(prs[0][0]), torch.tensor(prs[0][1]), f_score, torch.tensor(thresholds)
