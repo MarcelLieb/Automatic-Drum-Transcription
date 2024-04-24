@@ -101,7 +101,7 @@ class Conv2dNormActivationPool(nn.Module):
 
 
 class ResidualBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=(3, 3), dilation=1, causal=True, **kwargs):
+    def __init__(self, in_channels, out_channels, kernel_size=(3, 3), dilation=1, causal=True, activation=nn.ELU(), **kwargs):
         super(ResidualBlock, self).__init__()
         self.conv1 = CausalConv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False, **kwargs) \
             if causal else nn.Conv2d(in_channels, out_channels, kernel_size, dilation=dilation, bias=False,
@@ -114,10 +114,13 @@ class ResidualBlock(nn.Module):
                                      **kwargs)
         self.norm1 = nn.BatchNorm2d(out_channels)
         self.norm2 = nn.BatchNorm2d(out_channels)
-        self.activation = nn.ELU()
+        self.activation = activation
+        self.re_sample = nn.Conv2d(in_channels, out_channels, kernel_size=1) if in_channels != out_channels else None
 
     def forward(self, x):
         residual = x
+        if self.re_sample is not None:
+            residual = self.re_sample(residual)
         x = self.conv1(x)
         x = self.norm1(x)
         x = self.activation(x)
