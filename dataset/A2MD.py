@@ -221,8 +221,6 @@ class A2MD(ADTDataset):
             args = [(path, folder, identifier, sample_rate) for folder, identifier, *_ in self.annotations]
             self.cache = pool.starmap(load_audio, args) if is_train else None
 
-        print("Finished loading everything")
-
         self.spectrum = torchaudio.transforms.Spectrogram(n_fft=self.fft_size, hop_length=self.hop_size,
                                                           win_length=self.fft_size // 2, power=2, center=self.center,
                                                           pad_mode=self.pad_mode, normalized=False, onesided=True)
