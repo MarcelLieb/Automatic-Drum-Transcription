@@ -8,9 +8,9 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
         self.n_mels = n_mels
 
-        self.conv1 = ResidualBlock(1, num_channels, kernel_size=3, causal=causal, activation=nn.Identity())
+        self.conv1 = ResidualBlock(1, num_channels, kernel_size=3, causal=causal, activation=nn.ELU())
         self.pool1 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
-        self.conv2 = ResidualBlock(num_channels, num_channels * 2, kernel_size=3, causal=causal, activation=nn.Identity())
+        self.conv2 = ResidualBlock(num_channels, num_channels * 2, kernel_size=3, causal=causal, activation=nn.ELU())
         self.pool2 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
 
         self.residuals = nn.ModuleList()
