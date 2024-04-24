@@ -58,7 +58,7 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
     total_loss = 0
     device_str = str(device)
     device_str = "cuda" if "cuda" in device_str else "cpu"
-    dataset: A2MD = dataloader.dataset.dataset
+    dataset: A2MD = dataloader.dataset
     sample_rate, hop_size = dataset.sample_rate, dataset.hop_size
     predictions = []
     groundtruth = []
@@ -110,7 +110,7 @@ def main(
     num_workers = 16
 
     mapping = three_class_mapping
-    dataloader_train, dataloader_val, dataloader_test, dataset = get_dataset(
+    dataloader_train, dataloader_val, dataloader_test = get_dataset(
         batch_size, num_workers,
         splits=[0.8, 0.1, 0.1],
         version=version,
@@ -179,11 +179,13 @@ def main(
             last_improvement = 0
         elif last_improvement >= 5 and time_shift > 0.0:
             last_improvement = 0
+            """
             optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
             best_score = f_score
-            dataset.adjust_time_shift(max(time_shift - 0.005, 0))
+            dataset.adjust_time_shift(max(time_shift - 0.01, 0))
             time_shift = dataset.time_shift
             print(f"Adjusting time shift to {time_shift}")
+            """
         if val_loss <= best_loss:
             best_loss = val_loss
         if last_improvement > 10 and early_stopping:
