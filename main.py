@@ -63,7 +63,7 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
     predictions = []
     groundtruth = []
     with torch.no_grad():
-        for data in tqdm(dataloader, total=len(dataloader), unit="song", unit_scale=dataloader.batch_size,
+        for data in tqdm(dataloader, total=len(dataloader), unit="mini-batch",
                          smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader), desc="Evaluation"):
             audio, lbl, gts = data
             audio = audio.to(device)
@@ -140,8 +140,8 @@ def main(
     print("Starting Training")
     for epoch in range(epochs):
         total_loss = 0
-        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="song",
-                            unit_scale=batch_size, smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
+        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="mini-batch",
+                            smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
                             desc="Training"):
             audio, lbl, _ = data
             audio = audio.to(device)

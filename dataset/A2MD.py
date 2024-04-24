@@ -116,11 +116,36 @@ def get_annotation(path: str, folder: str, identifier: str, mapping: tuple[tuple
     return folder, identifier, drums, beats, down_beats
 
 
+def get_length(path: str, folder: str, identifier: str):
+    audio_path = os.path.join(path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
+    meta_data = torchaudio.info(audio_path, backend="ffmpeg")
+    return meta_data.num_frames / meta_data.sample_rate
+
+
+def calculate_segments(lengths: list[float], segment_length: float, sample_rate: int, fft_size: int) -> list[tuple[int, int, int]]:
+    """
+    :param lengths: List of lengths of the audio files
+    :param segment_length: Length of the segments in seconds
+    :param sample_rate: Sample rate of the audio files
+    :param fft_size: Size of the fft window
+    :return: List of tuples containing the start and end indices of the segments and the index of the audio file
+    """
+    segments = []
+    for i, length in enumerate(lengths):
+        n_segments = int(np.ceil(length / segment_length))
+        for j in range(n_segments):
+            start = int(j * segment_length * sample_rate)
+            end = min(int((j + 1) * segment_length * sample_rate), int(length * sample_rate))
+            if end - start > fft_size:
+                segments.append((start, end, i))
+    return segments
+
+
 class A2MD(ADTDataset):
     def __init__(self, split: str, path: Path | str = A2MD_PATH,
                  pad_annotation: bool = True, pad_value: float = 0.5,
                  mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0,
-                 sample_rate=44100, hop_size=512, fft_size=2048, n_mels=82, center=False,
+                 sample_rate=44100, hop_size=512, fft_size=2048, n_mels=82, center=False, segment_length=10.0,
                  pad_mode="constant", use_dataloader=False):
         self.path = path
         self.sample_rate = sample_rate
@@ -133,6 +158,7 @@ class A2MD(ADTDataset):
         self.mapping = mapping
         self.use_dataloader = use_dataloader
         self.time_shift = time_shift
+        self.segment_length = segment_length
         self.n_classes = len(mapping) + 2
         self.pad = torch.nn.MaxPool1d(3, stride=1, padding=1) if pad_annotation else None
         self.pad_value = pad_value
@@ -156,6 +182,9 @@ class A2MD(ADTDataset):
             self.annotations = pool.starmap(get_annotation, args)
             # filter tracks without drums
             self.annotations = [annotation for annotation in self.annotations if annotation is not None]
+            args = [(path, folder, identifier) for folder, identifier, *_ in self.annotations]
+            self.lengths = pool.starmap(get_length, args)
+            self.segments = calculate_segments(self.lengths, segment_length, sample_rate, fft_size)
 
         self.spectrum = torchaudio.transforms.Spectrogram(n_fft=self.fft_size, hop_length=self.hop_size,
                                                           win_length=self.fft_size // 2, power=2, center=self.center,
@@ -165,17 +194,25 @@ class A2MD(ADTDataset):
                                                           n_stft=self.fft_size // 2 + 1)
 
     def __len__(self):
-        return len(self.annotations)
+        return len(self.segments)
 
     def __getitem__(self, idx):
-        folder, identifier, drums, beats, down_beats = self.annotations[idx]
+        start, end, audio_idx = self.segments[idx]
+        time_offset = start / self.sample_rate
+        folder, identifier, drums, beats, down_beats = self.annotations[audio_idx]
         audio_path = os.path.join(self.path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
-        audio, sample_rate = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
+        audio, sample_rate = torchaudio.load(
+            audio_path, normalize=True, backend="ffmpeg", frame_offset=start, num_frames=end - start
+        )
         audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.sample_rate)(audio)
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
         audio = audio / torch.max(torch.abs(audio))
 
-        frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
+        drums = [drum[drum >= time_offset] - time_offset for drum in drums]
+        beats = beats[beats >= time_offset] - time_offset
+        down_beats = down_beats[down_beats >= time_offset] - time_offset
+
+        frames = (end - start - self.fft_size) // self.hop_size + 1
 
         labels = torch.zeros((self.n_classes, frames), dtype=torch.float32)
 
@@ -220,4 +257,4 @@ class A2MD(ADTDataset):
 if __name__ == '__main__':
     _dataset = A2MD("S", mapping=five_class_mapping, path="../data/a2md_public/")
     _test = _dataset[0]
-    _audio, _labels = _test
+    _audio, _labels, _gt = _test

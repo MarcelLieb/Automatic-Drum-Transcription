@@ -35,7 +35,7 @@ class Gain(torch.nn.Module):
 def get_dataloader(dataset, batch_size, num_workers, is_train=False):
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers,
                                              collate_fn=audio_collate, drop_last=False, pin_memory=True,
-                                             prefetch_factor=4)
+                                             prefetch_factor=1)
     return dataloader
 
 
