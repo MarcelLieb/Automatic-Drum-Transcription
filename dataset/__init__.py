@@ -49,7 +49,7 @@ def get_splits(dataset: Dataset[Generic[T]], splits: list[float]) -> list[Subset
 
 def get_dataset(batch_size, num_workers, splits=None,
                 version="L", time_shift=0.0, mapping=five_class_mapping,
-                sample_rate=44100, hop_size=256, fft_size=1024, n_mels=82, center=False, pad_mode="constant"
+                sample_rate=44100, hop_size=256, fft_size=2048, n_mels=82, center=False, pad_mode="constant"
                 ) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], DataLoader[
         tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], DataLoader[
