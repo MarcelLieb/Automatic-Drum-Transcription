@@ -141,6 +141,15 @@ def calculate_segments(lengths: list[float], segment_length: float, sample_rate:
     return segments
 
 
+def load_audio(path: str, folder: str, identifier: str, sample_rate: int) -> torch.Tensor:
+    audio_path = os.path.join(path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
+    audio, sample_rate = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
+    audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=sample_rate)(audio)
+    audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
+    audio = audio / torch.max(torch.abs(audio))
+    return audio
+
+
 class A2MD(ADTDataset):
     def __init__(self, split: str, path: Path | str = A2MD_PATH,
                  pad_annotation: bool = True, pad_value: float = 0.5,
