@@ -13,17 +13,11 @@ fn calculate_pr(
     ground_truths: Vec<Vec<Vec<f32>>>,
     detect_window: f32,
 ) -> (Vec<(Vec<f32>, Vec<f32>)>, Vec<f32>, f32) {
-    let out: Vec<(
-        Vec<(f32, usize, usize, usize)>,
-        Vec<f32>,
-        Vec<f32>,
-        f32,
-        usize,
-        usize,
-        usize,
-    )> = predictions
+    let mut out = Vec::new();
+    predictions
         .into_par_iter()
-        .zip(ground_truths)
+        .with_max_len(1)
+        .zip_eq(ground_truths)
         .map(|(values, labels)| {
             let mut tp: usize = 0;
             let mut fp: usize = 0;
@@ -79,7 +73,7 @@ fn calculate_pr(
             }
             (pn, precisions, recalls, threshold, max_tp, max_fp, max_fn)
         })
-        .collect();
+        .collect_into_vec(&mut out);
 
     let (a, b, c) = out
         .iter()
