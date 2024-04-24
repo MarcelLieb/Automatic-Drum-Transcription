@@ -4,19 +4,22 @@ from model import Conv2dNormActivationPool, ResidualBlock
 
 
 class CNN(nn.Module):
-    def __init__(self, n_mels=82, n_classes=3, num_channels=24, dropout=0.2, num_residual_blocks=4, causal=True):
+    def __init__(self, n_mels=12*9, n_classes=3, num_channels=24, dropout=0.2, num_residual_blocks=0, causal=True):
         super(CNN, self).__init__()
         self.n_mels = n_mels
-        self.conv1 = Conv2dNormActivationPool(causal=causal, in_channels=1, out_channels=num_channels, kernel_size=3)
-        self.conv2 = Conv2dNormActivationPool(causal=causal, in_channels=num_channels, out_channels=num_channels, kernel_size=3)
+
+        self.conv1 = ResidualBlock(1, num_channels, kernel_size=3, causal=causal, activation=nn.Identity())
+        self.pool1 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
+        self.conv2 = ResidualBlock(num_channels, num_channels * 2, kernel_size=3, causal=causal, activation=nn.Identity())
+        self.pool2 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
 
         self.residuals = nn.ModuleList()
         for _ in range(num_residual_blocks):
-            self.residuals.append(ResidualBlock(num_channels, num_channels, kernel_size=3, causal=causal))
+            self.residuals.append(ResidualBlock(num_channels * 2, num_channels * 2, kernel_size=3, causal=causal))
 
-        self.fc1 = nn.Linear(num_channels * (n_mels // 4), 2**10)
+        self.fc1 = nn.Linear(num_channels * 2 * (n_mels // 9), 2**5)
         self.dropout = nn.Dropout(dropout)
-        self.fc2 = nn.Linear(2**10, n_classes)
+        self.fc2 = nn.Linear(2**5, n_classes)
         self.num_channels = num_channels
 
     def forward(self, x):
@@ -24,15 +27,18 @@ class CNN(nn.Module):
         # Add channel dimension
         x = x.unsqueeze(1)
         x = self.conv1(x)
+        x = self.pool1(x)
         x = self.conv2(x)
+        x = self.pool2(x)
         for residual in self.residuals:
             x = residual(x)
             x = self.dropout(x)
-        x = x.reshape((batch_size, self.num_channels * (self.n_mels // 4), -1))
+        x = x.reshape((batch_size, self.num_channels * 2 * (self.n_mels // 9), -1))
         x = x.permute(0, 2, 1)
         x = f.selu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)
+        x = f.selu(x)
         x = f.tanh(x)
         # x = f.sigmoid(x)
         x = x.permute(0, 2, 1)
