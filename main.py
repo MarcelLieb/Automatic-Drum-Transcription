@@ -76,7 +76,8 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-    p, r, f, threshold = calculate_pr(predictions, groundtruth, ignore_beats=True)
+    p, r, f, thresholds = calculate_pr(predictions, groundtruth, ignore_beats=True)
+    print(f"Thresholds: {thresholds}")
     plt.plot(r, p)
     plt.xlabel("Recall")
     plt.xlim([0, 1])
@@ -88,15 +89,16 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
 
 
 def main(
-        learning_rate: float = 3e-5,
-        epochs: int = 10,
-        batch_size: int = 2,
+        learning_rate: float = 5e-4,
+        epochs: int = 20,
+        batch_size: int = 512,
         ema: bool = False,
-        scheduler: bool = False,
-        n_mels: int = 84,
+        scheduler: bool = True,
+        n_mels: int = 12*7,
         early_stopping: bool = False,
-        version: str = "M",
-        time_shift: float = 0.01,
+        version: str = "L",
+        time_shift: float = 0.0,
+        causal: bool = True,
 ):
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -107,7 +109,7 @@ def main(
         f"EMA: {ema}, Scheduler: {scheduler}"
     )
 
-    num_workers = 16
+    num_workers = 32
 
     mapping = three_class_mapping
     dataloader_train, dataloader_val, dataloader_test = get_dataset(
@@ -115,11 +117,11 @@ def main(
         splits=[0.8, 0.1, 0.1],
         version=version,
         time_shift=time_shift, mapping=mapping,
-        n_mels=n_mels,
+        n_mels=n_mels, sample_rate=44100, hop_size=441,
     )
 
-    model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2, causal=True,
-                num_channels=24, num_residual_blocks=4, dropout=0.3)
+    model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2, causal=causal,
+                num_channels=32, num_residual_blocks=0, dropout=0.3)
     model.to(device)
 
     ema_model = ModelEmaV2(model, decay=0.999, device=device) if ema else None
@@ -128,7 +130,7 @@ def main(
     initial_lr = max_lr / 25
     min_lr = initial_lr / 1e4
 
-    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
+    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
                                               epochs=epochs) if scheduler else None
     error = torch.nn.MSELoss(reduction="none")
@@ -166,10 +168,9 @@ def main(
             f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
             f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score * 100:.4f}"
         )
-        if f_score > 0.7:
+        if f_score > 0.55 and f_score >= best_score:
             test_loss, test_f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_test,
                                                error, device)
-            dataset.adjust_time_shift(0.0)
             print(f"Test Loss: {test_loss * 100:.4f} F-Score: {test_f_score * 100:.4f}")
             if test_f_score > 0.73:
                 break
