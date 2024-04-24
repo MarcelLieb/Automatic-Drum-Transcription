@@ -185,6 +185,7 @@ class A2MD(ADTDataset):
             args = [(path, folder, identifier) for folder, identifier, *_ in self.annotations]
             self.lengths = pool.starmap(get_length, args)
             self.segments = calculate_segments(self.lengths, segment_length, sample_rate, fft_size)
+            self.cache = pool.starmap(load_audio, args)
 
         self.spectrum = torchaudio.transforms.Spectrogram(n_fft=self.fft_size, hop_length=self.hop_size,
                                                           win_length=self.fft_size // 2, power=2, center=self.center,
@@ -198,15 +199,11 @@ class A2MD(ADTDataset):
 
     def __getitem__(self, idx):
         start, end, audio_idx = self.segments[idx]
+        audio = self.cache[int(audio_idx)]
+        audio = audio[start:end]
+
         time_offset = start / self.sample_rate
-        folder, identifier, drums, beats, down_beats = self.annotations[audio_idx]
-        audio_path = os.path.join(self.path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
-        audio, sample_rate = torchaudio.load(
-            audio_path, normalize=True, backend="ffmpeg", frame_offset=start, num_frames=end - start
-        )
-        audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=self.sample_rate)(audio)
-        audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
-        audio = audio / torch.max(torch.abs(audio))
+        folder, identifier, drums, beats, down_beats = self.annotations[int(audio_idx)]
 
         drums = [drum[drum >= time_offset] - time_offset for drum in drums]
         beats = beats[beats >= time_offset] - time_offset
