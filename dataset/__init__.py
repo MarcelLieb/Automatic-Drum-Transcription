@@ -1,13 +1,15 @@
 import random
-from typing import Generic, TypeVar
+from dataclasses import asdict
+from typing import TypeVar
 
 import torch
 from torchaudio.transforms import Vol
 from torch.utils.data import Dataset, Subset
 
-from dataset.A2MD import A2MD, five_class_mapping, get_tracks
+from dataset.A2MD import A2MD, get_tracks
 from torch.utils.data import DataLoader
 from dataset.generics import ADTDataset
+from settings import TrainingSettings, AudioProcessingSettings, AnnotationSettings
 
 
 def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
@@ -62,27 +64,20 @@ def get_splits(version: str, splits: list[float], path: str) -> list[dict[str, l
     return out
 
 
-def get_dataset(batch_size, num_workers, splits=None,
-                version="L", time_shift=0.0, mapping=five_class_mapping, lead_in=0.25,
-                sample_rate=44100, hop_size=256, fft_size=2048, n_mels=82, center=False, pad_mode="constant"
-                ) -> tuple[
+def get_dataset(training_settings: TrainingSettings, audio_settings: AudioProcessingSettings,
+                annotation_settings: AnnotationSettings) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], DataLoader[
         tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], DataLoader[
         tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]]:
-    if splits is None:
-        splits = [0.8, 0.1, 0.1]
     path = "./data/a2md_public/"
-    train, val, test = get_splits(version, splits, path)
-    train = A2MD(train, mapping=mapping, path=path, time_shift=time_shift,
-                 sample_rate=sample_rate, use_dataloader=True, lead_in=lead_in, is_train=True,
-                 hop_size=hop_size, fft_size=fft_size, n_mels=n_mels, center=center, pad_mode=pad_mode)
-    val = A2MD(val, mapping=mapping, path=path, time_shift=0,
-               sample_rate=sample_rate, use_dataloader=True, lead_in=lead_in, is_train=False,
-               hop_size=hop_size, fft_size=fft_size, n_mels=n_mels, center=center, pad_mode=pad_mode)
-    test = A2MD(test, mapping=mapping, path=path, time_shift=0,
-                sample_rate=sample_rate, use_dataloader=True, lead_in=lead_in, is_train=False,
-                hop_size=hop_size, fft_size=fft_size, n_mels=n_mels, center=center, pad_mode=pad_mode)
-    dataloader_train = get_dataloader(train, batch_size, num_workers, is_train=True)
-    dataloader_val = get_dataloader(val, 1, num_workers, is_train=False)
-    dataloader_test = get_dataloader(test, 1, num_workers, is_train=False)
+    train, val, test = get_splits(training_settings.dataset_version, training_settings.splits, path)
+    train = A2MD(train, path=path, use_dataloader=True, is_train=True, **asdict(audio_settings),
+                 **asdict(annotation_settings))
+    val = A2MD(val, path=path, use_dataloader=True, is_train=False, **asdict(audio_settings),
+               **asdict(annotation_settings))
+    test = A2MD(test, path=path, use_dataloader=True, is_train=False, **asdict(audio_settings),
+                **asdict(annotation_settings))
+    dataloader_train = get_dataloader(train, training_settings.batch_size, training_settings.num_workers, is_train=True)
+    dataloader_val = get_dataloader(val, 1, training_settings.num_workers, is_train=False)
+    dataloader_test = get_dataloader(test, 1, training_settings.num_workers, is_train=False)
     return dataloader_train, dataloader_val, dataloader_test

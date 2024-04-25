@@ -106,9 +106,9 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...]
     return drum_classes
 
 
-def get_annotation(path: str, folder: str, identifier: str, mapping: tuple[tuple[str, ...], ...] = three_class_mapping):
+def get_annotation(path: str, folder: str, identifier: str, mapping: DrumMapping = DrumMapping.THREE_CLASS):
     midi = pretty_midi.PrettyMIDI(midi_file=os.path.join(path, "align_mid", folder, f"align_mid_{identifier}.mid"))
-    drums = get_drums(midi, mapping=mapping)
+    drums = get_drums(midi, mapping=mapping.value)
     if drums is None:
         return None
     beats = midi.get_beats()
@@ -186,9 +186,10 @@ def get_tracks(path: str) -> dict[str, list[str]]:
 class A2MD(ADTDataset):
     def __init__(self, split: dict[str, list[str]], path: Path | str = A2MD_PATH,
                  pad_annotation: bool = True, pad_value: float = 0.5, is_train: bool = False,
-                 mapping: tuple[tuple[str, ...], ...] = three_class_mapping, time_shift=0.0,
+                 mapping: DrumMapping = three_class_mapping, time_shift=0.0, beats=False,
                  sample_rate=44100, hop_size=512, fft_size=2048, n_mels=82, center=False, lead_in=0.250,
-                 pad_mode="constant", use_dataloader=False):
+                 mel_min=20.0, mel_max=22050.0,
+                 pad_mode="constant", use_dataloader=False, **_kwargs):
         self.path = path
         self.sample_rate = sample_rate
         self.hop_size = hop_size
@@ -201,9 +202,10 @@ class A2MD(ADTDataset):
         self.use_dataloader = use_dataloader
         self.time_shift = time_shift
         self.is_train = is_train
-        self.n_classes = len(mapping) + 2
+        self.n_classes = len(mapping) + 2 * beats
         self.pad = torch.nn.MaxPool1d(3, stride=1, padding=1) if pad_annotation else None
         self.pad_value = pad_value
+        self.beats = beats
 
         args = []
         for i, (folder, identifiers) in enumerate(split.items()):
@@ -225,7 +227,7 @@ class A2MD(ADTDataset):
                                                           win_length=self.fft_size // 2, power=2, center=self.center,
                                                           pad_mode=self.pad_mode, normalized=False, onesided=True)
         self.filter_bank = torchaudio.transforms.MelScale(n_mels=self.n_mels, sample_rate=self.sample_rate,
-                                                          f_min=0.0, f_max=self.sample_rate / 2,
+                                                          f_min=mel_min, f_max=mel_max,
                                                           n_stft=self.fft_size // 2 + 1)
 
     def __len__(self):

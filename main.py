@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
@@ -5,12 +7,13 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from dataset import get_dataset
-from dataset.A2MD import five_class_mapping, eighteen_class_mapping, three_class_mapping, three_class_standard_mapping, \
-    A2MD, four_class_mapping
+from dataset.A2MD import A2MD
+from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
 from model import ModelEmaV2
+from settings import AnnotationSettings, AudioProcessingSettings, TrainingSettings, CNNSettings
 
 
 def step(
@@ -89,50 +92,36 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
 
 
 def main(
-        learning_rate: float = 5e-4,
-        epochs: int = 20,
-        batch_size: int = 512,
-        ema: bool = False,
-        scheduler: bool = True,
-        n_mels: int = 12*7,
-        early_stopping: bool = False,
-        version: str = "L",
-        time_shift: float = 0.0,
-        causal: bool = True,
+        training_settings: TrainingSettings = TrainingSettings(dataset_version="L"),
+        audio_settings: AudioProcessingSettings = AudioProcessingSettings(),
+        annotation_settings: AnnotationSettings = AnnotationSettings(mapping=DrumMapping.THREE_CLASS),
 ):
+    cnn_settings = CNNSettings(n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels)
+
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
 
-    print(
-        f"Settings: Learning Rate: {learning_rate}, "
-        f"Epochs: {epochs}, Batch Size: {batch_size}, "
-        f"EMA: {ema}, Scheduler: {scheduler}"
-    )
+    print(training_settings)
+    print(audio_settings)
+    print(annotation_settings)
+    print(cnn_settings)
 
-    num_workers = 32
-
-    mapping = three_class_mapping
     dataloader_train, dataloader_val, dataloader_test = get_dataset(
-        batch_size, num_workers,
-        splits=[0.8, 0.1, 0.1],
-        version=version,
-        time_shift=time_shift, mapping=mapping,
-        n_mels=n_mels, sample_rate=44100, hop_size=441,
+        training_settings, audio_settings, annotation_settings
     )
 
-    model = CNN(n_mels=n_mels, n_classes=len(mapping) + 2, causal=causal,
-                num_channels=32, num_residual_blocks=0, dropout=0.3)
+    model = CNN(**asdict(cnn_settings))
     model.to(device)
 
-    ema_model = ModelEmaV2(model, decay=0.999, device=device) if ema else None
+    ema_model = ModelEmaV2(model, decay=0.999, device=device) if training_settings.ema else None
 
-    max_lr = learning_rate * 2
+    max_lr = training_settings.learning_rate * 2
     initial_lr = max_lr / 25
     min_lr = initial_lr / 1e4
 
     optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
-                                              epochs=epochs) if scheduler else None
+                                              epochs=training_settings.epochs) if training_settings.scheduler else None
     error = torch.nn.MSELoss(reduction="none")
     scaler = torch.cuda.amp.GradScaler()
 
@@ -140,7 +129,7 @@ def main(
     best_score = 0
     last_improvement = 0
     print("Starting Training")
-    for epoch in range(epochs):
+    for epoch in range(training_settings.epochs):
         total_loss = 0
         for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="mini-batch",
                             smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
@@ -162,7 +151,7 @@ def main(
                 ema_model.update(model)
             total_loss += loss
         val_loss, f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_val, error,
-                                     device)
+                                     device, training_settings.ignore_beats)
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
@@ -178,7 +167,7 @@ def main(
         if best_score <= f_score:
             best_score = f_score
             last_improvement = 0
-        elif last_improvement >= 5 and time_shift > 0.0:
+        elif last_improvement >= 5 and annotation_settings.time_shift > 0.0:
             last_improvement = 0
             """
             optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
@@ -189,7 +178,7 @@ def main(
             """
         if val_loss <= best_loss:
             best_loss = val_loss
-        if last_improvement > 10 and early_stopping:
+        if last_improvement > 10 and training_settings.early_stopping:
             break
 
     return ema_model.module if ema_model is not None else model
