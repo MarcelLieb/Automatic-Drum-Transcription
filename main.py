@@ -92,7 +92,7 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
 
 
 def main(
-        training_settings: TrainingSettings = TrainingSettings(dataset_version="L"),
+        training_settings: TrainingSettings = TrainingSettings(),
         audio_settings: AudioProcessingSettings = AudioProcessingSettings(),
         annotation_settings: AnnotationSettings = AnnotationSettings(mapping=DrumMapping.THREE_CLASS),
 ):
@@ -159,7 +159,7 @@ def main(
         )
         if f_score > 0.55 and f_score >= best_score:
             test_loss, test_f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_test,
-                                               error, device)
+                                               error, device, training_settings.ignore_beats)
             print(f"Test Loss: {test_loss * 100:.4f} F-Score: {test_f_score * 100:.4f}")
             if test_f_score > 0.73:
                 break
