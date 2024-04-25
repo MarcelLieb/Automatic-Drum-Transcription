@@ -16,8 +16,10 @@ fn calculate_pr(
     let mut out = Vec::new();
     predictions
         .into_par_iter()
+        .rev()
         .with_max_len(1)
-        .zip_eq(ground_truths)
+        // Filters out extra beat labels if length mismatches
+        .zip(ground_truths.into_par_iter().rev())
         .map(|(values, labels)| {
             let mut tp: usize = 0;
             let mut fp: usize = 0;

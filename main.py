@@ -52,7 +52,7 @@ def step(
     return filtered.item()
 
 
-def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criterion, device) -> (float, float):
+def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criterion, device, ignore_beats: bool) -> (float, float):
     """Evaluates the model on the specified dataset
 
     @return: The loss for the specified dataset. Return a float and not a PyTorch tensor
@@ -79,7 +79,7 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-    p, r, f, thresholds = calculate_pr(predictions, groundtruth, ignore_beats=True)
+    p, r, f, thresholds = calculate_pr(predictions, groundtruth, ignore_beats=ignore_beats)
     print(f"Thresholds: {thresholds}")
     plt.plot(r, p)
     plt.xlabel("Recall")
