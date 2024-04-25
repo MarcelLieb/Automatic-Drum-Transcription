@@ -1,6 +1,6 @@
 from torch import nn
 from torch.nn import functional as f
-from model import Conv2dNormActivationPool, ResidualBlock
+from model import ResidualBlock
 
 
 class CNN(nn.Module):
