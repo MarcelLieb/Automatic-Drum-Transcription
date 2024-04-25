@@ -164,8 +164,8 @@ def get_segments(lengths: list[float], drum_labels: list[list[np.array]], lead_i
 
 def load_audio(path: str, folder: str, identifier: str, sample_rate: int) -> torch.Tensor:
     audio_path = os.path.join(path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
-    audio, sample_rate = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
-    audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=sample_rate)(audio)
+    audio, sr = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
+    audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(audio)
     audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
     audio = audio / torch.max(torch.abs(audio))
     return audio
