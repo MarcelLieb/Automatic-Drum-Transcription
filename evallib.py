@@ -48,6 +48,8 @@ def calculate_pr(peaks: list[list[torch.Tensor]], groundtruth: list[list[torch.T
     for i in range(len(groundtruth)):
         for j in range(len(groundtruth[i])):
             gt[j].append(groundtruth[i][j])
+    # beats get ignored automatically if peaks has fewer classes than groundtruth
+    # this is due to the model not predicting beats
     if ignore_beats and len(gt) == len(classes):
         gt = gt[2:]
         classes = classes[2:]
