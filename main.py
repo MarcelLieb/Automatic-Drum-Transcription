@@ -46,7 +46,7 @@ def step(
     scaler.step(optimizer)
     scaler.update()
 
-    if scheduler is not None:
+    if scheduler is not None and not isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
         scheduler.step()
 
     return filtered.item()
@@ -114,6 +114,7 @@ def main(
     model.to(device)
 
     ema_model = ModelEmaV2(model, decay=0.999, device=device) if training_settings.ema else None
+    best_model = None
 
     max_lr = training_settings.learning_rate * 2
     initial_lr = max_lr / 25
@@ -123,6 +124,8 @@ def main(
     optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
                                               epochs=training_settings.epochs) if training_settings.scheduler else None
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.2, patience=10)
+    current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
     error = torch.nn.MSELoss(reduction="none")
     scaler = torch.cuda.amp.GradScaler()
 
@@ -153,6 +156,14 @@ def main(
             total_loss += loss
         val_loss, f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_val, error,
                                      device, training_settings.ignore_beats)
+        if scheduler is not None and isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+            scheduler.step(f_score)
+            if current_lr > optimizer.state_dict()["param_groups"][0]["lr"]:
+                current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
+                print(f"Adjusting learning rate to {current_lr}")
+                model.load_state_dict(best_model)
+                optimizer = optim.RAdam(model.parameters(), lr=current_lr, eps=1e-8, weight_decay=1e-5)
+                scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.2, patience=10)
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
@@ -167,6 +178,7 @@ def main(
         last_improvement += 1
         if best_score <= f_score:
             best_score = f_score
+            best_model = model.state_dict()
             last_improvement = 0
         elif last_improvement >= 5 and annotation_settings.time_shift > 0.0:
             last_improvement = 0
