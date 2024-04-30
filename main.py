@@ -118,6 +118,7 @@ def main(
     max_lr = training_settings.learning_rate * 2
     initial_lr = max_lr / 25
     min_lr = initial_lr / 1e4
+    initial_lr = training_settings.learning_rate if not training_settings.scheduler else initial_lr
 
     optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
