@@ -1,7 +1,7 @@
 numpy~=1.26.4
-torch~=2.2.1
+torch~=2.3.0
 fuzzywuzzy~=0.18.0
-torchaudio~=2.2.1
+torchaudio~=2.3.0
 librosa~=0.10.1
 tqdm~=4.66.2
 pretty_midi~=0.2.10
