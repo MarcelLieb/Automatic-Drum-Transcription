@@ -231,8 +231,8 @@ class A2MD(ADTDataset):
             padded = self.pad(labels.unsqueeze(0)).squeeze(0) * self.pad_value
             labels = torch.maximum(labels, padded)
         spectrum = self.spectrum(audio)
+        spectrum = torch.log1p(spectrum)
         mel = self.filter_bank(spectrum)
-        mel = torch.log1p(mel)
 
         gt_labels = [down_beats, beats, *drums]
 
