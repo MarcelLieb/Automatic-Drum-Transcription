@@ -53,3 +53,4 @@ class CNNSettings:
     dropout: float = 0.3
     assert 0.0 <= dropout < 1.0
     causal = True
+    flux = True
