@@ -1,24 +1,30 @@
 import os
-import random
+from pathlib import Path
 
 import numpy as np
 import torch
 import torchaudio
-from torch.utils.data import Dataset
-from torchaudio.transforms import SpeedPerturbation
 
-from dataset import audio_collate, Gain
+from dataset.generics import ADTDataset
+from dataset.mapping import DrumMapping
+from settings import AudioProcessingSettings, AnnotationSettings
 
 rbma_13_path = "./data/rbma_13/"
 
 
-def load_rbma(rbma_path=rbma_13_path):
+def load_rbma(rbma_path: str = rbma_13_path) -> dict[str, (np.array, np.array)]:
     annotations = {}
     for root, dirs, files in os.walk(os.path.join(rbma_path, "annotations", "drums")):
         for file in files:
             track = file.split(".")[0]
-            data = np.loadtxt(os.path.join(root, file), delimiter="\t")
-            annotations[track] = data
+            drums = np.loadtxt(os.path.join(root, file), delimiter="\t")
+            drums = [drums[drums[:, 1] == i][:, 0] for i in range(3)]
+            beats = np.loadtxt(
+                os.path.join(rbma_path, "annotations", "beats", f"{track}.txt"),
+                delimiter="\t",
+            )
+            beats = [beats[beats[:, 1] == 1][:, 0], beats[:, 0]]
+            annotations[track] = (beats, drums)
     return annotations
 
 
@@ -31,6 +37,7 @@ def rename_rbma_audio_files():
 
     positions = [[] for _ in range(30)]
     from fuzzywuzzy import process
+
     for root, dirs, files in os.walk(os.path.join(rbma_13_path, "audio")):
         for file in files:
             track = " ".join(file.split(".")[0].split(" ")[2:-1])
@@ -41,131 +48,211 @@ def rename_rbma_audio_files():
 
     for i, files in enumerate(positions):
         if len(files) == 1:
-            os.rename(os.path.join(rbma_13_path, "audio", files[0]),
-                      os.path.join(rbma_13_path, "audio", f"RBMA-13-Track-{i + 1:02}.mp3"))
+            os.rename(
+                os.path.join(rbma_13_path, "audio", files[0]),
+                os.path.join(rbma_13_path, "audio", f"RBMA-13-Track-{i + 1:02}.mp3"),
+            )
 
     return positions
 
 
-class RBMA_13(Dataset):
-    def __init__(self, root, split, sample_rate=48000, hop_size=480, fft_size=2048, label_shift=-0.02,
-                 pad_annotations=3, n_mels=82, center=False, pad_mode="constant"):
+def get_length(path: str, song: str):
+    audio_path = os.path.join(path, "audio", f"{song}.mp3")
+    meta_data = torchaudio.info(audio_path, backend="ffmpeg")
+    return meta_data.num_frames / meta_data.sample_rate
+
+
+def get_segments(
+    lengths: list[float],
+    drum_labels: list[list[np.array]],
+    lead_in: float,
+    sample_rate: int,
+) -> np.array:
+    """
+    :param lengths: List of lengths of the audio files
+    :param drum_labels: List of drum labels
+    :param lead_in: Length of the lead-in in seconds
+    :param sample_rate: Sample rate of the audio files
+    :return: List of tuples containing the start and end indices of the segments and the index of the audio file
+    """
+    segments = []
+    for i, (length, drum_label) in enumerate(zip(lengths, drum_labels)):
+        labels = np.concatenate(drum_label)
+        # labels = np.unique(labels)
+        start = ((labels * sample_rate) - (lead_in * sample_rate)).astype(int)
+        start = np.clip(start, 0, length * sample_rate)
+        end = (labels * sample_rate + 0.125 * sample_rate).astype(int)
+        end = np.clip(end, 0, length * sample_rate)
+        out = np.stack((start, end, np.zeros_like(start) + i), axis=1).astype(int)
+        segments.append(out)
+    return np.concatenate(segments, axis=0)
+
+
+class RBMA_13(ADTDataset):
+    def __init__(
+        self,
+        root: str | Path,
+        audio_settings: AudioProcessingSettings,
+        annotation_settings: AnnotationSettings,
+        use_dataloader=False,
+        splits: list[int] | None = None,
+        is_train=False,
+        **_kwargs,
+    ):
+        super().__init__(audio_settings, annotation_settings)
         self.root = root
-        self.sample_rate = sample_rate
-        self.hop_size = hop_size
-        self.fft_size = fft_size
-        self.label_shift = label_shift
-        self.train = "train" in split.lower()
-        self.spectrum = torchaudio.transforms.Spectrogram(n_fft=self.fft_size, hop_length=self.hop_size,
-                                                          win_length=self.fft_size//2, power=2, center=center,
-                                                          pad_mode=pad_mode, normalized=False, onesided=True)
+        self.is_train = is_train
+        self.use_dataloader = use_dataloader
+        self.pad = (
+            torch.nn.MaxPool1d(3, stride=1, padding=1)
+            if annotation_settings.pad_annotations
+            else None
+        )
+        self.spectrum = torchaudio.transforms.Spectrogram(
+            n_fft=audio_settings.fft_size,
+            hop_length=audio_settings.hop_size,
+            win_length=audio_settings.fft_size // 2,
+            power=2,
+            center=audio_settings.center,
+            pad_mode=audio_settings.pad_mode,
+            normalized=True,
+            onesided=True,
+        )
         self.filter_bank = torchaudio.transforms.MelScale(
-            n_mels=n_mels, sample_rate=sample_rate, n_stft=self.fft_size // 2 + 1, f_min=0.0, f_max=20000, norm=None,
+            n_mels=audio_settings.n_mels,
+            sample_rate=audio_settings.sample_rate,
+            n_stft=audio_settings.fft_size // 2 + 1,
+            f_min=audio_settings.mel_min,
+            f_max=audio_settings.mel_max,
+            norm=None,
             mel_scale="htk",
         )
 
-        annotations = load_rbma()
-        self.annotations = {}
-        self.label_spreader = torch.nn.MaxPool1d(pad_annotations, stride=1, padding=pad_annotations // 2)
-        split = split.lower()
-        assert split in ["train", "train_big", "validation", "test", "all"]
-        if split == "all":
-            self.annotations = annotations
-            return
-        if split == "train_big":
-            with open(os.path.join(root, "splits", f"3-fold_cv_0.txt")) as f:
-                tracks = f.readlines()
-            with open(os.path.join(root, "splits", f"3-fold_cv_1.txt")) as f:
-                tracks += f.readlines()
-            tracks = [x.strip() for x in tracks]
-            for track in tracks:
-                self.annotations[track] = annotations[track]
-            return
-        index = ["train", "validation", "test"].index(split)
-        with open(os.path.join(root, "splits", f"3-fold_cv_{index}.txt")) as f:
-            tracks = f.readlines()
-        tracks = [x.strip() for x in tracks]
-        for track in tracks:
-            self.annotations[track] = annotations[track]
+        self.annotations = load_rbma(root)
+        if splits is None:
+            splits = [int(name.split("-")[-1]) for name in self.annotations.keys()]
+        tracks = [f"RBMA-13-Track-{number:02}" for number in splits]
+        self.annotations = {track: self.annotations[track] for track in tracks}
+
+        lengths = [get_length(root, track) for track in tracks]
+        drum_labels = [self.annotations[track][1] for track in tracks]
+        self.segments = (
+            get_segments(
+                lengths,
+                drum_labels,
+                annotation_settings.lead_in,
+                audio_settings.sample_rate,
+            )
+            if self.is_train
+            else None
+        )
+
+        self.label_spreader = torch.nn.MaxPool1d(3, stride=1, padding=1)
 
     def __len__(self):
         return len(self.annotations)
 
+    def adjust_time_shift(self, time_shift: float):
+        self.time_shift = time_shift
+
     def __getitem__(self, idx):
         track = list(self.annotations.keys())[idx]
 
-        annotation = self.annotations[track]
+        beats, drums = self.annotations[track]
         audio_path = os.path.join(self.root, "audio", f"{track}.mp3")
 
-        audio, sample_rate = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
-        audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=48000)(audio)
+        audio, sample_rate = torchaudio.load(
+            audio_path, normalize=True, backend="ffmpeg"
+        )
+        audio = torchaudio.transforms.Resample(
+            orig_freq=sample_rate, new_freq=self.sample_rate
+        )(audio)
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
         audio = audio / torch.max(torch.abs(audio))
 
-        if self.train and False:
-            transform = Gain(min_gain=-3, max_gain=0)
-            audio = transform(audio)
+        fft_size = self.fft_size
+        hop_size = self.hop_size
+        sample_rate = self.sample_rate
 
-            perturbation = round(random.uniform(0.9, 1.1), 1)
-            audio = SpeedPerturbation(self.sample_rate, [perturbation])(audio)[0]
-            annotation[:, 0] /= perturbation
+        frames = (audio.shape[-1] - fft_size) // hop_size + 1
+        labels = torch.zeros(((self.beats * 2) + 3, frames), dtype=torch.float32)
 
-        annotation[:, 0] += self.label_shift
+        if self.beats:
+            down_beat_indices = (beats[0] * sample_rate) // hop_size
+            down_beat_indices = torch.tensor(down_beat_indices, dtype=torch.long)
+            down_beat_indices = down_beat_indices[down_beat_indices < frames]
+            beat_indices = (beats[1] * sample_rate) // hop_size
+            beat_indices = torch.tensor(beat_indices, dtype=torch.long)
+            beat_indices = beat_indices[beat_indices < frames]
+            labels[0, down_beat_indices] = 1
+            labels[1, beat_indices] = 1
 
-        frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
-        labels = torch.zeros((4, frames), dtype=torch.int64)
-        indices = (annotation[:, 0] * self.sample_rate) // self.hop_size
-        indices = torch.tensor(indices).long()
-        for i in range(3):
-            inst_indices = indices[annotation[:, 1] == i]
-            labels[i, inst_indices] = 1
-            labels[3, inst_indices] = 1
-        labels = labels.float()
-        labels = self.label_spreader(labels.unsqueeze(0)).squeeze(0)
-        labels = labels.permute(1, 0)
+        hop_length = hop_size / sample_rate
+
+        drum_indices = [(drum * sample_rate) // hop_size for drum in drums]
+        drum_indices = [drum[drum < frames] for drum in drum_indices]
+        for i, drum_class in enumerate(drum_indices):
+            for j in range(round(self.time_shift // hop_length) + 1):
+                shifted_drum_class = drum_class + j
+                labels[
+                    int(self.beats) * 2 + i,
+                    shifted_drum_class[shifted_drum_class < frames],
+                ] = 1
+        if self.pad is not None:
+            padded = (
+                self.pad(labels.unsqueeze(0)).squeeze(0)
+                * self.pad_value
+            )
+            labels = torch.maximum(labels, padded)
+
+        gt_labels = [*beats, *drums]
+
         spectrum = self.spectrum(audio)
-        spectrum = self.filter_bank(spectrum)
-        spectrum = spectrum.permute(1, 0)
+        spectrum = torch.log1p(spectrum)
+        mel = self.filter_bank(spectrum)
 
-        return spectrum, labels
-
-
-def get_dataloader(root, split, batch_size, num_workers, sample_rate=48000, hop_size=480, fft_size=2048,
-                   label_shift=-0.02, **kwargs):
-    dataset = RBMA_13(root, split, sample_rate, hop_size, fft_size, label_shift=label_shift, **kwargs)
-    is_train = split.lower() == "train"
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=is_train, num_workers=num_workers,
-                                             collate_fn=audio_collate, drop_last=False, pin_memory=True)
-    return dataloader
+        if self.use_dataloader:
+            return mel.permute(1, 0), labels.permute(1, 0), gt_labels
+        return spectrum, labels, gt_labels
 
 
-if __name__ == '__main__':
-    dataset = RBMA_13("../data/rbma_13/", "all", 48000, 480, 2048, label_shift=-0.01, pad_annotations=3)
-    spectrogram = torchaudio.transforms.Spectrogram(n_fft=2048, hop_length=480, win_length=1024, power=2, center=False,
-                                                    pad_mode="constant", normalized=False, onesided=True)
-    mel_scale = torchaudio.transforms.MelScale(n_mels=82, sample_rate=48000, n_stft=1025, f_min=0.0, f_max=20000,
-                                               norm=None, mel_scale="htk")
+def main():
+    a_settings = AudioProcessingSettings()
+    an_settings = AnnotationSettings(mapping=DrumMapping.THREE_CLASS_STANDARD)
+    dataset = RBMA_13(
+        "../data/rbma_13/",
+        a_settings,
+        an_settings,
+        False,
+    )
     averages = torch.zeros((4, 82))
-    averages_neg = torch.zeros((4, 82))
-    total = torch.zeros(4)
     total_pos = torch.zeros(4)
-    total_neg = torch.zeros(4)
     for i in range(len(dataset)):
         mel, labels = dataset[i]
         spec_diff = mel[..., 1:] - mel[..., :-1]
         spec_diff = torch.clamp(spec_diff, min=0.0)
-        spec_diff = torch.cat((torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1)
+        spec_diff = torch.cat(
+            (torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1
+        )
         labels = labels.permute(1, 0)
         mask = labels == 1
         for j in range(4):
             positives = spec_diff[:, mask[j, :]].mean(dim=-1)
-            positives = positives / torch.linalg.norm(positives, ord=1, dim=-1, keepdim=True)
+            positives = positives / torch.linalg.norm(
+                positives, ord=1, dim=-1, keepdim=True
+            )
             negatives = spec_diff[:, ~mask[j, :]].mean(dim=-1)
-            negatives = negatives / torch.linalg.norm(negatives, ord=1, dim=-1, keepdim=True)
+            negatives = negatives / torch.linalg.norm(
+                negatives, ord=1, dim=-1, keepdim=True
+            )
             total_pos[j] += torch.any(mask[j, :])
             if torch.any(mask[j, :]):
                 total = positives - negatives
                 averages[j, :] += total
 
     averages /= total_pos.unsqueeze(-1)
-    print(a := averages)
+    print(averages)
+
+
+if __name__ == "__main__":
+    main()
