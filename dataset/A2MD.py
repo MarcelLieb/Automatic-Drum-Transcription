@@ -110,52 +110,77 @@ def get_tracks(path: str) -> dict[str, list[str]]:
 
 
 class A2MD(ADTDataset):
-    def __init__(self, split: dict[str, list[str]], path: Path | str = A2MD_PATH,
-                 pad_annotation: bool = True, pad_value: float = 0.5, is_train: bool = False,
-                 mapping: DrumMapping = three_class_mapping, time_shift=0.0, beats=False,
-                 sample_rate=44100, hop_size=512, fft_size=2048, n_mels=82, center=False, lead_in=0.250,
-                 mel_min=20.0, mel_max=22050.0,
-                 pad_mode="constant", use_dataloader=False, **_kwargs):
+    def __init__(
+        self,
+        split: dict[str, list[str]],
+        audio_settings: AudioProcessingSettings,
+        annotation_settings: AnnotationSettings,
+        path: Path | str = A2MD_PATH,
+        is_train: bool = False,
+        use_dataloader=False,
+        **_kwargs,
+    ):
+        super().__init__(audio_settings, annotation_settings)
         self.path = path
-        self.sample_rate = sample_rate
-        self.hop_size = hop_size
-        self.fft_size = fft_size
-        self.n_mels = n_mels
-        self.center = center
-        self.pad_mode = pad_mode
         self.split = split
-        self.mapping = mapping
         self.use_dataloader = use_dataloader
-        self.time_shift = time_shift
         self.is_train = is_train
-        self.n_classes = len(mapping) + 2 * beats
-        self.pad = torch.nn.MaxPool1d(3, stride=1, padding=1) if pad_annotation else None
-        self.pad_value = pad_value
-        self.beats = beats
+        self.pad = (
+            torch.nn.MaxPool1d(3, stride=1, padding=1)
+            if annotation_settings.pad_annotations
+            else None
+        )
 
         args = []
         for i, (folder, identifiers) in enumerate(split.items()):
             for identifier in identifiers:
-                args.append((path, folder, identifier, mapping))
-        torch.multiprocessing.set_sharing_strategy('file_system')
+                args.append((path, folder, identifier, self.mapping))
+        torch.multiprocessing.set_sharing_strategy("file_system")
         with torch.multiprocessing.Pool() as pool:
             self.annotations = pool.starmap(get_annotation, args)
             # filter tracks without drums
-            self.annotations = [annotation for annotation in self.annotations if annotation is not None]
-            args = [(path, folder, identifier) for folder, identifier, *_ in self.annotations]
+            self.annotations = [
+                annotation for annotation in self.annotations if annotation is not None
+            ]
+            args = [
+                (path, folder, identifier)
+                for folder, identifier, *_ in self.annotations
+            ]
             self.lengths = pool.starmap(get_length, args) if is_train else None
-            self.segments = get_segments(self.lengths, [drums for _, _, drums, *_ in self.annotations], lead_in,
-                                         sample_rate) if is_train else None
-            # self.segments = calculate_segments(self.lengths, segment_length, sample_rate, fft_size)
-            args = [(path, folder, identifier, sample_rate) for folder, identifier, *_ in self.annotations]
+            self.segments = (
+                get_segments(
+                    self.lengths,
+                    [drums for _, _, drums, *_ in self.annotations],
+                    annotation_settings.lead_in,
+                    audio_settings.sample_rate,
+                )
+                if is_train
+                else None
+            )
+            # self.segments = calculate_segments(self.lengths, 5.0, sample_rate, fft_size) if is_train else None
+            args = [
+                (path, folder, identifier, audio_settings.sample_rate)
+                for folder, identifier, *_ in self.annotations
+            ]
             self.cache = pool.starmap(load_audio, args) if is_train else None
 
-        self.spectrum = torchaudio.transforms.Spectrogram(n_fft=self.fft_size, hop_length=self.hop_size,
-                                                          win_length=self.fft_size // 2, power=2, center=self.center,
-                                                          pad_mode=self.pad_mode, normalized=False, onesided=True)
-        self.filter_bank = torchaudio.transforms.MelScale(n_mels=self.n_mels, sample_rate=self.sample_rate,
-                                                          f_min=mel_min, f_max=mel_max,
-                                                          n_stft=self.fft_size // 2 + 1)
+        self.spectrum = torchaudio.transforms.Spectrogram(
+            n_fft=self.fft_size,
+            hop_length=self.hop_size,
+            win_length=self.fft_size // 2,
+            power=2,
+            center=self.center,
+            pad_mode=self.pad_mode,
+            normalized=True,
+            onesided=True,
+        )
+        self.filter_bank = torchaudio.transforms.MelScale(
+            n_mels=self.n_mels,
+            sample_rate=self.sample_rate,
+            f_min=audio_settings.mel_min,
+            f_max=audio_settings.mel_max,
+            n_stft=self.fft_size // 2 + 1,
+        )
 
     def __len__(self):
         return len(self.segments) if self.is_train else len(self.annotations)
