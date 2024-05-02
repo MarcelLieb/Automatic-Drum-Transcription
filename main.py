@@ -13,17 +13,22 @@ from evallib import peak_pick_max_mean, calculate_pr
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN
 from model import ModelEmaV2
-from settings import AnnotationSettings, AudioProcessingSettings, TrainingSettings, CNNSettings
+from settings import (
+    AnnotationSettings,
+    AudioProcessingSettings,
+    TrainingSettings,
+    CNNSettings,
+)
 
 
 def step(
-        model: nn.Module,
-        criterion,
-        optimizer: optim.Optimizer,
-        audio_batch: torch.Tensor,
-        lbl_batch: torch.Tensor,
-        scaler: torch.cuda.amp.GradScaler,
-        scheduler: optim.lr_scheduler.LRScheduler = None,
+    model: nn.Module,
+    criterion,
+    optimizer: optim.Optimizer,
+    audio_batch: torch.Tensor,
+    lbl_batch: torch.Tensor,
+    scaler: torch.cuda.amp.GradScaler,
+    scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     """Performs one update step for the model
 
@@ -46,13 +51,22 @@ def step(
     scaler.step(optimizer)
     scaler.update()
 
-    if scheduler is not None and not isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+    if scheduler is not None and not isinstance(
+        scheduler, optim.lr_scheduler.ReduceLROnPlateau
+    ):
         scheduler.step()
 
     return filtered.item()
 
 
-def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criterion, device, ignore_beats: bool) -> (float, float):
+def evaluate(
+    epoch: int,
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    criterion,
+    device,
+    ignore_beats: bool,
+) -> (float, float):
     """Evaluates the model on the specified dataset
 
     @return: The loss for the specified dataset. Return a float and not a PyTorch tensor
@@ -66,20 +80,30 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
     predictions = []
     groundtruth = []
     with torch.no_grad():
-        for data in tqdm(dataloader, total=len(dataloader), unit="mini-batch",
-                         smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader), desc="Evaluation"):
+        for data in tqdm(
+            dataloader,
+            total=len(dataloader),
+            unit="mini-batch",
+            smoothing=0.1,
+            mininterval=1 / 2 * 60 / len(dataloader),
+            desc="Evaluation",
+        ):
             audio, lbl, gts = data
             audio = audio.to(device)
             lbl = lbl.to(device)
             with torch.autocast(device_type=device_str, dtype=torch.float16):
                 prediction = model(audio)
                 loss = criterion(prediction, lbl)
-            peaks = peak_pick_max_mean(prediction.cpu().detach().float(), sample_rate, hop_size)
+            peaks = peak_pick_max_mean(
+                prediction.cpu().detach().float(), sample_rate, hop_size
+            )
             predictions.extend(peaks)
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-    p, r, f, thresholds = calculate_pr(predictions, groundtruth, ignore_beats=ignore_beats)
+    p, r, f, thresholds = calculate_pr(
+        predictions, groundtruth, ignore_beats=ignore_beats
+    )
     print(f"Thresholds: {thresholds}")
     plt.plot(r, p)
     plt.xlabel("Recall")
@@ -92,9 +116,11 @@ def evaluate(epoch: int, model: torch.nn.Module, dataloader: DataLoader, criteri
 
 
 def main(
-        training_settings: TrainingSettings = TrainingSettings(),
-        audio_settings: AudioProcessingSettings = AudioProcessingSettings(),
-        annotation_settings: AnnotationSettings = AnnotationSettings(mapping=DrumMapping.THREE_CLASS),
+    training_settings: TrainingSettings = TrainingSettings(),
+    audio_settings: AudioProcessingSettings = AudioProcessingSettings(),
+    annotation_settings: AnnotationSettings = AnnotationSettings(
+        mapping=DrumMapping.THREE_CLASS
+    ),
 ):
     cnn_settings = CNNSettings(n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels)
 
@@ -113,20 +139,37 @@ def main(
     model = CNN(**asdict(cnn_settings))
     model.to(device)
 
-    ema_model = ModelEmaV2(model, decay=0.999, device=device) if training_settings.ema else None
+    ema_model = (
+        ModelEmaV2(model, decay=0.999, device=device) if training_settings.ema else None
+    )
     best_model = None
 
     max_lr = training_settings.learning_rate * 2
     initial_lr = max_lr / 25
-    min_lr = initial_lr / 1e4
-    initial_lr = training_settings.learning_rate if not training_settings.scheduler else initial_lr
+    _min_lr = initial_lr / 1e4
+    initial_lr = (
+        training_settings.learning_rate
+        if not training_settings.scheduler
+        else initial_lr
+    )
 
-    optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-5)
-    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=len(dataloader_train),
-                                              epochs=training_settings.epochs) if training_settings.scheduler else None
+    optimizer = optim.RAdam(
+        model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-5
+    )
+    scheduler = (
+        optim.lr_scheduler.OneCycleLR(
+            optimizer,
+            max_lr=max_lr,
+            steps_per_epoch=len(dataloader_train),
+            epochs=training_settings.epochs,
+        )
+        if training_settings.scheduler
+        else None
+    )
     # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.2, patience=10)
     current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
-    error = torch.nn.MSELoss(reduction="none")
+    # error = torch.nn.L1Loss(reduction="none")
+    error = torch.nn.BCEWithLogitsLoss(reduction="none")
     scaler = torch.cuda.amp.GradScaler()
 
     best_loss = float("inf")
@@ -135,9 +178,14 @@ def main(
     print("Starting Training")
     for epoch in range(training_settings.epochs):
         total_loss = 0
-        for _, data in tqdm(enumerate(dataloader_train), total=len(dataloader_train), unit="mini-batch",
-                            smoothing=0.1, mininterval=1 / 2 * 60 / len(dataloader_train),
-                            desc="Training"):
+        for _, data in tqdm(
+            enumerate(dataloader_train),
+            total=len(dataloader_train),
+            unit="mini-batch",
+            smoothing=0.1,
+            mininterval=1 / 2 * 60 / len(dataloader_train),
+            desc="Training",
+        ):
             audio, lbl, _ = data
             audio = audio.to(device)
             lbl = lbl.to(device)
@@ -149,29 +197,47 @@ def main(
                 audio_batch=audio,
                 lbl_batch=lbl,
                 scaler=scaler,
-                scheduler=scheduler
+                scheduler=scheduler,
             )
             if ema_model is not None:
                 ema_model.update(model)
             total_loss += loss
-        val_loss, f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_val, error,
-                                     device, training_settings.ignore_beats)
-        if scheduler is not None and isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+        val_loss, f_score = evaluate(
+            epoch,
+            model if ema_model is None else ema_model.module,
+            dataloader_val,
+            error,
+            device,
+            training_settings.ignore_beats,
+        )
+        if scheduler is not None and isinstance(
+            scheduler, optim.lr_scheduler.ReduceLROnPlateau
+        ):
             scheduler.step(f_score)
             if current_lr > optimizer.state_dict()["param_groups"][0]["lr"]:
                 current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
                 print(f"Adjusting learning rate to {current_lr}")
                 model.load_state_dict(best_model)
-                optimizer = optim.RAdam(model.parameters(), lr=current_lr, eps=1e-8, weight_decay=1e-5)
-                scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.2, patience=10)
+                optimizer = optim.RAdam(
+                    model.parameters(), lr=current_lr, eps=1e-8, weight_decay=1e-5
+                )
+                scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer, mode="max", factor=0.2, patience=10
+                )
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
             f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score * 100:.4f}"
         )
-        if f_score > 0.55 and f_score >= best_score:
-            test_loss, test_f_score = evaluate(epoch, model if ema_model is None else ema_model.module, dataloader_test,
-                                               error, device, training_settings.ignore_beats)
+        if f_score > 0.60 and f_score >= best_score:
+            test_loss, test_f_score = evaluate(
+                epoch,
+                model if ema_model is None else ema_model.module,
+                dataloader_test,
+                error,
+                device,
+                training_settings.ignore_beats,
+            )
             print(f"Test Loss: {test_loss * 100:.4f} F-Score: {test_f_score * 100:.4f}")
             if test_f_score > 0.73:
                 break
@@ -197,7 +263,7 @@ def main(
     return ema_model.module if ema_model is not None else model
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     trained_model = main()
     trained_model.eval()
     trained_model = trained_model.cpu()
@@ -207,7 +273,19 @@ if __name__ == '__main__':
         for i in range(4):
             print(list(weight[i].numpy()))
         # print thresholds
-        print(trained_model.drum_threshold.threshold.weight, trained_model.drum_threshold.threshold.bias)
-        print(trained_model.snare_threshold.threshold.weight, trained_model.snare_threshold.threshold.bias)
-        print(trained_model.hihat_threshold.threshold.weight, trained_model.hihat_threshold.threshold.bias)
-        print(trained_model.onset_threshold.threshold.weight, trained_model.onset_threshold.threshold.bias)
+        print(
+            trained_model.drum_threshold.threshold.weight,
+            trained_model.drum_threshold.threshold.bias,
+        )
+        print(
+            trained_model.snare_threshold.threshold.weight,
+            trained_model.snare_threshold.threshold.bias,
+        )
+        print(
+            trained_model.hihat_threshold.threshold.weight,
+            trained_model.hihat_threshold.threshold.bias,
+        )
+        print(
+            trained_model.onset_threshold.threshold.weight,
+            trained_model.onset_threshold.threshold.bias,
+        )

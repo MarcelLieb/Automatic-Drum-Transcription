@@ -4,24 +4,24 @@ import numpy as np
 
 # Mapping identical to the one used in "Towards multi-instrument drum transcription"
 drum_midi_mapping = {
-    "BD":  [35, 36],
-    "SD":  [38, 40],
-    "SS":  [37],
+    "BD": [35, 36],
+    "SD": [38, 40],
+    "SS": [37],
     "CLP": [39],
-    "LT":  [41, 43],
-    "MT":  [45, 47],
-    "HT":  [48, 50],
+    "LT": [41, 43],
+    "MT": [45, 47],
+    "HT": [48, 50],
     "CHH": [42],
     "PHH": [44],
     "OHH": [46],
-    "TB":  [54],
-    "RD":  [51, 59],
-    "RB":  [53],
-    "CB":  [56],
+    "TB": [54],
+    "RD": [51, 59],
+    "RB": [53],
+    "CB": [56],
     "CRC": [49, 57],
     "SPC": [55],
     "CHC": [52],
-    "CL":  [75],
+    "CL": [75],
 }
 
 drum_midi_mapping = {key: tuple(value) for key, value in drum_midi_mapping.items()}
@@ -29,21 +29,21 @@ drum_midi_mapping = {key: tuple(value) for key, value in drum_midi_mapping.items
 three_class_mapping = (
     ("BD",),  # Bass Drum
     ("SD", "SS", "CLP"),  # Snare Drum + alike
-    ("CHH", "PHH", "OHH")  # Hi-Hat
+    ("CHH", "PHH", "OHH"),  # Hi-Hat
 )
 
 # Commonly used mapping
 three_class_standard_mapping = (
     ("BD",),  # Bass Drum
     ("SD",),  # Snare Drum + alike
-    ("CHH", "PHH", "OHH")  # Hi-Hat
+    ("CHH", "PHH", "OHH"),  # Hi-Hat
 )
 
 four_class_mapping = (
     ("BD",),  # Bass Drum
     ("SD", "SS", "CLP"),  # Snare Drum + alike
     ("CHH", "PHH", "OHH"),  # Hi-Hat
-    ("LT", "MT", "HT")  # Toms
+    ("LT", "MT", "HT"),  # Toms
 )
 
 # Mapping used in ADTOF
@@ -52,7 +52,7 @@ five_class_mapping = (
     ("SD", "SS", "CLP"),  # Snare Drum + alike
     ("CHH", "PHH", "OHH"),  # Hi-Hat
     ("LT", "MT", "HT"),  # Toms
-    ("CRC", "SPC", "CHC", "RD")  # Cymbal + Ride
+    ("CRC", "SPC", "CHC", "RD"),  # Cymbal + Ride
 )
 
 eight_class_mapping = (
@@ -63,10 +63,10 @@ eight_class_mapping = (
     ("CRC", "SPC", "CHC"),  # Cymbal
     ("RD",),  # Ride
     ("RB", "CB"),  # Bell
-    ("CL",)  # Clave/Sticks
+    ("CL",),  # Clave/Sticks
 )
 
-eighteen_class_mapping = tuple([(key, ) for key in drum_midi_mapping.keys()])
+eighteen_class_mapping = tuple([(key,) for key in drum_midi_mapping.keys()])
 
 
 class DrumMapping(Enum):

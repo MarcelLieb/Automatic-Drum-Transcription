@@ -199,10 +199,7 @@ class RBMA_13(ADTDataset):
                     shifted_drum_class[shifted_drum_class < frames],
                 ] = 1
         if self.pad is not None:
-            padded = (
-                self.pad(labels.unsqueeze(0)).squeeze(0)
-                * self.pad_value
-            )
+            padded = self.pad(labels.unsqueeze(0)).squeeze(0) * self.pad_value
             labels = torch.maximum(labels, padded)
 
         gt_labels = [*beats, *drums]

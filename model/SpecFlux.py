@@ -7,11 +7,11 @@ from model import CausalMaxPool1d, CausalAvgPool1d
 
 class SpecFlux(nn.Module):
     def __init__(
-            self,
-            eps=1e-10,
-            lamb=0.1,
-            n_mels=82,
-            threshold=True,
+        self,
+        eps=1e-10,
+        lamb=0.1,
+        n_mels=82,
+        threshold=True,
     ):
         super(SpecFlux, self).__init__()
         self.eps = eps
@@ -19,7 +19,9 @@ class SpecFlux(nn.Module):
         self.n_mels = n_mels
         self.activation = nn.ELU()
         self.final_activation = nn.Tanh()
-        self.feature_extractor = nn.Conv1d(in_channels=n_mels, out_channels=4, kernel_size=1, padding=0, bias=False)
+        self.feature_extractor = nn.Conv1d(
+            in_channels=n_mels, out_channels=4, kernel_size=1, padding=0, bias=False
+        )
         P.register_parametrization(self.feature_extractor, "weight", nn.SELU())
         self.drum_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
         self.snare_threshold = Threshold(mean_range=6, max_range=3, norm_range=8)
@@ -31,7 +33,9 @@ class SpecFlux(nn.Module):
         mel = torch.log1p(x * self.lamb)
         spec_diff = mel[..., 1:] - mel[..., :-1]
         spec_diff = torch.clamp(spec_diff, min=0.0)
-        spec_diff = torch.cat((torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1)
+        spec_diff = torch.cat(
+            (torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1
+        )
 
         # self.feature_extractor = nn.Conv1d(n_mels, 3, 1, padding=0, bias=False)
         features = self.feature_extractor(spec_diff)
@@ -82,5 +86,5 @@ class Threshold(nn.Module):
         return x
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     spectral_flux = SpecFlux(sample_rate=48000, device="cpu")

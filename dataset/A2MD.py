@@ -8,13 +8,25 @@ import os
 
 from dataset.generics import ADTDataset
 from dataset.mapping import get_midi_to_class, three_class_mapping, DrumMapping
+from settings import AudioProcessingSettings, AnnotationSettings
 
 A2MD_PATH = "./data/a2md_public/"
 
 
-def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...] = three_class_mapping):
-    drum_instruments = [instrument for instrument in midi.instruments if instrument.is_drum]
-    notes = np.array([(note.pitch, note.start) for instrument in drum_instruments for note in instrument.notes])
+def get_drums(
+    midi: pretty_midi.PrettyMIDI,
+    mapping: tuple[tuple[str, ...], ...] = three_class_mapping,
+):
+    drum_instruments = [
+        instrument for instrument in midi.instruments if instrument.is_drum
+    ]
+    notes = np.array(
+        [
+            (note.pitch, note.start)
+            for instrument in drum_instruments
+            for note in instrument.notes
+        ]
+    )
     notes = np.array(sorted(notes, key=lambda x: x[1]))
     n_classes = len(mapping)
     midi_to_class = get_midi_to_class(mapping)
@@ -31,8 +43,15 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: tuple[tuple[str, ...], ...]
     return drum_classes
 
 
-def get_annotation(path: str, folder: str, identifier: str, mapping: DrumMapping = DrumMapping.THREE_CLASS):
-    midi = pretty_midi.PrettyMIDI(midi_file=os.path.join(path, "align_mid", folder, f"align_mid_{identifier}.mid"))
+def get_annotation(
+    path: str,
+    folder: str,
+    identifier: str,
+    mapping: DrumMapping = DrumMapping.THREE_CLASS,
+):
+    midi = pretty_midi.PrettyMIDI(
+        midi_file=os.path.join(path, "align_mid", folder, f"align_mid_{identifier}.mid")
+    )
     drums = get_drums(midi, mapping=mapping.value)
     if drums is None:
         return None
@@ -47,8 +66,9 @@ def get_length(path: str, folder: str, identifier: str):
     return meta_data.num_frames / meta_data.sample_rate
 
 
-def calculate_segments(lengths: list[float], segment_length: float, sample_rate: int, fft_size: int) \
-        -> list[tuple[int, int, int]]:
+def calculate_segments(
+    lengths: list[float], segment_length: float, sample_rate: int, fft_size: int
+) -> list[tuple[int, int, int]]:
     """
     :param lengths: List of lengths of the audio files
     :param segment_length: Length of the segments in seconds
@@ -61,13 +81,20 @@ def calculate_segments(lengths: list[float], segment_length: float, sample_rate:
         n_segments = int(np.ceil(length / segment_length))
         for j in range(n_segments):
             start = int(j * segment_length * sample_rate)
-            end = min(int((j + 1) * segment_length * sample_rate), int(length * sample_rate))
+            end = min(
+                int((j + 1) * segment_length * sample_rate), int(length * sample_rate)
+            )
             if end - start > fft_size:
                 segments.append((start, end, i))
     return segments
 
 
-def get_segments(lengths: list[float], drum_labels: list[list[np.array]], lead_in: float, sample_rate: int) -> np.array:
+def get_segments(
+    lengths: list[float],
+    drum_labels: list[list[np.array]],
+    lead_in: float,
+    sample_rate: int,
+) -> np.array:
     """
     :param lengths: List of lengths of the audio files
     :param drum_labels: List of drum labels
@@ -88,7 +115,9 @@ def get_segments(lengths: list[float], drum_labels: list[list[np.array]], lead_i
     return np.concatenate(segments, axis=0)
 
 
-def load_audio(path: str, folder: str, identifier: str, sample_rate: int) -> torch.Tensor:
+def load_audio(
+    path: str, folder: str, identifier: str, sample_rate: int
+) -> torch.Tensor:
     audio_path = os.path.join(path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
     audio, sr = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
     audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(audio)
@@ -194,8 +223,11 @@ class A2MD(ADTDataset):
 
         folder, identifier, drums, beats, down_beats = self.annotations[int(audio_idx)]
 
-        audio = load_audio(self.path, folder, identifier, self.sample_rate) if self.cache is None else self.cache[
-            int(audio_idx)]
+        audio = (
+            load_audio(self.path, folder, identifier, self.sample_rate)
+            if self.cache is None
+            else self.cache[int(audio_idx)]
+        )
         audio = audio[start:end]
 
         time_offset = start / self.sample_rate
@@ -204,7 +236,7 @@ class A2MD(ADTDataset):
         beats = beats[beats >= time_offset] - time_offset
         down_beats = down_beats[down_beats >= time_offset] - time_offset
 
-        frames = (audio.shape[0] - self.fft_size) // self.hop_size + 1
+        frames = (audio.shape[-1] - self.fft_size) // self.hop_size + 1
 
         labels = torch.zeros((self.n_classes, frames), dtype=torch.float32)
 
@@ -225,7 +257,10 @@ class A2MD(ADTDataset):
         for i, drum_class in enumerate(drum_indices):
             for j in range(round(self.time_shift // hop_length) + 1):
                 shifted_drum_class = drum_class + j
-                labels[int(self.beats) * 2 + i, shifted_drum_class[shifted_drum_class < frames]] = 1
+                labels[
+                    int(self.beats) * 2 + i,
+                    shifted_drum_class[shifted_drum_class < frames],
+                ] = 1
 
         if self.pad is not None:
             padded = self.pad(labels.unsqueeze(0)).squeeze(0) * self.pad_value
