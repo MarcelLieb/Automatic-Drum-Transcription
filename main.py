@@ -6,8 +6,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from dataset import get_dataset
-from dataset.A2MD import A2MD
+from dataset import get_dataset, ADTDataset
 from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr
 from model.SpecFlux import SpecFlux
@@ -75,7 +74,7 @@ def evaluate(
     total_loss = 0
     device_str = str(device)
     device_str = "cuda" if "cuda" in device_str else "cpu"
-    dataset: A2MD = dataloader.dataset
+    dataset: ADTDataset = dataloader.dataset
     sample_rate, hop_size = dataset.sample_rate, dataset.hop_size
     predictions = []
     groundtruth = []
@@ -122,7 +121,9 @@ def main(
         mapping=DrumMapping.THREE_CLASS
     ),
 ):
-    cnn_settings = CNNSettings(n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels)
+    cnn_settings = CNNSettings(
+        n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels
+    )
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -259,6 +260,8 @@ def main(
             best_loss = val_loss
         if last_improvement > 10 and training_settings.early_stopping:
             break
+
+    print(f"Best F-score: {best_score * 100:.4f}")
 
     return ema_model.module if ema_model is not None else model
 
