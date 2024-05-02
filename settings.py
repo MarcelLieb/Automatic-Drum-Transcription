@@ -12,7 +12,7 @@ class AudioProcessingSettings:
     center: bool = False
     pad_mode: str = "constant"
     mel_min: float = 20.0
-    mel_max: float = 44100 / 2
+    mel_max: float = 20000.0
 
 
 @dataclass
@@ -31,16 +31,16 @@ class AnnotationSettings:
 
 @dataclass
 class TrainingSettings:
-    learning_rate: float = 1e-3
-    epochs: int = 20
-    batch_size: int = 2048
+    learning_rate: float = 1e-4
+    epochs: int = 40
+    batch_size: int = 512
     ema: bool = False
     scheduler: bool = True
     n_mels: int = 12 * 7
     early_stopping: bool = False
     dataset_version: str = "L"
     splits: list[float] = (0.8, 0.1, 0.1)
-    num_workers: int = 32
+    num_workers: int = 64
     ignore_beats: bool = True
 
 
@@ -51,6 +51,5 @@ class CNNSettings:
     num_channels: int = 32
     num_residual_blocks: int = 0
     dropout: float = 0.3
-    assert 0.0 <= dropout < 1.0
     causal = True
     flux = True
