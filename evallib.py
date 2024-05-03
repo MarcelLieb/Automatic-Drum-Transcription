@@ -68,7 +68,7 @@ def calculate_pr(
     if ignore_beats and len(gt) == len(classes):
         gt = gt[2:]
         classes = classes[2:]
-    prs, thresholds, f_score = rust_calculate_pr(classes, gt, 0.025)
+    prs, thresholds, f_score = rust_calculate_pr(classes, gt, 0.025, 0.020)
 
     return (
         torch.tensor(prs[0][0]),
