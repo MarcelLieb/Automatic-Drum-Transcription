@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as f
-from model import ResidualBlock
+from model import ResidualBlock, ResidualBlock1d
 
 
 class CNN(nn.Module):
@@ -35,8 +35,10 @@ class CNN(nn.Module):
         self.residuals = nn.ModuleList()
         for _ in range(num_residual_blocks):
             self.residuals.append(
-                ResidualBlock(
-                    num_channels * 2, num_channels * 2, kernel_size=3, causal=causal
+                ResidualBlock1d(
+                    num_channels * 2,
+                    num_channels * 2,
+                    kernel_size=3,
                 )
             )
 

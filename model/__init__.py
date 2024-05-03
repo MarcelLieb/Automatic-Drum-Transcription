@@ -98,6 +98,61 @@ class CausalAvgPool1d(nn.Module):
         return x
 
 
+class Conv1dVertical(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size):
+        super(Conv1dVertical, self).__init__()
+        self.conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=(kernel_size, 1),
+            padding=(kernel_size // 2, 0),
+            bias=False,
+        )
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x
+
+
+class Conv1dVNormActivation(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, activation=nn.ELU()):
+        super(Conv1dVNormActivation, self).__init__()
+        self.conv = Conv1dVertical(in_channels, out_channels, kernel_size)
+        # TODO: Ask if the norm is used properly
+        self.norm = nn.BatchNorm2d(out_channels)
+        self.activation = activation
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.norm(x)
+        x = self.activation(x)
+        return x
+
+
+class ResidualBlock1d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, activation=nn.ELU()):
+        super(ResidualBlock1d, self).__init__()
+        self.conv1 = Conv1dVNormActivation(
+            in_channels, out_channels, kernel_size, activation=activation
+        )
+        self.conv2 = Conv1dVNormActivation(
+            out_channels, out_channels, kernel_size, activation=activation
+        )
+        self.re_sample = (
+            nn.Conv1d(in_channels, out_channels, kernel_size=1)
+            if in_channels != out_channels
+            else None
+        )
+
+    def forward(self, x):
+        residual = x
+        if self.re_sample is not None:
+            residual = self.re_sample(residual)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        return x + residual
+
+
 class Conv2dNormActivationPool(nn.Module):
     def __init__(
         self,
