@@ -99,18 +99,18 @@ def get_dataset(
         use_dataloader=True,
         is_train=True,
     )
-    val = RBMA_13(
-        root="./data/rbma_13",
-        audio_settings=audio_settings,
-        annotation_settings=annotation_settings,
-        use_dataloader=True,
-        is_train=False,
-    )
-    test = A2MD(
-        split=test,
+    val = A2MD(
+        split=val,
         audio_settings=audio_settings,
         annotation_settings=annotation_settings,
         path=path,
+        use_dataloader=True,
+        is_train=False,
+    )
+    test = RBMA_13(
+        root="./data/rbma_13",
+        audio_settings=audio_settings,
+        annotation_settings=annotation_settings,
         use_dataloader=True,
         is_train=False,
     )
