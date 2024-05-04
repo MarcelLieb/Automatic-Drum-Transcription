@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from dataclasses import asdict
 
 import torch
 from torch.utils.data import Dataset
