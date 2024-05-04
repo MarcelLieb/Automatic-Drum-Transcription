@@ -100,7 +100,7 @@ def evaluate(
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-    p, r, f, thresholds = calculate_pr(
+    p, r, f, f_avg,thresholds = calculate_pr(
         predictions, groundtruth, ignore_beats=ignore_beats
     )
     print(f"Thresholds: {thresholds}")
@@ -111,7 +111,7 @@ def evaluate(
     plt.ylim([0, 1])
     plt.savefig(f"./plots/pr_curve_{epoch}.png")
     plt.clf()
-    return total_loss / len(dataloader), f
+    return total_loss / len(dataloader), f, f_avg
 
 
 def main(
@@ -203,7 +203,7 @@ def main(
             if ema_model is not None:
                 ema_model.update(model)
             total_loss += loss
-        val_loss, f_score = evaluate(
+        val_loss, f_score, avg_f_score = evaluate(
             epoch,
             model if ema_model is None else ema_model.module,
             dataloader_val,
@@ -228,10 +228,10 @@ def main(
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
-            f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score * 100:.4f}"
+            f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
         )
         if f_score > 0.60 and f_score >= best_score:
-            test_loss, test_f_score = evaluate(
+            test_loss, test_f_score, test_avg_f_score = evaluate(
                 epoch,
                 model if ema_model is None else ema_model.module,
                 dataloader_test,
@@ -239,7 +239,7 @@ def main(
                 device,
                 training_settings.ignore_beats,
             )
-            print(f"Test Loss: {test_loss * 100:.4f} F-Score: {test_f_score * 100:.4f}")
+            print(f"Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}")
             if test_f_score > 0.73:
                 break
         last_improvement += 1

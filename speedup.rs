@@ -13,7 +13,7 @@ fn calculate_pr(
     ground_truths: Vec<Vec<Vec<f32>>>,
     detect_window: f32,
     cool_down: f32,
-) -> (Vec<(Vec<f32>, Vec<f32>)>, Vec<f32>, f32) {
+) -> (Vec<(Vec<f32>, Vec<f32>)>, Vec<f32>, f32, f32) {
     let mut out = Vec::new();
 
     predictions
@@ -47,7 +47,7 @@ fn calculate_pr(
 
                 let peaks = &mut peaks_by_song[song];
                 // Search index of peak
-                let index = peaks.partition_point(|a| a[0] < time );
+                let index = peaks.partition_point(|a| a[0] < time);
                 let mut i = index - 1;
 
                 while let Some(peak) = peaks.get(i) {
@@ -108,6 +108,12 @@ fn calculate_pr(
             (acc.0 + a, acc.1 + b, acc.2 + c)
         });
     let (_, _, f_score) = _calculate_prf(a, b, c);
+    let f_score_avg = out
+        .iter()
+        .map(|class| (class.4, class.5, class.6))
+        .map(|(tp, fp, r#fn)| _calculate_prf(tp, fp, r#fn).2)
+        .sum::<f32>()
+        / out.len() as f32;
 
     (
         out.iter()
@@ -116,6 +122,7 @@ fn calculate_pr(
             .collect(),
         out.iter().cloned().map(|class| class.3).collect(),
         f_score,
+        f_score_avg,
     )
 }
 
