@@ -99,7 +99,7 @@ def evaluate(
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-    p, r, f, f_avg,thresholds = calculate_pr(
+    p, r, f, f_avg, thresholds = calculate_pr(
         predictions, groundtruth, ignore_beats=ignore_beats
     )
     print(f"Thresholds: {thresholds}")
@@ -130,8 +130,8 @@ def main(
     print(annotation_settings)
     print(cnn_settings)
 
-    dataloader_train, dataloader_val, dataloader_test = get_dataset(
-        training_settings, audio_settings, annotation_settings
+    dataloader_train, dataloader_val, dataloader_test_rbma, dataloader_test_mdb = (
+        get_dataset(training_settings, audio_settings, annotation_settings)
     )
 
     model = CNN(**asdict(cnn_settings))
@@ -231,12 +231,25 @@ def main(
             test_loss, test_f_score, test_avg_f_score = evaluate(
                 epoch,
                 model if ema_model is None else ema_model.module,
-                dataloader_test,
+                dataloader_test_rbma,
                 error,
                 device,
                 training_settings.ignore_beats,
             )
-            print(f"Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}")
+            print(
+                f"RBMA: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
+            )
+            test_loss, test_f_score, test_avg_f_score = evaluate(
+                epoch,
+                model if ema_model is None else ema_model.module,
+                dataloader_test_mdb,
+                error,
+                device,
+                training_settings.ignore_beats,
+            )
+            print(
+                f"MDB: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
+            )
             if test_f_score > 0.73:
                 break
         last_improvement += 1

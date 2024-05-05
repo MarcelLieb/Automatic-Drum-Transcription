@@ -8,6 +8,7 @@ from torch.utils.data import Dataset, Subset
 from dataset.A2MD import A2MD, get_tracks
 from torch.utils.data import DataLoader
 
+from dataset.MDB_Drums import MDBDrums
 from dataset.RBMA13 import RBMA_13
 from dataset.generics import ADTDataset
 from settings import TrainingSettings, AudioProcessingSettings, AnnotationSettings
@@ -86,6 +87,7 @@ def get_dataset(
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
+    DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
 ]:
     path = "./data/a2md_public/"
     train, val, test = get_splits(
@@ -107,8 +109,15 @@ def get_dataset(
         use_dataloader=True,
         is_train=False,
     )
-    test = RBMA_13(
+    test_rbma = RBMA_13(
         root="./data/rbma_13",
+        audio_settings=audio_settings,
+        annotation_settings=annotation_settings,
+        use_dataloader=True,
+        is_train=False,
+    )
+    test_mdb = MDBDrums(
+        path="./data/MDB Drums",
         audio_settings=audio_settings,
         annotation_settings=annotation_settings,
         use_dataloader=True,
@@ -123,7 +132,10 @@ def get_dataset(
     dataloader_val = get_dataloader(
         val, 1, training_settings.num_workers, is_train=False
     )
-    dataloader_test = get_dataloader(
-        test, 1, training_settings.num_workers, is_train=False
+    dataloader_test_rbma = get_dataloader(
+        test_rbma, 1, training_settings.num_workers, is_train=False
     )
-    return dataloader_train, dataloader_val, dataloader_test
+    dataloader_test_mdb = get_dataloader(
+        test_mdb, 1, training_settings.num_workers, is_train=False
+    )
+    return dataloader_train, dataloader_val, dataloader_test_rbma, dataloader_test_mdb
