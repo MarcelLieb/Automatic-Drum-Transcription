@@ -679,3 +679,6 @@ fabric.properties
 .idea/copilot/chatSessions
 
 plots/
+
+data/
+models/
