@@ -7,13 +7,13 @@ from model import ResidualBlock, ResidualBlock1d
 class CNN(nn.Module):
     def __init__(
         self,
-        n_mels=12 * 9,
-        n_classes=3,
-        num_channels=24,
-        dropout=0.2,
-        num_residual_blocks=0,
-        causal=True,
-        flux=True,
+        n_mels,
+        n_classes,
+        num_channels,
+        dropout,
+        num_residual_blocks,
+        causal,
+        flux,
     ):
         super(CNN, self).__init__()
         self.flux = flux

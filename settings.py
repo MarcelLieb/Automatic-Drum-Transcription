@@ -17,7 +17,7 @@ class AudioProcessingSettings:
 
 @dataclass
 class AnnotationSettings:
-    mapping: DrumMapping
+    mapping: DrumMapping = DrumMapping.THREE_CLASS
     pad_annotations: bool = False
     pad_value: float = 0.5
     lead_in: float = 0.25
@@ -51,5 +51,5 @@ class CNNSettings:
     num_channels: int = 32
     num_residual_blocks: int = 0
     dropout: float = 0.3
-    causal = True
-    flux = True
+    causal: bool = True
+    flux: bool = True

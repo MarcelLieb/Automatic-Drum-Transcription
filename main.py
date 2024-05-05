@@ -117,9 +117,7 @@ def evaluate(
 def main(
     training_settings: TrainingSettings = TrainingSettings(),
     audio_settings: AudioProcessingSettings = AudioProcessingSettings(),
-    annotation_settings: AnnotationSettings = AnnotationSettings(
-        mapping=DrumMapping.THREE_CLASS
-    ),
+    annotation_settings: AnnotationSettings = AnnotationSettings(),
 ):
     cnn_settings = CNNSettings(
         n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels
