@@ -89,3 +89,14 @@ def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
             for pitch in drum_midi_mapping[drum_class]:
                 reverse_map[pitch] = idx
     return reverse_map
+
+
+def get_name_to_class_number(mapping: DrumMapping):
+    dic = {}
+    for idx, drum_classes in enumerate(mapping.value):
+        for drum_class in drum_classes:
+            dic[drum_class] = idx
+    for key in drum_midi_mapping.keys():
+        if key not in dic.keys():
+            dic[key] = -1
+    return dic
