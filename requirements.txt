@@ -8,3 +8,4 @@ pretty_midi~=0.2.10
 nnAudio~=0.3.1
 matplotlib~=3.8.4
 rustimport~=1.4.0
+polars~=0.20.23
