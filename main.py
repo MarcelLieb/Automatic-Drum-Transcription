@@ -7,7 +7,6 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from dataset import get_dataset, ADTDataset
-from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr
 from model.SpecFlux import SpecFlux
 from model.cnn import CNN

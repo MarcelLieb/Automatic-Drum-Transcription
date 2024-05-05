@@ -17,7 +17,7 @@ class AudioProcessingSettings:
 
 @dataclass
 class AnnotationSettings:
-    mapping: DrumMapping = DrumMapping.THREE_CLASS
+    mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
     pad_annotations: bool = False
     pad_value: float = 0.5
     lead_in: float = 0.25
