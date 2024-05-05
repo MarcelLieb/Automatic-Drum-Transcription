@@ -37,6 +37,5 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
     def __getitem__(self, idx):
         pass
 
-    @abstractmethod
     def adjust_time_shift(self, time_shift: float):
-        pass
+        self.time_shift = time_shift
