@@ -4,17 +4,24 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7d3d5cd3-951d-48ba-9914-c4175d6ec606" name="Changes" comment="label processing and data loader">
+    <list default="true" id="7d3d5cd3-951d-48ba-9914-c4175d6ec606" name="Changes" comment="fix settings">
+      <change afterPath="$PROJECT_DIR$/dataset/MDB_Drums.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/Automatic Drum Transcription.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Automatic Drum Transcription.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/deployment.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataset.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/model/cnn.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/cnn.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/settings.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ChangesViewManager">
+    <option name="groupingKeys">
+      <option value="directory" />
+    </option>
   </component>
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
@@ -26,6 +33,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;MarcelLieb&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/MarcelLieb/Automatic-Drum-Transcription.git&quot;,
+    &quot;accountId&quot;: &quot;87ba3818-c4f7-4f72-b82d-ce982deea077&quot;
+  }
+}</component>
   <component name="MarkdownSettingsMigration">
     <option name="stateVersion" value="1" />
   </component>
@@ -33,14 +52,18 @@
   &quot;associatedIndex&quot;: 1
 }</component>
   <component name="ProjectId" id="2dJz5ygT2m8XjBL99MnwiIpNrVb" />
-  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
+    &quot;Python.A2MD.executor&quot;: &quot;Run&quot;,
     &quot;Python.Automatic Drum Transcription.executor&quot;: &quot;Run&quot;,
+    &quot;Python.RBMA13.executor&quot;: &quot;Run&quot;,
     &quot;Python.SpecFlux.executor&quot;: &quot;Run&quot;,
     &quot;Python.dataset.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
@@ -48,22 +71,145 @@
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
     &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/marcl/Documents/Uni/2023_24_WS/Automatic Drum Transcription/data/rbma_13/audio&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/marclie/Documents/Uni/2024_SS/Bachelorarbeit/Automatic-Drum-Transcription&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="PyConsoleOptionsProvider">
+    <option name="myPythonConsoleState">
+      <console-settings>
+        <option name="useSoftWraps" value="true" />
+      </console-settings>
+    </option>
+  </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$" />
       <recent name="C:\Users\marcl\Documents\Uni\2023_24_WS\Automatic Drum Transcription\data\rbma_13\audio" />
     </key>
   </component>
   <component name="RunManager" selected="Python.Automatic Drum Transcription">
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="A2MD" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/dataset" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dataset/A2MD.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="A2MD" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/dataset" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dataset/A2MD.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="A2MD" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/dataset" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dataset/A2MD.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration name="Automatic Drum Transcription" type="PythonConfigurationType" factoryName="Python">
       <module name="Automatic Drum Transcription" />
       <option name="ENV_FILES" value="" />
@@ -79,6 +225,118 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Automatic Drum Transcription" type="PythonConfigurationType" factoryName="Python">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Automatic Drum Transcription" type="PythonConfigurationType" factoryName="Python">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="RBMA13" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/dataset" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dataset/RBMA13.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="SpecFlux" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/SpecFlux.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="SpecFlux" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/SpecFlux.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="true" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -156,21 +414,73 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <configuration name="dataset" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dataset.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="dataset" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="Automatic Drum Transcription" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/dataset.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.RBMA13" />
         <item itemvalue="Python.dataset" />
         <item itemvalue="Python.SpecFlux" />
+        <item itemvalue="Python.A2MD" />
       </list>
     </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-5a2391486177-2887949eec09-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-233.13763.11" />
+        <option value="bundled-js-predefined-1d06a55b98c1-74d2a5396914-JavaScript-PY-241.14494.241" />
+        <option value="bundled-python-sdk-0509580d9d50-28c9f5db9ffe-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-241.14494.241" />
       </set>
     </attachedChunks>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="SvnConfiguration">
+    <configuration>$USER_HOME$/.subversion</configuration>
+  </component>
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
       <changelist id="7d3d5cd3-951d-48ba-9914-c4175d6ec606" name="Changes" comment="" />
@@ -182,67 +492,514 @@
       <workItem from="1709751187502" duration="388000" />
       <workItem from="1709808292832" duration="3750000" />
       <workItem from="1709820452528" duration="12020000" />
+      <workItem from="1713189280097" duration="220000" />
+      <workItem from="1713189507458" duration="858000" />
+      <workItem from="1713194567393" duration="2413000" />
+      <workItem from="1713198669207" duration="816000" />
+      <workItem from="1713218456522" duration="48000" />
+      <workItem from="1713255172751" duration="1536000" />
+      <workItem from="1713260016088" duration="6000" />
+      <workItem from="1713260044331" duration="16000" />
+      <workItem from="1713263712833" duration="125000" />
+      <workItem from="1713267790309" duration="3000" />
+      <workItem from="1713268455846" duration="13000" />
+      <workItem from="1713268915649" duration="8681000" />
+      <workItem from="1713300258208" duration="2090000" />
+      <workItem from="1713342917502" duration="3643000" />
+      <workItem from="1713348651922" duration="12604000" />
+      <workItem from="1713375906353" duration="4180000" />
+      <workItem from="1713448911716" duration="12957000" />
+      <workItem from="1713472186331" duration="44000" />
+      <workItem from="1713472539680" duration="2664000" />
+      <workItem from="1713475284425" duration="13447000" />
+      <workItem from="1713526426328" duration="8023000" />
+      <workItem from="1713538567228" duration="101000" />
+      <workItem from="1713538689520" duration="10841000" />
+      <workItem from="1713607455460" duration="2192000" />
+      <workItem from="1713610055184" duration="2539000" />
+      <workItem from="1713612782124" duration="306000" />
+      <workItem from="1713613553812" duration="19441000" />
+      <workItem from="1713639525305" duration="8719000" />
+      <workItem from="1713694047786" duration="25118000" />
+      <workItem from="1713780833517" duration="5747000" />
+      <workItem from="1713798517093" duration="4658000" />
+      <workItem from="1713812160086" duration="5072000" />
+      <workItem from="1713853528833" duration="29000" />
+      <workItem from="1713853623185" duration="1116000" />
+      <workItem from="1713855385558" duration="490000" />
+      <workItem from="1713856231430" duration="764000" />
+      <workItem from="1713857003936" duration="2405000" />
+      <workItem from="1713859688710" duration="1839000" />
+      <workItem from="1713861675009" duration="3142000" />
+      <workItem from="1713865825024" duration="1035000" />
+      <workItem from="1713866869722" duration="6783000" />
+      <workItem from="1713874716968" duration="4951000" />
+      <workItem from="1713881206769" duration="15140000" />
+      <workItem from="1713945623013" duration="4618000" />
+      <workItem from="1713954044767" duration="5416000" />
+      <workItem from="1713959605579" duration="6371000" />
+      <workItem from="1713966176564" duration="278000" />
+      <workItem from="1713970308616" duration="21380000" />
+      <workItem from="1714037173766" duration="8454000" />
+      <workItem from="1714047436708" duration="9175000" />
+      <workItem from="1714058248736" duration="6788000" />
+      <workItem from="1714143483999" duration="11796000" />
+      <workItem from="1714211173521" duration="76000" />
+      <workItem from="1714211406959" duration="9992000" />
+      <workItem from="1714300945182" duration="17704000" />
+      <workItem from="1714384315076" duration="39000" />
+      <workItem from="1714384362606" duration="1159000" />
+      <workItem from="1714427779874" duration="3136000" />
+      <workItem from="1714459638800" duration="3075000" />
+      <workItem from="1714463134023" duration="738000" />
+      <workItem from="1714464413137" duration="5113000" />
+      <workItem from="1714470080364" duration="1032000" />
+      <workItem from="1714474418852" duration="3383000" />
+      <workItem from="1714481188630" duration="4805000" />
+      <workItem from="1714495211709" duration="7240000" />
+      <workItem from="1714511168195" duration="131000" />
+      <workItem from="1714557106257" duration="14136000" />
+      <workItem from="1714643900214" duration="24592000" />
+      <workItem from="1714682984457" duration="84603000" />
     </task>
-    <task id="LOCAL-00001" summary="initial commit">
+    <task id="LOCAL-00034" summary="fix non causal conv">
       <option name="closed" value="true" />
-      <created>1709751423757</created>
-      <option name="number" value="00001" />
-      <option name="presentableId" value="LOCAL-00001" />
+      <created>1713723358271</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
       <option name="project" value="LOCAL" />
-      <updated>1709751423757</updated>
+      <updated>1713723358271</updated>
     </task>
-    <task id="LOCAL-00002" summary="rbma 13 dataset parsing">
+    <task id="LOCAL-00035" summary="causal param">
       <option name="closed" value="true" />
-      <created>1709751446060</created>
-      <option name="number" value="00002" />
-      <option name="presentableId" value="LOCAL-00002" />
+      <created>1713723574634</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
       <option name="project" value="LOCAL" />
-      <updated>1709751446060</updated>
+      <updated>1713723574634</updated>
     </task>
-    <task id="LOCAL-00003" summary="implemented spectral flux">
+    <task id="LOCAL-00036" summary="higher speed">
       <option name="closed" value="true" />
-      <created>1709823573076</created>
-      <option name="number" value="00003" />
-      <option name="presentableId" value="LOCAL-00003" />
+      <created>1713723592385</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
       <option name="project" value="LOCAL" />
-      <updated>1709823573076</updated>
+      <updated>1713723592385</updated>
     </task>
-    <task id="LOCAL-00004" summary="to device and lambda compression">
+    <task id="LOCAL-00037" summary="updated packages">
       <option name="closed" value="true" />
-      <created>1709830124875</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
+      <created>1713811830245</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
       <option name="project" value="LOCAL" />
-      <updated>1709830124875</updated>
+      <updated>1713811830245</updated>
     </task>
-    <task id="LOCAL-00005" summary="to device and lambda compression">
+    <task id="LOCAL-00038" summary="smaller tolerance window">
       <option name="closed" value="true" />
-      <created>1709830150606</created>
-      <option name="number" value="00005" />
-      <option name="presentableId" value="LOCAL-00005" />
+      <created>1713812256780</created>
+      <option name="number" value="00038" />
+      <option name="presentableId" value="LOCAL-00038" />
       <option name="project" value="LOCAL" />
-      <updated>1709830150606</updated>
+      <updated>1713812256780</updated>
     </task>
-    <task id="LOCAL-00006" summary="label processing and data loader">
+    <task id="LOCAL-00039" summary="add timeshift field">
       <option name="closed" value="true" />
-      <created>1709830367221</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
+      <created>1713813007160</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
       <option name="project" value="LOCAL" />
-      <updated>1709830367221</updated>
+      <updated>1713813007160</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00040" summary="formatting">
+      <option name="closed" value="true" />
+      <created>1713815436369</created>
+      <option name="number" value="00040" />
+      <option name="presentableId" value="LOCAL-00040" />
+      <option name="project" value="LOCAL" />
+      <updated>1713815436369</updated>
+    </task>
+    <task id="LOCAL-00041" summary="time shift parameter">
+      <option name="closed" value="true" />
+      <created>1713815478200</created>
+      <option name="number" value="00041" />
+      <option name="presentableId" value="LOCAL-00041" />
+      <option name="project" value="LOCAL" />
+      <updated>1713815478200</updated>
+    </task>
+    <task id="LOCAL-00042" summary="experiments">
+      <option name="closed" value="true" />
+      <created>1713815562540</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1713815562540</updated>
+    </task>
+    <task id="LOCAL-00043" summary="best settings">
+      <option name="closed" value="true" />
+      <created>1713817001482</created>
+      <option name="number" value="00043" />
+      <option name="presentableId" value="LOCAL-00043" />
+      <option name="project" value="LOCAL" />
+      <updated>1713817001482</updated>
+    </task>
+    <task id="LOCAL-00044" summary="multi class evaluation">
+      <option name="closed" value="true" />
+      <created>1713875851062</created>
+      <option name="number" value="00044" />
+      <option name="presentableId" value="LOCAL-00044" />
+      <option name="project" value="LOCAL" />
+      <updated>1713875851062</updated>
+    </task>
+    <task id="LOCAL-00045" summary="faster">
+      <option name="closed" value="true" />
+      <created>1713943049039</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1713943049039</updated>
+    </task>
+    <task id="LOCAL-00046" summary="fix">
+      <option name="closed" value="true" />
+      <created>1713943081767</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1713943081767</updated>
+    </task>
+    <task id="LOCAL-00047" summary="adjust according to other papers">
+      <option name="closed" value="true" />
+      <created>1713943137426</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1713943137426</updated>
+    </task>
+    <task id="LOCAL-00048" summary="rebuild paper">
+      <option name="closed" value="true" />
+      <created>1713943754340</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1713943754340</updated>
+    </task>
+    <task id="LOCAL-00049" summary="configurable activation and fix unequal channels">
+      <option name="closed" value="true" />
+      <created>1713943806127</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1713943806127</updated>
+    </task>
+    <task id="LOCAL-00050" summary="smaller audio batches">
+      <option name="closed" value="true" />
+      <created>1713961115157</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1713961115158</updated>
+    </task>
+    <task id="LOCAL-00051" summary="buggy">
+      <option name="closed" value="true" />
+      <created>1713971465145</created>
+      <option name="number" value="00051" />
+      <option name="presentableId" value="LOCAL-00051" />
+      <option name="project" value="LOCAL" />
+      <updated>1713971465145</updated>
+    </task>
+    <task id="LOCAL-00052" summary="load dataset to memory">
+      <option name="closed" value="true" />
+      <created>1713981011149</created>
+      <option name="number" value="00052" />
+      <option name="presentableId" value="LOCAL-00052" />
+      <option name="project" value="LOCAL" />
+      <updated>1713981011149</updated>
+    </task>
+    <task id="LOCAL-00053" summary="elu bestu">
+      <option name="closed" value="true" />
+      <created>1713981255671</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1713981255671</updated>
+    </task>
+    <task id="LOCAL-00054" summary="load audio function">
+      <option name="closed" value="true" />
+      <created>1713982351326</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1713982351326</updated>
+    </task>
+    <task id="LOCAL-00055" summary="only segment during training">
+      <option name="closed" value="true" />
+      <created>1713989698733</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1713989698733</updated>
+    </task>
+    <task id="LOCAL-00056" summary="current settings">
+      <option name="closed" value="true" />
+      <created>1713989794192</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1713989794192</updated>
+    </task>
+    <task id="LOCAL-00057" summary="remove debug">
+      <option name="closed" value="true" />
+      <created>1713990806015</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1713990806015</updated>
+    </task>
+    <task id="LOCAL-00058" summary="fix bug">
+      <option name="closed" value="true" />
+      <created>1714037389868</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1714037389868</updated>
+    </task>
+    <task id="LOCAL-00059" summary="settings classes">
+      <option name="closed" value="true" />
+      <created>1714055046861</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1714055046861</updated>
+    </task>
+    <task id="LOCAL-00060" summary="generalized mapping">
+      <option name="closed" value="true" />
+      <created>1714055062597</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1714055062597</updated>
+    </task>
+    <task id="LOCAL-00061" summary="option to not learn beats">
+      <option name="closed" value="true" />
+      <created>1714055128756</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1714055128756</updated>
+    </task>
+    <task id="LOCAL-00062" summary="removed unused import">
+      <option name="closed" value="true" />
+      <created>1714055151283</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1714055151283</updated>
+    </task>
+    <task id="LOCAL-00063" summary="fix parameters">
+      <option name="closed" value="true" />
+      <created>1714055526776</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1714055526776</updated>
+    </task>
+    <task id="LOCAL-00064" summary="comment for clarity">
+      <option name="closed" value="true" />
+      <created>1714477231340</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1714477231340</updated>
+    </task>
+    <task id="LOCAL-00065" summary="fix lr when not using scheduler">
+      <option name="closed" value="true" />
+      <created>1714477294648</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1714477294648</updated>
+    </task>
+    <task id="LOCAL-00066" summary="reduce on Plateau experiments">
+      <option name="closed" value="true" />
+      <created>1714477338797</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1714477338797</updated>
+    </task>
+    <task id="LOCAL-00067" summary="reduce on Plateau experiments">
+      <option name="closed" value="true" />
+      <created>1714477362060</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1714477362060</updated>
+    </task>
+    <task id="LOCAL-00068" summary="update packages">
+      <option name="closed" value="true" />
+      <created>1714597004967</created>
+      <option name="number" value="00068" />
+      <option name="presentableId" value="LOCAL-00068" />
+      <option name="project" value="LOCAL" />
+      <updated>1714597004967</updated>
+    </task>
+    <task id="LOCAL-00069" summary="bring it up to standard">
+      <option name="closed" value="true" />
+      <created>1714688904940</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1714688904941</updated>
+    </task>
+    <task id="LOCAL-00070" summary="settings as attributes">
+      <option name="closed" value="true" />
+      <created>1714689503696</created>
+      <option name="number" value="00070" />
+      <option name="presentableId" value="LOCAL-00070" />
+      <option name="project" value="LOCAL" />
+      <updated>1714689503696</updated>
+    </task>
+    <task id="LOCAL-00071" summary="log before filterbank">
+      <option name="closed" value="true" />
+      <created>1714689558211</created>
+      <option name="number" value="00071" />
+      <option name="presentableId" value="LOCAL-00071" />
+      <option name="project" value="LOCAL" />
+      <updated>1714689558211</updated>
+    </task>
+    <task id="LOCAL-00072" summary="formatting">
+      <option name="closed" value="true" />
+      <created>1714689713594</created>
+      <option name="number" value="00072" />
+      <option name="presentableId" value="LOCAL-00072" />
+      <option name="project" value="LOCAL" />
+      <updated>1714689713594</updated>
+    </task>
+    <task id="LOCAL-00073" summary="flux option">
+      <option name="closed" value="true" />
+      <created>1714689778262</created>
+      <option name="number" value="00073" />
+      <option name="presentableId" value="LOCAL-00073" />
+      <option name="project" value="LOCAL" />
+      <updated>1714689778262</updated>
+    </task>
+    <task id="LOCAL-00074" summary="new settings">
+      <option name="closed" value="true" />
+      <created>1714689794682</created>
+      <option name="number" value="00074" />
+      <option name="presentableId" value="LOCAL-00074" />
+      <option name="project" value="LOCAL" />
+      <updated>1714689794682</updated>
+    </task>
+    <task id="LOCAL-00075" summary="Stuff">
+      <option name="closed" value="true" />
+      <created>1714689818981</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1714689818981</updated>
+    </task>
+    <task id="LOCAL-00076" summary="spectrum conv">
+      <option name="closed" value="true" />
+      <created>1714742038716</created>
+      <option name="number" value="00076" />
+      <option name="presentableId" value="LOCAL-00076" />
+      <option name="project" value="LOCAL" />
+      <updated>1714742038716</updated>
+    </task>
+    <task id="LOCAL-00077" summary="min distance between onsets">
+      <option name="closed" value="true" />
+      <created>1714759270032</created>
+      <option name="number" value="00077" />
+      <option name="presentableId" value="LOCAL-00077" />
+      <option name="project" value="LOCAL" />
+      <updated>1714759270032</updated>
+    </task>
+    <task id="LOCAL-00078" summary="mean f measure">
+      <option name="closed" value="true" />
+      <created>1714843367625</created>
+      <option name="number" value="00078" />
+      <option name="presentableId" value="LOCAL-00078" />
+      <option name="project" value="LOCAL" />
+      <updated>1714843367625</updated>
+    </task>
+    <task id="LOCAL-00079" summary="RBMA13 as test dataset">
+      <option name="closed" value="true" />
+      <created>1714843480571</created>
+      <option name="number" value="00079" />
+      <option name="presentableId" value="LOCAL-00079" />
+      <option name="project" value="LOCAL" />
+      <updated>1714843480571</updated>
+    </task>
+    <task id="LOCAL-00080" summary="optimize imports">
+      <option name="closed" value="true" />
+      <created>1714843491762</created>
+      <option name="number" value="00080" />
+      <option name="presentableId" value="LOCAL-00080" />
+      <option name="project" value="LOCAL" />
+      <updated>1714843491762</updated>
+    </task>
+    <task id="LOCAL-00081" summary="fix settings">
+      <option name="closed" value="true" />
+      <created>1714920587680</created>
+      <option name="number" value="00081" />
+      <option name="presentableId" value="LOCAL-00081" />
+      <option name="project" value="LOCAL" />
+      <updated>1714920587680</updated>
+    </task>
+    <task id="LOCAL-00082" summary="fix settings">
+      <option name="closed" value="true" />
+      <created>1714920619078</created>
+      <option name="number" value="00082" />
+      <option name="presentableId" value="LOCAL-00082" />
+      <option name="project" value="LOCAL" />
+      <updated>1714920619078</updated>
+    </task>
+    <option name="localTasksCounter" value="83" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="initial commit" />
-    <MESSAGE value="rbma 13 dataset parsing" />
-    <MESSAGE value="implemented spectral flux" />
-    <MESSAGE value="to device and lambda compression" />
-    <MESSAGE value="label processing and data loader" />
-    <option name="LAST_COMMIT_MESSAGE" value="label processing and data loader" />
+    <MESSAGE value="current settings" />
+    <MESSAGE value="remove debug" />
+    <MESSAGE value="fix bug" />
+    <MESSAGE value="settings classes" />
+    <MESSAGE value="generalized mapping" />
+    <MESSAGE value="option to not learn beats" />
+    <MESSAGE value="removed unused import" />
+    <MESSAGE value="fix parameters" />
+    <MESSAGE value="comment for clarity" />
+    <MESSAGE value="fix lr when not using scheduler" />
+    <MESSAGE value="reduce on Plateau experiments" />
+    <MESSAGE value="update packages" />
+    <MESSAGE value="bring it up to standard" />
+    <MESSAGE value="settings as attributes" />
+    <MESSAGE value="log before filterbank" />
+    <MESSAGE value="formatting" />
+    <MESSAGE value="flux option" />
+    <MESSAGE value="new settings" />
+    <MESSAGE value="Stuff" />
+    <MESSAGE value="spectrum conv" />
+    <MESSAGE value="min distance between onsets" />
+    <MESSAGE value="mean f measure" />
+    <MESSAGE value="RBMA13 as test dataset" />
+    <MESSAGE value="optimize imports" />
+    <MESSAGE value="fix settings" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix settings" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/Automatic_Drum_Transcription$Automatic_Drum_Transcription.coverage" NAME="Automatic Drum Transcription Coverage Results" MODIFIED="1713977585882" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

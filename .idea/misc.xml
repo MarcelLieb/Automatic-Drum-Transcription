@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.12 (Automatic Drum Transcription)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.11.4 WSL (Ubuntu): (/home/marclie/.virtualenvs/Automatic Drum Transcription/bin/python)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.10.12 (sftp://mmc-user@seppel.informatik.uni-augsburg.de:6107/home/mmc-user/.virtualenvs/Automatic-Drum-Transcription/bin/python)" project-jdk-type="Python SDK" />
 </project>
