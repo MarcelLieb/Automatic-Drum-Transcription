@@ -58,15 +58,17 @@ def step(
     return filtered.item()
 
 
-def train_epoch(dataloader_train, device, ema_model, error, model, optimizer, scaler, scheduler):
+def train_epoch(
+    dataloader_train, device, ema_model, error, model, optimizer, scaler, scheduler
+):
     total_loss = 0
     for _, data in tqdm(
-            enumerate(dataloader_train),
-            total=len(dataloader_train),
-            unit="mini-batch",
-            smoothing=0.1,
-            mininterval=1 / 2 * 60 / len(dataloader_train),
-            desc="Training",
+        enumerate(dataloader_train),
+        total=len(dataloader_train),
+        unit="mini-batch",
+        smoothing=0.1,
+        mininterval=1 / 2 * 60 / len(dataloader_train),
+        desc="Training",
     ):
         audio, lbl, _ = data
         audio = audio.to(device)
@@ -137,16 +139,22 @@ def evaluate(
     )
     if tensorboard_writer is not None:
         tensorboard_writer.add_scalar(f"{tag}/F-Score-Sum", f, global_step=epoch)
-        tensorboard_writer.add_scalar(f"{tag}F-Score-Avg", f_avg, global_step=epoch)
-        tensorboard_writer.add_tensor(f"{tag}/Thresholds", thresholds, global_step=epoch)
+        tensorboard_writer.add_scalar(f"{tag}/F-Score-Avg", f_avg, global_step=epoch)
+        tensorboard_writer.add_tensor(
+            f"{tag}/Thresholds", thresholds, global_step=epoch
+        )
 
         for i in range(len(precisions)):
             fig = plt.figure()
             plt.plot(recalls[i], precisions[i])
+            plt.xlim(0, 1)
+            plt.ylim(0, 1)
             plt.xlabel("Recall")
             plt.ylabel("Precision")
             plt.title(f"Precision-Recall Curve for {mapping[i]}")
-            tensorboard_writer.add_figure(f"{tag}/PR-Curve/{mapping[i]}", fig, global_step=epoch, close=True)
+            tensorboard_writer.add_figure(
+                f"{tag}/PR-Curve/{mapping[i]}", fig, global_step=epoch, close=True
+            )
 
     return total_loss / len(dataloader), f, f_avg
 
@@ -215,7 +223,16 @@ def main(
     last_improvement = 0
     print("Starting Training")
     for epoch in range(training_settings.epochs):
-        train_loss = train_epoch(dataloader_train, device, ema_model, error, model, optimizer, scaler, scheduler)
+        train_loss = train_epoch(
+            dataloader_train,
+            device,
+            ema_model,
+            error,
+            model,
+            optimizer,
+            scaler,
+            scheduler,
+        )
         val_loss, f_score, avg_f_score = evaluate(
             epoch,
             model if ema_model is None else ema_model.module,
@@ -224,6 +241,7 @@ def main(
             device,
             training_settings.ignore_beats,
             tensorboard_writer=writer,
+            tag="Validation",
         )
         writer.add_scalars("Loss", {"Train": train_loss, "Val": val_loss}, epoch)
         if scheduler is not None and isinstance(
@@ -254,7 +272,7 @@ def main(
                 device,
                 training_settings.ignore_beats,
                 tensorboard_writer=writer,
-                tag="Test RBMA",
+                tag="Test/RBMA",
             )
             print(
                 f"RBMA: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
@@ -267,7 +285,7 @@ def main(
                 device,
                 training_settings.ignore_beats,
                 tensorboard_writer=writer,
-                tag="Test MDB",
+                tag="Test/MDB",
             )
             print(
                 f"MDB: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
@@ -298,6 +316,7 @@ def main(
         **asdict(audio_settings),
         **asdict(annotation_settings),
         **asdict(cnn_settings),
+        "mapping": str(annotation_settings.mapping.name),
     }
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
