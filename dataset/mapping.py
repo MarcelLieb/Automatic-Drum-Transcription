@@ -80,6 +80,9 @@ class DrumMapping(Enum):
     def __len__(self):
         return len(self.value)
 
+    def __getitem__(self, item):
+        return self.value[item]
+
 
 def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
     reverse_map = np.zeros(128)

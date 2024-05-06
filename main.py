@@ -3,6 +3,7 @@ from dataclasses import asdict
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
@@ -57,13 +58,44 @@ def step(
     return filtered.item()
 
 
+def train_epoch(dataloader_train, device, ema_model, error, model, optimizer, scaler, scheduler):
+    total_loss = 0
+    for _, data in tqdm(
+            enumerate(dataloader_train),
+            total=len(dataloader_train),
+            unit="mini-batch",
+            smoothing=0.1,
+            mininterval=1 / 2 * 60 / len(dataloader_train),
+            desc="Training",
+    ):
+        audio, lbl, _ = data
+        audio = audio.to(device)
+        lbl = lbl.to(device)
+
+        loss = step(
+            model=model,
+            criterion=error,
+            optimizer=optimizer,
+            audio_batch=audio,
+            lbl_batch=lbl,
+            scaler=scaler,
+            scheduler=scheduler,
+        )
+        if ema_model is not None:
+            ema_model.update(model)
+        total_loss += loss
+    return total_loss / len(dataloader_train)
+
+
 def evaluate(
     epoch: int,
     model: torch.nn.Module,
     dataloader: DataLoader,
-    criterion,
-    device,
+    criterion: torch.nn.Module,
+    device: torch.device,
     ignore_beats: bool,
+    tensorboard_writer: SummaryWriter = None,
+    tag: str = "Evaluation",
 ) -> (float, float):
     """Evaluates the model on the specified dataset
 
@@ -74,6 +106,7 @@ def evaluate(
     device_str = str(device)
     device_str = "cuda" if "cuda" in device_str else "cpu"
     dataset: ADTDataset = dataloader.dataset
+    mapping = dataset.mapping
     sample_rate, hop_size = dataset.sample_rate, dataset.hop_size
     predictions = []
     groundtruth = []
@@ -99,17 +132,22 @@ def evaluate(
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-    p, r, f, f_avg, thresholds = calculate_pr(
+    precisions, recalls, f, f_avg, thresholds = calculate_pr(
         predictions, groundtruth, ignore_beats=ignore_beats
     )
-    print(f"Thresholds: {thresholds}")
-    plt.plot(r, p)
-    plt.xlabel("Recall")
-    plt.xlim([0, 1])
-    plt.ylabel("Precision")
-    plt.ylim([0, 1])
-    plt.savefig(f"./plots/pr_curve_{epoch}.png")
-    plt.clf()
+    if tensorboard_writer is not None:
+        tensorboard_writer.add_scalar(f"{tag}/F-Score-Sum", f, global_step=epoch)
+        tensorboard_writer.add_scalar(f"{tag}F-Score-Avg", f_avg, global_step=epoch)
+        tensorboard_writer.add_tensor(f"{tag}/Thresholds", thresholds, global_step=epoch)
+
+        for i in range(len(precisions)):
+            fig = plt.figure()
+            plt.plot(recalls[i], precisions[i])
+            plt.xlabel("Recall")
+            plt.ylabel("Precision")
+            plt.title(f"Precision-Recall Curve for {mapping[i]}")
+            tensorboard_writer.add_figure(f"{tag}/PR-Curve/{mapping[i]}", fig, global_step=epoch, close=True)
+
     return total_loss / len(dataloader), f, f_avg
 
 
@@ -141,6 +179,8 @@ def main(
         ModelEmaV2(model, decay=0.999, device=device) if training_settings.ema else None
     )
     best_model = None
+
+    writer = SummaryWriter()
 
     max_lr = training_settings.learning_rate * 2
     initial_lr = max_lr / 25
@@ -175,31 +215,7 @@ def main(
     last_improvement = 0
     print("Starting Training")
     for epoch in range(training_settings.epochs):
-        total_loss = 0
-        for _, data in tqdm(
-            enumerate(dataloader_train),
-            total=len(dataloader_train),
-            unit="mini-batch",
-            smoothing=0.1,
-            mininterval=1 / 2 * 60 / len(dataloader_train),
-            desc="Training",
-        ):
-            audio, lbl, _ = data
-            audio = audio.to(device)
-            lbl = lbl.to(device)
-
-            loss = step(
-                model=model,
-                criterion=error,
-                optimizer=optimizer,
-                audio_batch=audio,
-                lbl_batch=lbl,
-                scaler=scaler,
-                scheduler=scheduler,
-            )
-            if ema_model is not None:
-                ema_model.update(model)
-            total_loss += loss
+        train_loss = train_epoch(dataloader_train, device, ema_model, error, model, optimizer, scaler, scheduler)
         val_loss, f_score, avg_f_score = evaluate(
             epoch,
             model if ema_model is None else ema_model.module,
@@ -207,7 +223,9 @@ def main(
             error,
             device,
             training_settings.ignore_beats,
+            tensorboard_writer=writer,
         )
+        writer.add_scalars("Loss", {"Train": train_loss, "Val": val_loss}, epoch)
         if scheduler is not None and isinstance(
             scheduler, optim.lr_scheduler.ReduceLROnPlateau
         ):
@@ -224,7 +242,7 @@ def main(
                 )
         print(
             f"Epoch: {epoch + 1} "
-            f"Loss: {total_loss / len(dataloader_train) * 100:.4f}\t "
+            f"Loss: {train_loss * 100:.4f}\t "
             f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
         )
         if f_score > 0.60 and f_score >= best_score:
@@ -235,6 +253,8 @@ def main(
                 error,
                 device,
                 training_settings.ignore_beats,
+                tensorboard_writer=writer,
+                tag="Test RBMA",
             )
             print(
                 f"RBMA: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
@@ -246,11 +266,13 @@ def main(
                 error,
                 device,
                 training_settings.ignore_beats,
+                tensorboard_writer=writer,
+                tag="Test MDB",
             )
             print(
                 f"MDB: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
             )
-            if test_f_score > 0.73:
+            if test_f_score > 0.75:
                 break
         last_improvement += 1
         if best_score <= f_score:
@@ -271,7 +293,18 @@ def main(
         if last_improvement > 10 and training_settings.early_stopping:
             break
 
+    hyperparameters = {
+        **asdict(training_settings),
+        **asdict(audio_settings),
+        **asdict(annotation_settings),
+        **asdict(cnn_settings),
+    }
+    writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
+
+    # Make sure everything is written to disk
+    writer.flush()
+    writer.close()
 
     return ema_model.module if ema_model is not None else model
 

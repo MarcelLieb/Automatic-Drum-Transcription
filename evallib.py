@@ -48,7 +48,7 @@ def calculate_pr(
     peaks: list[list[torch.Tensor]],
     groundtruth: list[list[torch.Tensor]],
     ignore_beats: bool = False,
-):
+) -> tuple[list[torch.Tensor], list[torch.Tensor], float, float, torch.Tensor]:
     classes = [[] for _ in peaks[0]]
     gt = [[] for _ in groundtruth[0]]
 
@@ -69,10 +69,12 @@ def calculate_pr(
         gt = gt[2:]
         classes = classes[2:]
     prs, thresholds, f_score, f_score_avg = rust_calculate_pr(classes, gt, 0.025, 0.020)
+    precisions = [torch.tensor(prs[i][0]) for i in range(len(prs))]
+    recalls = [torch.tensor(prs[i][1]) for i in range(len(prs))]
 
     return (
-        torch.tensor(prs[0][0]),
-        torch.tensor(prs[0][1]),
+        precisions,
+        recalls,
         f_score,
         f_score_avg,
         torch.tensor(thresholds),
