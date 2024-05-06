@@ -99,6 +99,8 @@ fn calculate_pr(
             }
             (pn, precisions, recalls, threshold, max_tp, max_fp, max_fn)
         })
+        // Restore original order
+        .rev()
         .collect_into_vec(&mut out);
 
     let (a, b, c) = out
