@@ -175,8 +175,8 @@ def main(
     print(annotation_settings)
     print(cnn_settings)
 
-    dataloader_train, dataloader_val, dataloader_test_rbma, dataloader_test_mdb = (
-        get_dataset(training_settings, audio_settings, annotation_settings)
+    loader_train, loader_val, loader_test_rbma, loader_test_mdb = get_dataset(
+        training_settings, audio_settings, annotation_settings
     )
 
     model = CNN(**asdict(cnn_settings))
@@ -205,7 +205,7 @@ def main(
         optim.lr_scheduler.OneCycleLR(
             optimizer,
             max_lr=max_lr,
-            steps_per_epoch=len(dataloader_train),
+            steps_per_epoch=len(loader_train),
             epochs=training_settings.epochs,
         )
         if training_settings.scheduler
@@ -223,7 +223,7 @@ def main(
     print("Starting Training")
     for epoch in range(training_settings.epochs):
         train_loss = train_epoch(
-            dataloader_train,
+            loader_train,
             device,
             ema_model,
             error,
@@ -235,7 +235,7 @@ def main(
         val_loss, f_score, avg_f_score = evaluate(
             epoch,
             model if ema_model is None else ema_model.module,
-            dataloader_val,
+            loader_val,
             error,
             device,
             training_settings.ignore_beats,
@@ -266,7 +266,7 @@ def main(
             test_loss, test_f_score, test_avg_f_score = evaluate(
                 epoch,
                 model if ema_model is None else ema_model.module,
-                dataloader_test_rbma,
+                loader_test_rbma,
                 error,
                 device,
                 training_settings.ignore_beats,
@@ -279,7 +279,7 @@ def main(
             test_loss, test_f_score, test_avg_f_score = evaluate(
                 epoch,
                 model if ema_model is None else ema_model.module,
-                dataloader_test_mdb,
+                loader_test_mdb,
                 error,
                 device,
                 training_settings.ignore_beats,
