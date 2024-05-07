@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 
 from dataset import get_dataset, ADTDataset
 from evallib import peak_pick_max_mean, calculate_pr
-from model.SpecFlux import SpecFlux
 from model.cnn import CNN
 from model import ModelEmaV2
 from settings import (
@@ -332,25 +331,3 @@ if __name__ == "__main__":
     trained_model = main()
     trained_model.eval()
     trained_model = trained_model.cpu()
-    torch.no_grad()
-    if trained_model is not None and isinstance(trained_model, SpecFlux):
-        weight = trained_model.feature_extractor.weight.cpu().detach().squeeze()
-        for i in range(4):
-            print(list(weight[i].numpy()))
-        # print thresholds
-        print(
-            trained_model.drum_threshold.threshold.weight,
-            trained_model.drum_threshold.threshold.bias,
-        )
-        print(
-            trained_model.snare_threshold.threshold.weight,
-            trained_model.snare_threshold.threshold.bias,
-        )
-        print(
-            trained_model.hihat_threshold.threshold.weight,
-            trained_model.hihat_threshold.threshold.bias,
-        )
-        print(
-            trained_model.onset_threshold.threshold.weight,
-            trained_model.onset_threshold.threshold.bias,
-        )
