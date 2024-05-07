@@ -83,6 +83,16 @@ class DrumMapping(Enum):
     def __getitem__(self, item):
         return self.value[item]
 
+    def __str__(self):
+        return self.name.lower().replace("_", " ").capitalize()
+
+    def __repr__(self):
+        return self.__str__()
+
+    @staticmethod
+    def prettify(class_desc: tuple[str, ...]):
+        return " + ".join(class_desc)
+
 
 def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
     reverse_map = np.zeros(128)

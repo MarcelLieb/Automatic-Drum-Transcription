@@ -1,5 +1,6 @@
 from dataclasses import asdict
 
+import numpy as np
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
@@ -8,6 +9,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from dataset import get_dataset, ADTDataset
+from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr
 from model.cnn import CNN
 from model import ModelEmaV2
@@ -58,7 +60,16 @@ def step(
 
 
 def train_epoch(
-    dataloader_train, device, ema_model, error, model, optimizer, scaler, scheduler
+    epoch,
+    dataloader_train,
+    device,
+    ema_model,
+    error,
+    model,
+    optimizer,
+    scaler,
+    scheduler,
+    tensorboard_writer=None,
 ):
     total_loss = 0
     for _, data in tqdm(
@@ -85,6 +96,9 @@ def train_epoch(
         if ema_model is not None:
             ema_model.update(model)
         total_loss += loss
+    loss = total_loss / len(dataloader_train)
+    if tensorboard_writer is not None:
+        tensorboard_writer.add_scalar("Loss/Train", loss, global_step=epoch)
     return total_loss / len(dataloader_train)
 
 
@@ -100,7 +114,7 @@ def evaluate(
 ) -> (float, float):
     """Evaluates the model on the specified dataset
 
-    @return: The loss for the specified dataset. Return a float and not a PyTorch tensor
+    @return: The loss for the specified dataset
     """
     model.eval()
     total_loss = 0
@@ -136,24 +150,64 @@ def evaluate(
     precisions, recalls, f, f_avg, thresholds = calculate_pr(
         predictions, groundtruth, ignore_beats=ignore_beats
     )
+
+    loss = total_loss / len(dataloader)
+
     if tensorboard_writer is not None:
-        tensorboard_writer.add_scalar(f"{tag}/F-Score-Sum", f, global_step=epoch)
-        tensorboard_writer.add_scalar(f"{tag}/F-Score-Avg", f_avg, global_step=epoch)
+        tensorboard_writer.add_scalar(f"F-Score/Sum/{tag}", f, global_step=epoch)
+        tensorboard_writer.add_scalar(f"F-Score/Avg/{tag}", f_avg, global_step=epoch)
         tensorboard_writer.add_tensor(
             f"{tag}/Thresholds", thresholds, global_step=epoch
         )
 
-        for i in range(len(precisions)):
-            fig = plt.figure()
-            plt.plot(recalls[i], precisions[i])
-            plt.xlim(0, 1)
-            plt.ylim(0, 1)
-            plt.xlabel("Recall")
-            plt.ylabel("Precision")
-            plt.title(f"Precision-Recall Curve for {mapping[i]}")
-            tensorboard_writer.add_figure(
-                f"{tag}/PR-Curve/{mapping[i]}", fig, global_step=epoch, close=True
+        colors = (
+            np.array(
+                [
+                    [230, 25, 75],
+                    [60, 180, 75],
+                    [255, 225, 25],
+                    [0, 130, 200],
+                    [245, 130, 48],
+                    [145, 30, 180],
+                    [70, 240, 240],
+                    [240, 50, 230],
+                    [210, 245, 60],
+                    [250, 190, 190],
+                    [0, 128, 128],
+                    [230, 190, 255],
+                    [170, 110, 40],
+                    [255, 250, 200],
+                    [128, 0, 0],
+                    [170, 255, 195],
+                    [128, 128, 0],
+                    [255, 215, 180],
+                    [0, 0, 128],
+                    [128, 128, 128],
+                    [0, 0, 0],
+                ]
             )
+            / 255
+        )
+
+        fig = plt.figure()
+        for i in range(len(precisions)):
+            plt.plot(
+                recalls[i],
+                precisions[i],
+                color=colors[i],
+                label=DrumMapping.prettify(mapping[i]),
+            )
+
+        plt.xlim(0, 1)
+        plt.ylim(0, 1)
+        plt.xlabel("Recall")
+        plt.ylabel("Precision")
+        plt.title(f"Precision-Recall Curve for {tag}")
+        plt.legend()
+        tensorboard_writer.add_figure(
+            f"{tag}/PR-Curve/", fig, global_step=epoch, close=True
+        )
+        tensorboard_writer.add_scalar(f"Loss/{tag}", loss, global_step=epoch)
 
     return total_loss / len(dataloader), f, f_avg
 
@@ -242,7 +296,6 @@ def main(
             tensorboard_writer=writer,
             tag="Validation",
         )
-        writer.add_scalars("Loss", {"Train": train_loss, "Val": val_loss}, epoch)
         if scheduler is not None and isinstance(
             scheduler, optim.lr_scheduler.ReduceLROnPlateau
         ):
@@ -315,6 +368,7 @@ def main(
         **asdict(audio_settings),
         **asdict(annotation_settings),
         **asdict(cnn_settings),
+        "splits": str(training_settings.splits),
         "mapping": str(annotation_settings.mapping.name),
     }
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
