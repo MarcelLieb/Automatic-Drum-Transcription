@@ -277,6 +277,7 @@ def main(
     print("Starting Training")
     for epoch in range(training_settings.epochs):
         train_loss = train_epoch(
+            epoch,
             loader_train,
             device,
             ema_model,
@@ -285,6 +286,7 @@ def main(
             optimizer,
             scaler,
             scheduler,
+            tensorboard_writer=writer,
         )
         val_loss, f_score, avg_f_score = evaluate(
             epoch,
