@@ -329,7 +329,7 @@ def main(
                 tag="Test/RBMA",
             )
             print(
-                f"RBMA: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
+                f"RBMA: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
             )
             test_loss, test_f_score, test_avg_f_score = evaluate(
                 epoch,
@@ -342,7 +342,7 @@ def main(
                 tag="Test/MDB",
             )
             print(
-                f"MDB: Test Loss: {test_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
+                f"MDB: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
             )
             if test_f_score > 0.75:
                 break
