@@ -93,12 +93,14 @@ def get_segments(
     lengths: list[float],
     drum_labels: list[list[np.array]],
     lead_in: float,
+    lead_out: float,
     sample_rate: int,
 ) -> np.array:
     """
     :param lengths: List of lengths of the audio files
     :param drum_labels: List of drum labels
     :param lead_in: Length of the lead-in in seconds
+    :param lead_out: Length of the lead-out in seconds
     :param sample_rate: Sample rate of the audio files
     :return: List of tuples containing the start and end indices of the segments and the index of the audio file
     """
@@ -108,7 +110,7 @@ def get_segments(
         # labels = np.unique(labels)
         start = ((labels * sample_rate) - (lead_in * sample_rate)).astype(int)
         start = np.clip(start, 0, length * sample_rate)
-        end = (labels * sample_rate + 0.125 * sample_rate).astype(int)
+        end = (labels * sample_rate + lead_out * sample_rate).astype(int)
         end = np.clip(end, 0, length * sample_rate)
         out = np.stack((start, end, np.zeros_like(start) + i), axis=1).astype(int)
         segments.append(out)
@@ -181,6 +183,7 @@ class A2MD(ADTDataset):
                     self.lengths,
                     [drums for _, _, drums, *_ in self.annotations],
                     annotation_settings.lead_in,
+                    annotation_settings.lead_out,
                     audio_settings.sample_rate,
                 )
                 if is_train

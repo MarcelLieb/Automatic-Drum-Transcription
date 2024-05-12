@@ -8,7 +8,7 @@ class AudioProcessingSettings:
     sample_rate: int = 44100
     hop_size: int = 441
     fft_size: int = 2048
-    n_mels: int = 82
+    n_mels: int = 12 * 7
     center: bool = False
     pad_mode: str = "constant"
     mel_min: float = 20.0
@@ -20,7 +20,8 @@ class AnnotationSettings:
     mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
     pad_annotations: bool = False
     pad_value: float = 0.5
-    lead_in: float = 0.25
+    lead_in: float = 0.2
+    lead_out: float = 0.04
     time_shift: float = 0.0
     beats: bool = False
 
@@ -32,11 +33,10 @@ class AnnotationSettings:
 @dataclass
 class TrainingSettings:
     learning_rate: float = 1e-4
-    epochs: int = 40
+    epochs: int = 30
     batch_size: int = 512
     ema: bool = False
     scheduler: bool = True
-    n_mels: int = 12 * 7
     early_stopping: bool = False
     dataset_version: str = "L"
     splits: list[float] = (0.8, 0.1, 0.1)
@@ -48,8 +48,8 @@ class TrainingSettings:
 class CNNSettings:
     n_classes: int
     n_mels: int
-    num_channels: int = 32
-    num_residual_blocks: int = 0
-    dropout: float = 0.3
+    num_channels: int = 16
+    num_residual_blocks: int = 9
+    dropout: float = 0.1
     causal: bool = True
     flux: bool = True
