@@ -388,6 +388,7 @@ def main(
         **asdict(cnn_settings),
         "splits": str(training_settings.splits),
         "mapping": str(annotation_settings.mapping.name),
+        "activation": cnn_settings.activation.__class__.__name__,
     }
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
