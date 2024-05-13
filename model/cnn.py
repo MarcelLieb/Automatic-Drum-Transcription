@@ -14,13 +14,17 @@ class CNN(nn.Module):
         num_residual_blocks,
         causal,
         flux,
+        activation=nn.SELU(),
+        classifier_dim=2**6
     ):
         super(CNN, self).__init__()
+        self.activation = activation
         self.flux = flux
         self.n_dims = n_mels * (1 + flux)
+        self.classifier_dim = classifier_dim
 
         self.conv1 = ResidualBlock(
-            1, num_channels, kernel_size=3, causal=causal, activation=nn.ELU()
+            1, num_channels, kernel_size=3, causal=causal, activation=self.activation
         )
         self.pool1 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
         self.conv2 = ResidualBlock(
@@ -28,7 +32,7 @@ class CNN(nn.Module):
             num_channels * 2,
             kernel_size=3,
             causal=causal,
-            activation=nn.ELU(),
+            activation=self.activation,
         )
         self.pool2 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
 
@@ -39,15 +43,16 @@ class CNN(nn.Module):
                     num_channels * 2,
                     num_channels * 2,
                     kernel_size=3,
+                    activation=self.activation,
                 )
             )
 
-        self.fc1 = nn.Linear(num_channels * 2 * (self.n_dims // 9), 2**5)
+        self.fc1 = nn.Linear(num_channels * 2 * (self.n_dims // 9), classifier_dim)
         self.dropout = nn.Dropout(dropout)
-        self.fc2 = nn.Linear(2**5, n_classes)
+        self.fc2 = nn.Linear(classifier_dim, n_classes)
         self.num_channels = num_channels
 
-    def forward(self, x):
+    def forward(self, x) -> torch.Tensor:
         if self.flux:
             diff = x[1:] - x[-1]
             diff = f.relu(f.pad(diff, (0, 0, 0, 0, 1, 0), mode="constant", value=0))
@@ -64,11 +69,10 @@ class CNN(nn.Module):
             x = self.dropout(x)
         x = x.reshape((batch_size, self.num_channels * 2 * (self.n_dims // 9), -1))
         x = x.permute(0, 2, 1)
-        x = f.selu(self.fc1(x))
+        x = self.fc1(x)
+        x = self.activation(x)
         x = self.dropout(x)
         x = self.fc2(x)
-        x = f.selu(x)
-        # x = f.tanh(x)
-        # x = f.sigmoid(x)
+        x = self.activation(x)
         x = x.permute(0, 2, 1)
         return x

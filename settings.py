@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from torch import nn
+
 from dataset.mapping import DrumMapping
 
 
@@ -20,8 +22,8 @@ class AnnotationSettings:
     mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
     pad_annotations: bool = False
     pad_value: float = 0.5
-    lead_in: float = 0.2
-    lead_out: float = 0.04
+    lead_in: float = 0.25
+    lead_out: float = 0.12
     time_shift: float = 0.0
     beats: bool = False
 
@@ -53,3 +55,5 @@ class CNNSettings:
     dropout: float = 0.1
     causal: bool = True
     flux: bool = True
+    activation: nn.Module = nn.SELU()
+    classifier_dim: int = 2 ** 6
