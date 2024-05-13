@@ -13,7 +13,7 @@ fn calculate_pr(
     ground_truths: Vec<Vec<Vec<f32>>>,
     detect_window: f32,
     cool_down: f32,
-) -> (Vec<(Vec<f32>, Vec<f32>)>, Vec<f32>, f32, f32) {
+) -> (Vec<(Vec<f32>, Vec<f32>, Vec<f32>)>, Vec<f32>, f32, f32) {
     let mut out = Vec::new();
 
     predictions
@@ -34,6 +34,7 @@ fn calculate_pr(
 
             let mut precisions = Vec::new();
             let mut recalls = Vec::new();
+            let mut thresholds = Vec::new();
             let mut labels = labels;
             let mut values = values;
             let mut peaks_by_song = split_songs(&values, labels.len());
@@ -96,8 +97,9 @@ fn calculate_pr(
 
                 precisions.push(p);
                 recalls.push(r);
+                thresholds.push(score);
             }
-            (pn, precisions, recalls, threshold, max_tp, max_fp, max_fn)
+            (pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds)
         })
         // Restore original order
         .rev()
@@ -120,7 +122,7 @@ fn calculate_pr(
     (
         out.iter()
             .cloned()
-            .map(|class| (class.1, class.2))
+            .map(|class| (class.1, class.2, class.7))
             .collect(),
         out.iter().cloned().map(|class| class.3).collect(),
         f_score,

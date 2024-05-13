@@ -48,7 +48,7 @@ def calculate_pr(
     peaks: list[list[torch.Tensor]],
     groundtruth: list[list[torch.Tensor]],
     ignore_beats: bool = False,
-) -> tuple[list[torch.Tensor], list[torch.Tensor], float, float, torch.Tensor]:
+) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor],float, float, torch.Tensor]:
     classes = [[] for _ in peaks[0]]
     gt = [[] for _ in groundtruth[0]]
 
@@ -68,14 +68,20 @@ def calculate_pr(
     if ignore_beats and len(gt) == len(classes):
         gt = gt[2:]
         classes = classes[2:]
-    prs, thresholds, f_score, f_score_avg = rust_calculate_pr(classes, gt, 0.025, 0.020)
-    precisions = [torch.tensor(prs[i][0]) for i in range(len(prs))]
-    recalls = [torch.tensor(prs[i][1]) for i in range(len(prs))]
+    prts, best_thresholds, f_score, f_score_avg = rust_calculate_pr(classes, gt, 0.025, 0.020)
+    precisions = [torch.tensor(prts[i][0]) for i in range(len(prts))]
+    recalls = [torch.tensor(prts[i][1]) for i in range(len(prts))]
+    thresholds = [torch.tensor(prts[i][2]) for i in range(len(prts))]
 
     return (
         precisions,
         recalls,
+        thresholds,
         f_score,
         f_score_avg,
-        torch.tensor(thresholds),
+        torch.tensor(best_thresholds),
     )
+
+
+def calculate_f_score(precision: torch.Tensor, recall: torch.Tensor) -> torch.Tensor:
+    return 2 * (precision * recall) / (precision + recall)

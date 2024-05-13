@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 from dataset import get_dataset, ADTDataset
 from dataset.mapping import DrumMapping
-from evallib import peak_pick_max_mean, calculate_pr
+from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score
 from model.cnn import CNN
 from model import ModelEmaV2
 from settings import (
@@ -147,9 +147,10 @@ def evaluate(
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
-    precisions, recalls, f, f_avg, thresholds = calculate_pr(
+    precisions, recalls, thresholds, f, f_avg, best_thresholds = calculate_pr(
         predictions, groundtruth, ignore_beats=ignore_beats
     )
+    f_scores = [calculate_f_score(precision, recall) for precision, recall in zip(precisions, recalls)]
 
     loss = total_loss / len(dataloader)
 
@@ -157,7 +158,7 @@ def evaluate(
         tensorboard_writer.add_scalar(f"F-Score/Sum/{tag}", f, global_step=epoch)
         tensorboard_writer.add_scalar(f"F-Score/Avg/{tag}", f_avg, global_step=epoch)
         tensorboard_writer.add_tensor(
-            f"{tag}/Thresholds", thresholds, global_step=epoch
+            f"{tag}/Thresholds", best_thresholds, global_step=epoch
         )
 
         colors = (
@@ -207,6 +208,20 @@ def evaluate(
         plt.tight_layout()
         tensorboard_writer.add_figure(
             f"{tag}/PR-Curve/", fig, global_step=epoch, close=True
+        )
+
+        fig = plt.figure()
+        for i in range(len(f_scores)):
+            plt.plot(thresholds[i], f_scores[i], color=colors[i], label=DrumMapping.prettify(mapping[i]))
+        plt.xlim(0, 1)
+        plt.ylim(0, 1)
+        plt.xlabel("Threshold")
+        plt.ylabel("F-Score")
+        plt.title(f"F-Score for {tag}")
+        plt.legend()
+        plt.tight_layout()
+        tensorboard_writer.add_figure(
+            f"{tag}/Threshold-Curve/", fig, global_step=epoch, close=True
         )
         tensorboard_writer.add_scalar(f"Loss/{tag}", loss, global_step=epoch)
 
