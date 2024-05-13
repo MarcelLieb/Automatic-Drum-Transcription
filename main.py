@@ -141,7 +141,7 @@ def evaluate(
                 prediction = model(audio)
                 loss = criterion(prediction, lbl)
             peaks = peak_pick_max_mean(
-                prediction.cpu().detach().float(), sample_rate, hop_size
+                prediction.sigmoid().cpu().detach().float(), sample_rate, hop_size
             )
             predictions.extend(peaks)
             groundtruth.extend(gts)
