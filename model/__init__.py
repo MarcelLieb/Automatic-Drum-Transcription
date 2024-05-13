@@ -197,7 +197,7 @@ class ResidualBlock(nn.Module):
         self,
         in_channels,
         out_channels,
-        kernel_size=(3, 3),
+        kernel_size=3,
         dilation=1,
         causal=True,
         activation=nn.ELU(),
@@ -208,7 +208,7 @@ class ResidualBlock(nn.Module):
             CausalConv2d(
                 in_channels,
                 out_channels,
-                kernel_size,
+                kernel_size=kernel_size,
                 dilation=dilation,
                 bias=False,
                 **kwargs,
@@ -230,7 +230,7 @@ class ResidualBlock(nn.Module):
             CausalConv2d(
                 out_channels,
                 out_channels,
-                kernel_size,
+                kernel_size=kernel_size,
                 dilation=dilation,
                 bias=False,
                 **kwargs,
@@ -252,7 +252,7 @@ class ResidualBlock(nn.Module):
         self.norm2 = nn.BatchNorm2d(out_channels)
         self.activation = activation
         self.re_sample = (
-            nn.Conv2d(in_channels, out_channels, kernel_size=1)
+            nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
             if in_channels != out_channels
             else None
         )
