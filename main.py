@@ -204,6 +204,7 @@ def evaluate(
         plt.ylabel("Precision")
         plt.title(f"Precision-Recall Curve for {tag}")
         plt.legend()
+        plt.tight_layout()
         tensorboard_writer.add_figure(
             f"{tag}/PR-Curve/", fig, global_step=epoch, close=True
         )
@@ -253,7 +254,7 @@ def main(
     )
 
     optimizer = optim.RAdam(
-        model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-5
+        model.parameters(), lr=initial_lr, weight_decay=1e-5,  # decoupled_weight_decay=True,
     )
     scheduler = (
         optim.lr_scheduler.OneCycleLR(
@@ -387,3 +388,4 @@ if __name__ == "__main__":
     trained_model = main()
     trained_model.eval()
     trained_model = trained_model.cpu()
+    torch.cuda.empty_cache()
