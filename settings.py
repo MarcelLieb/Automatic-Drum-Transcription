@@ -51,7 +51,7 @@ class EvaluationSettings:
     peak_mean_range: int = 2
     peak_max_range: int = 2
     onset_cooldown: int = 0.02
-    detect_window: int = 0.05
+    detect_tolerance: int = 0.025
     ignore_beats: bool = False
 
 

@@ -156,7 +156,7 @@ def evaluate(
         predictions,
         groundtruth,
         onset_cooldown=evaluation_settings.onset_cooldown,
-        detection_window=evaluation_settings.detect_window,
+        detection_window=evaluation_settings.detect_tolerance,
         ignore_beats=evaluation_settings.ignore_beats,
     )
     f_scores = [
