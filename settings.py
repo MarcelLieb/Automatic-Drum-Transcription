@@ -65,4 +65,4 @@ class CNNSettings:
     causal: bool = True
     flux: bool = True
     activation: nn.Module = nn.SELU()
-    classifier_dim: int = 2 ** 6
+    classifier_dim: int = 2**6

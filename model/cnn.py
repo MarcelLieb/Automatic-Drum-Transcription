@@ -15,7 +15,7 @@ class CNN(nn.Module):
         causal,
         flux,
         activation=nn.SELU(),
-        classifier_dim=2**6
+        classifier_dim=2**6,
     ):
         super(CNN, self).__init__()
         self.activation = activation

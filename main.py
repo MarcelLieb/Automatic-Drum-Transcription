@@ -142,8 +142,11 @@ def evaluate(
                 prediction = model(audio)
                 loss = criterion(prediction, lbl)
             peaks = peak_pick_max_mean(
-                prediction.sigmoid().cpu().detach().float(), sample_rate, hop_size,
-                evaluation_settings.peak_mean_range, evaluation_settings.peak_max_range,
+                prediction.sigmoid().cpu().detach().float(),
+                sample_rate,
+                hop_size,
+                evaluation_settings.peak_mean_range,
+                evaluation_settings.peak_max_range,
             )
             predictions.extend(peaks)
             groundtruth.extend(gts)
@@ -156,7 +159,10 @@ def evaluate(
         detection_window=evaluation_settings.detect_window,
         ignore_beats=evaluation_settings.ignore_beats,
     )
-    f_scores = [calculate_f_score(precision, recall) for precision, recall in zip(precisions, recalls)]
+    f_scores = [
+        calculate_f_score(precision, recall)
+        for precision, recall in zip(precisions, recalls)
+    ]
 
     loss = total_loss / len(dataloader)
 
@@ -218,7 +224,12 @@ def evaluate(
 
         fig = plt.figure()
         for i in range(len(f_scores)):
-            plt.plot(thresholds[i], f_scores[i], color=colors[i], label=DrumMapping.prettify(mapping[i]))
+            plt.plot(
+                thresholds[i],
+                f_scores[i],
+                color=colors[i],
+                label=DrumMapping.prettify(mapping[i]),
+            )
         plt.xlim(0, 1)
         plt.ylim(0, 1)
         plt.xlabel("Threshold")
@@ -277,7 +288,9 @@ def main(
     )
 
     optimizer = optim.RAdam(
-        model.parameters(), lr=initial_lr, weight_decay=1e-5,  # decoupled_weight_decay=True,
+        model.parameters(),
+        lr=initial_lr,
+        weight_decay=1e-5,  # decoupled_weight_decay=True,
     )
     scheduler = (
         optim.lr_scheduler.OneCycleLR(
