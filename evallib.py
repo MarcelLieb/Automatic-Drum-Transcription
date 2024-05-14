@@ -17,8 +17,8 @@ def peak_pick_max_mean(
     data: torch.tensor,
     sample_rate: int,
     hop_size: int,
-    mean_range: int = 7,
-    max_range: int = 3,
+    mean_range: int = 2,
+    max_range: int = 2,
 ):
     mean_filter = torch.nn.AvgPool1d(kernel_size=mean_range + 1, stride=1, padding=0)
     max_filter = torch.nn.MaxPool1d(kernel_size=max_range + 1, stride=1, padding=0)
@@ -48,7 +48,16 @@ def calculate_pr(
     peaks: list[list[torch.Tensor]],
     groundtruth: list[list[torch.Tensor]],
     ignore_beats: bool = False,
-) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor],float, float, torch.Tensor]:
+    detection_window: float = 0.05,
+    onset_cooldown: float = 0.02,
+) -> tuple[
+    list[torch.Tensor],
+    list[torch.Tensor],
+    list[torch.Tensor],
+    float,
+    float,
+    torch.Tensor,
+]:
     classes = [[] for _ in peaks[0]]
     gt = [[] for _ in groundtruth[0]]
 
@@ -68,7 +77,9 @@ def calculate_pr(
     if ignore_beats and len(gt) == len(classes):
         gt = gt[2:]
         classes = classes[2:]
-    prts, best_thresholds, f_score, f_score_avg = rust_calculate_pr(classes, gt, 0.025, 0.020)
+    prts, best_thresholds, f_score, f_score_avg = rust_calculate_pr(
+        classes, gt, detection_window, onset_cooldown
+    )
     precisions = [torch.tensor(prts[i][0]) for i in range(len(prts))]
     recalls = [torch.tensor(prts[i][1]) for i in range(len(prts))]
     thresholds = [torch.tensor(prts[i][2]) for i in range(len(prts))]

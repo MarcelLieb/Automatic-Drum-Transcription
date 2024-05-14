@@ -47,6 +47,15 @@ class TrainingSettings:
 
 
 @dataclass
+class EvaluationSettings:
+    peak_mean_range: int = 2
+    peak_max_range: int = 2
+    onset_cooldown: int = 0.02
+    detect_window: int = 0.05
+    ignore_beats: bool = False
+
+
+@dataclass
 class CNNSettings:
     n_classes: int
     n_mels: int

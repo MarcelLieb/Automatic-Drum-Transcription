@@ -18,6 +18,7 @@ from settings import (
     AudioProcessingSettings,
     TrainingSettings,
     CNNSettings,
+    EvaluationSettings,
 )
 
 
@@ -108,7 +109,7 @@ def evaluate(
     dataloader: DataLoader,
     criterion: torch.nn.Module,
     device: torch.device,
-    ignore_beats: bool,
+    evaluation_settings: EvaluationSettings,
     tensorboard_writer: SummaryWriter = None,
     tag: str = "Evaluation",
 ) -> (float, float):
@@ -141,14 +142,19 @@ def evaluate(
                 prediction = model(audio)
                 loss = criterion(prediction, lbl)
             peaks = peak_pick_max_mean(
-                prediction.sigmoid().cpu().detach().float(), sample_rate, hop_size
+                prediction.sigmoid().cpu().detach().float(), sample_rate, hop_size,
+                evaluation_settings.peak_mean_range, evaluation_settings.peak_max_range,
             )
             predictions.extend(peaks)
             groundtruth.extend(gts)
             loss = loss.mean()
             total_loss += loss.item()
     precisions, recalls, thresholds, f, f_avg, best_thresholds = calculate_pr(
-        predictions, groundtruth, ignore_beats=ignore_beats
+        predictions,
+        groundtruth,
+        onset_cooldown=evaluation_settings.onset_cooldown,
+        detection_window=evaluation_settings.detect_window,
+        ignore_beats=evaluation_settings.ignore_beats,
     )
     f_scores = [calculate_f_score(precision, recall) for precision, recall in zip(precisions, recalls)]
 
@@ -232,6 +238,7 @@ def main(
     training_settings: TrainingSettings = TrainingSettings(),
     audio_settings: AudioProcessingSettings = AudioProcessingSettings(),
     annotation_settings: AnnotationSettings = AnnotationSettings(),
+    evaluation_settings: EvaluationSettings = EvaluationSettings(),
 ):
     cnn_settings = CNNSettings(
         n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels
@@ -241,6 +248,7 @@ def main(
     device = torch.device(device)
 
     print(training_settings)
+    print(evaluation_settings)
     print(audio_settings)
     print(annotation_settings)
     print(cnn_settings)
@@ -310,7 +318,7 @@ def main(
             loader_val,
             error,
             device,
-            training_settings.ignore_beats,
+            evaluation_settings,
             tensorboard_writer=writer,
             tag="Validation",
         )
@@ -340,7 +348,7 @@ def main(
                 loader_test_rbma,
                 error,
                 device,
-                training_settings.ignore_beats,
+                evaluation_settings,
                 tensorboard_writer=writer,
                 tag="Test/RBMA",
             )
@@ -353,7 +361,7 @@ def main(
                 loader_test_mdb,
                 error,
                 device,
-                training_settings.ignore_beats,
+                evaluation_settings,
                 tensorboard_writer=writer,
                 tag="Test/MDB",
             )
@@ -383,6 +391,7 @@ def main(
 
     hyperparameters = {
         **asdict(training_settings),
+        **asdict(evaluation_settings),
         **asdict(audio_settings),
         **asdict(annotation_settings),
         **asdict(cnn_settings),
