@@ -30,11 +30,11 @@ fn calculate_pr(
             let mut max_f_score = 0.0;
             let (mut max_tp, mut max_fp, mut max_fn) = (tp, fp, r#fn);
             let mut threshold = f32::INFINITY;
-            let mut pn = Vec::new();
+            let mut pn = Vec::with_capacity(values.len());
 
-            let mut precisions = Vec::new();
-            let mut recalls = Vec::new();
-            let mut thresholds = Vec::new();
+            let mut precisions = Vec::with_capacity(values.len());
+            let mut recalls = Vec::with_capacity(values.len());
+            let mut thresholds = Vec::with_capacity(values.len());
             let mut labels = labels;
             let mut values = values;
             let mut peaks_by_song = split_songs(&values, labels.len());
@@ -49,19 +49,17 @@ fn calculate_pr(
                 let peaks = &mut peaks_by_song[song];
                 // Search index of peak
                 let index = peaks.partition_point(|a| a[0] < time);
-                let mut i = index - 1;
-
-                while let Some(peak) = peaks.get(i) {
+                for i in (0..index).rev() {
                     // Check if peak is close enough to be affected by the onset cool down
-                    if time - peak[0] > cool_down {
+                    if time - peaks[i][0] > cool_down {
+                        // If not stop early
                         break;
                     }
                     // Ignore peak if a peak was detected closely before it
-                    if peak[1] > score {
+                    if peaks[i][1] > score {
                         peaks.remove(index);
                         continue 'calculation;
                     }
-                    i -= 1;
                 }
 
                 let annotations = &mut labels[song];
@@ -70,19 +68,22 @@ fn calculate_pr(
                     continue;
                 }
                 let index = annotations.partition_point(|a| a < &time);
-                let prev = index.saturating_sub(1);
-                let next = index.min(annotations.len() - 1);
-                if (annotations[prev] + detect_window > time)
-                    || annotations[next] - detect_window < time
-                {
+                let mut dist: (f32, f32) = (f32::INFINITY, f32::INFINITY);
+                if index > 0 {
+                    dist.0 = time - annotations[index - 1]
+                }
+                if let Some(next) = annotations.get(index) {
+                    dist.1 = next - time;
+                }
+
+                if dist.0 < detect_window && dist.0 < dist.1 {
                     tp += 1;
                     r#fn -= 1;
-
-                    if time - annotations[prev] < annotations[next] - time {
-                        annotations.remove(prev);
-                    } else {
-                        annotations.remove(next);
-                    }
+                    annotations.remove(index - 1);
+                } else if dist.1 < detect_window {
+                    tp += 1;
+                    r#fn -= 1;
+                    annotations.remove(index);
                 } else {
                     fp += 1;
                 }
@@ -99,28 +100,30 @@ fn calculate_pr(
                 recalls.push(r);
                 thresholds.push(score);
             }
-            (pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds)
+            (
+                pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
+            )
         })
         // Restore original order
         .rev()
         .collect_into_vec(&mut out);
 
     let (a, b, c) = out
-        .iter()
+        .par_iter()
         .map(|class| (class.4, class.5, class.6))
-        .fold((0, 0, 0), |acc, (a, b, c)| {
+        .reduce(|| (0, 0, 0), |acc, (a, b, c)| {
             (acc.0 + a, acc.1 + b, acc.2 + c)
         });
     let (_, _, f_score) = _calculate_prf(a, b, c);
     let f_score_avg = out
-        .iter()
+        .par_iter()
         .map(|class| (class.4, class.5, class.6))
         .map(|(tp, fp, r#fn)| _calculate_prf(tp, fp, r#fn).2)
         .sum::<f32>()
         / out.len() as f32;
 
     (
-        out.iter()
+        out.par_iter()
             .cloned()
             .map(|class| (class.1, class.2, class.7))
             .collect(),
