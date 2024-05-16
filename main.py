@@ -386,7 +386,7 @@ def main(
         last_improvement += 1
         if best_score <= f_score:
             best_score = f_score
-            best_model = model.state_dict()
+            best_model = (ema_model.module if ema_model is not None else model).state_dict()
             last_improvement = 0
         elif last_improvement >= 5 and annotation_settings.time_shift > 0.0:
             last_improvement = 0
@@ -399,7 +399,7 @@ def main(
             """
         if val_loss <= best_loss:
             best_loss = val_loss
-        if last_improvement > 10 and training_settings.early_stopping:
+        if training_settings.early_stopping is not None and last_improvement >= training_settings.early_stopping:
             break
 
     hyperparameters = {

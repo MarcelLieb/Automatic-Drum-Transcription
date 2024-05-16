@@ -39,7 +39,7 @@ class TrainingSettings:
     batch_size: int = 512
     ema: bool = False
     scheduler: bool = True
-    early_stopping: bool = False
+    early_stopping: int | None = None
     dataset_version: str = "L"
     splits: list[float] = (0.8, 0.1, 0.1)
     num_workers: int = 64
