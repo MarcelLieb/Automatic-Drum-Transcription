@@ -66,3 +66,14 @@ class CNNSettings:
     activation: nn.Module = nn.SELU()
     classifier_dim: int = 2**6
     down_sample_factor: 2 | 3 | 4 = 3
+
+
+@dataclass
+class CNNAttentionSettings:
+    n_classes: int
+    n_mels: int
+    num_channels: int = 16
+    dropout: float = 0.1
+    causal: bool = True
+    flux: bool = False
+    activation: nn.Module = nn.SELU()
