@@ -43,7 +43,6 @@ class TrainingSettings:
     dataset_version: str = "L"
     splits: list[float] = (0.8, 0.1, 0.1)
     num_workers: int = 64
-    ignore_beats: bool = True
 
 
 @dataclass
@@ -52,7 +51,7 @@ class EvaluationSettings:
     peak_max_range: int = 2
     onset_cooldown: int = 0.02
     detect_tolerance: int = 0.025
-    ignore_beats: bool = False
+    ignore_beats: bool = True
 
 
 @dataclass
