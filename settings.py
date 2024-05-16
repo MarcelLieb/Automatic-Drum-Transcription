@@ -66,3 +66,4 @@ class CNNSettings:
     flux: bool = True
     activation: nn.Module = nn.SELU()
     classifier_dim: int = 2**6
+    down_sample_factor: 2 | 3 | 4 = 3

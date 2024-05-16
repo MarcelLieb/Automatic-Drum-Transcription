@@ -14,6 +14,7 @@ class CNN(nn.Module):
         num_residual_blocks,
         causal,
         flux,
+        down_sample_factor: int,
         activation=nn.SELU(),
         classifier_dim=2**6,
     ):
@@ -22,11 +23,14 @@ class CNN(nn.Module):
         self.flux = flux
         self.n_dims = n_mels * (1 + flux)
         self.classifier_dim = classifier_dim
+        self.down_sample_factor = down_sample_factor
 
         self.conv1 = ResidualBlock(
             1, num_channels, kernel_size=3, causal=causal, activation=self.activation
         )
-        self.pool1 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
+        self.pool1 = nn.MaxPool2d(
+            kernel_size=(down_sample_factor, 1), stride=(down_sample_factor, 1)
+        )
         self.conv2 = ResidualBlock(
             num_channels,
             num_channels * 2,
@@ -34,7 +38,9 @@ class CNN(nn.Module):
             causal=causal,
             activation=self.activation,
         )
-        self.pool2 = nn.MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
+        self.pool2 = nn.MaxPool2d(
+            kernel_size=(down_sample_factor, 1), stride=(down_sample_factor, 1)
+        )
 
         self.residuals = nn.ModuleList()
         for _ in range(num_residual_blocks):
@@ -47,7 +53,9 @@ class CNN(nn.Module):
                 )
             )
 
-        self.fc1 = nn.Linear(num_channels * 2 * (self.n_dims // 9), classifier_dim)
+        self.fc1 = nn.Linear(
+            num_channels * 2 * (self.n_dims // (down_sample_factor**2)), classifier_dim
+        )
         self.dropout = nn.Dropout(dropout)
         self.fc2 = nn.Linear(classifier_dim, n_classes)
         self.num_channels = num_channels
@@ -67,7 +75,13 @@ class CNN(nn.Module):
         for residual in self.residuals:
             x = residual(x)
             x = self.dropout(x)
-        x = x.reshape((batch_size, self.num_channels * 2 * (self.n_dims // 9), -1))
+        x = x.reshape(
+            (
+                batch_size,
+                self.num_channels * 2 * (self.n_dims // (self.down_sample_factor**2)),
+                -1,
+            )
+        )
         x = x.permute(0, 2, 1)
         x = self.fc1(x)
         x = self.activation(x)
