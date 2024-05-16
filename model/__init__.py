@@ -139,7 +139,7 @@ class ResidualBlock1d(nn.Module):
             out_channels, out_channels, kernel_size, activation=activation
         )
         self.re_sample = (
-            nn.Conv1d(in_channels, out_channels, kernel_size=1)
+            nn.Conv2d(in_channels, out_channels, kernel_size=1)
             if in_channels != out_channels
             else None
         )
