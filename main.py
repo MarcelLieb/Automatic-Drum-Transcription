@@ -325,6 +325,7 @@ def main(
             scheduler,
             tensorboard_writer=writer,
         )
+        torch.cuda.empty_cache()
         val_loss, f_score, avg_f_score = evaluate(
             epoch,
             model if ema_model is None else ema_model.module,
@@ -335,6 +336,7 @@ def main(
             tensorboard_writer=writer,
             tag="Validation",
         )
+        torch.cuda.empty_cache()
         if scheduler is not None and isinstance(
             scheduler, optim.lr_scheduler.ReduceLROnPlateau
         ):
@@ -365,6 +367,7 @@ def main(
                 tensorboard_writer=writer,
                 tag="Test/RBMA",
             )
+            torch.cuda.empty_cache()
             print(
                 f"RBMA: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
             )
@@ -378,6 +381,7 @@ def main(
                 tensorboard_writer=writer,
                 tag="Test/MDB",
             )
+            torch.cuda.empty_cache()
             print(
                 f"MDB: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
             )
