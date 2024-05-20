@@ -25,17 +25,6 @@ fn calculate_pr(
         // Filters out extra beat labels if length mismatches
         .zip(ground_truths.into_par_iter().rev())
         .map(|(values, labels)| {
-            let mut tp: usize = 0;
-            let mut fp: usize = 0;
-            let mut r#fn: usize = labels.iter().map(|song| song.len()).sum();
-            let mut max_f_score = 0.0;
-            let (mut max_tp, mut max_fp, mut max_fn) = (tp, fp, r#fn);
-            let mut threshold = f32::INFINITY;
-            let mut pn = Vec::with_capacity(values.len());
-
-            let mut precisions = Vec::with_capacity(values.len());
-            let mut recalls = Vec::with_capacity(values.len());
-            let mut thresholds = Vec::with_capacity(values.len());
             let mut labels = labels;
             let mut values = values;
 
@@ -43,6 +32,18 @@ fn calculate_pr(
             values.reverse();
 
             if points.is_none() {
+                let mut tp: usize = 0;
+                let mut fp: usize = 0;
+                let mut r#fn: usize = labels.iter().map(|song| song.len()).sum();
+                let mut max_f_score = 0.0;
+                let (mut max_tp, mut max_fp, mut max_fn) = (tp, fp, r#fn);
+                let mut threshold = f32::INFINITY;
+                let mut pn = Vec::with_capacity(values.len());
+
+                let mut precisions = Vec::with_capacity(values.len());
+                let mut recalls = Vec::with_capacity(values.len());
+                let mut thresholds = Vec::with_capacity(values.len());
+
                 let mut peaks_by_song = split_songs(&values, labels.len());
                 'calculation: for pred in values {
                     let [time, score, song] = pred;
