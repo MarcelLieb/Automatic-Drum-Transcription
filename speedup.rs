@@ -2,7 +2,7 @@
 
 // Add parallel processing library
 //: [dependencies]
-//: rayon = "1.8.0"
+//: rayon = "1.10.0"
 
 use pyo3::prelude::*;
 use rayon::prelude::*;
