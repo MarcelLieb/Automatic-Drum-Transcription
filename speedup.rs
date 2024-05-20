@@ -94,9 +94,13 @@ fn calculate_pr(
                     pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
                 )
             } else {
+                let mut onsets = Vec::new();
                 for chunk in values.chunks(values.len() / points.unwrap()) {
+                    onsets.extend_from_slice(chunk);
+                    let mut labels = labels.clone();
+
                     let score = chunk.last().unwrap()[1];
-                    let peaks_by_songs = split_songs(chunk, labels.len());
+                    let peaks_by_songs = split_songs(&onsets, labels.len());
                     let onsets_by_song: Vec<Vec<f32>> = peaks_by_songs
                         .into_par_iter()
                         .map(|onsets| {
@@ -105,23 +109,22 @@ fn calculate_pr(
                                 .map(|[time, _]| time)
                                 .collect::<Vec<f32>>()
                         })
-                        // Less onsets than with the direct approach get filtered here
+                        // Less onsets get filtered here
                         .map(|onsets| _combine_onsets(&onsets, cool_down, "min"))
                         .collect();
-                    let (n_tp, n_fp, _) = onsets_by_song
+                    let (n_tp, n_fp, n_fn) = onsets_by_song
                         .into_iter()
                         .zip(labels.iter_mut())
                         .par_bridge()
                         .map(|(onsets, labels)| {
                             // Here the chunk wise differentiates from the direct approach slightly
-                            //
                             _evaluate_detections(&onsets, labels, detect_window)
                         })
                         .reduce(|| (0, 0, 0), |a, b| (a.0 + b.0, a.1 + b.1, a.2 + b.2));
 
-                    tp += n_tp;
-                    fp += n_fp;
-                    r#fn -= n_tp;
+                    tp = n_tp;
+                    fp = n_fp;
+                    r#fn = n_fn;
                     let (p, r, f) = _calculate_prf(tp, fp, r#fn);
                     if f > max_f_score {
                         max_f_score = f;
@@ -272,7 +275,8 @@ fn _calculate_prf(tp: usize, fp: usize, r#fn: usize) -> (f32, f32, f32) {
 
 fn split_songs(peaks: &[[f32; 3]], song_count: usize) -> Vec<Vec<[f32; 2]>> {
     (0..song_count)
-        .map(|i| {
+        .par_bridge()
+        .map_with(peaks, |peaks, i| {
             let mut values: Vec<[f32; 2]> = peaks
                 .iter()
                 .cloned()
