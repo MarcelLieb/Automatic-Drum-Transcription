@@ -95,8 +95,11 @@ fn calculate_pr(
                     pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
                 )
             } else {
-                let n_chunks = points.unwrap() + (values.len() % points.unwrap()).min(1);
                 let chunk_length = values.len() / points.unwrap();
+                let n_chunks = points.unwrap() + (values.len().div_ceil(points.unwrap()));
+
+                debug_assert!(n_chunks * chunk_length >= values.len());
+
                 let iter: Vec<_> = (1..=n_chunks)
                     .into_par_iter()
                     .map_with((values, labels), |(values, labels), i| {
@@ -113,20 +116,21 @@ fn calculate_pr(
                                     .map(|[time, _]| time)
                                     .collect::<Vec<f32>>()
                             })
-                            // Less onsets get filtered here
                             .map(|onsets| _combine_onsets(&onsets, cool_down, "min"))
                             .collect();
                         let (n_tp, n_fp, n_fn) = onsets_by_song
                             .into_iter()
-                            .zip(labels.iter_mut())
+                            .zip(labels.iter())
                             .par_bridge()
-                            .map(|(onsets, labels)| {
+                            .map(|(onsets, cap_labels)| {
                                 // Here the chunk wise differentiates from the direct approach slightly
-                                _evaluate_detections(&onsets, labels, detect_window)
+                                _evaluate_detections(&onsets, cap_labels, detect_window)
                             })
                             .reduce(|| (0, 0, 0), |a, b| (a.0 + b.0, a.1 + b.1, a.2 + b.2));
 
                         let (p, r, f) = _calculate_prf(n_tp, n_fp, n_fn);
+
+                        debug_assert_ne!((p, r, f), (0.0, 0.0, 0.0), "{}, {}, {}", n_tp, n_fp, n_fn);
 
                         (n_tp, n_fp, n_fn, p, r, f, score)
                     })
@@ -216,19 +220,23 @@ fn _combine_onsets(onsets: &[f32], cool_down: f32, combine_strategy: &str) -> Ve
 
 fn _evaluate_detections(
     onsets: &[f32],
-    labels: &mut Vec<f32>,
+    labels: &[f32],
     detect_window: f32,
 ) -> (usize, usize, usize) {
-    let n_labels = labels.len();
+    let mut labels = Vec::from(labels);
+    let mut tp = 0;
     let mut fp = 0;
     // Assume onsets are sorted ascending
-    for onset_time in onsets.iter().rev() {
+    for (i, onset_time) in onsets.iter().enumerate().rev() {
         if labels.is_empty() {
+            fp += i + 1;
             break;
         }
+
         let (index, dist) = find_closest_onset(*onset_time, &labels).unwrap();
 
         if dist < detect_window + 10.0 * f32::EPSILON {
+            tp += 1;
             labels.remove(index);
         } else {
             fp += 1;
@@ -236,7 +244,7 @@ fn _evaluate_detections(
     }
 
     // Return tp, fp, fn
-    (n_labels - labels.len(), fp, labels.len())
+    (tp, fp, labels.len())
 }
 
 #[pyfunction]
@@ -250,8 +258,7 @@ fn evaluate_detections(
     labels: Vec<f32>,
     detect_window: f32,
 ) -> (usize, usize, usize) {
-    let mut labels = labels;
-    _evaluate_detections(&onsets, &mut labels, detect_window)
+    _evaluate_detections(&onsets, &labels, detect_window)
 }
 
 fn find_closest_onset(onset: f32, labels: &[f32]) -> Option<(usize, f32)> {
