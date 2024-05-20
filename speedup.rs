@@ -96,15 +96,14 @@ fn calculate_pr(
                 )
             } else {
                 let chunk_length = values.len() / points.unwrap();
-                let n_chunks = points.unwrap() + (values.len().div_ceil(points.unwrap()));
+                let n_chunks = values.len().div_ceil(chunk_length);
 
                 debug_assert!(n_chunks * chunk_length >= values.len());
 
                 let iter: Vec<_> = (1..=n_chunks)
                     .into_par_iter()
                     .map_with((values, labels), |(values, labels), i| {
-                        values.truncate(i * chunk_length);
-                        let onsets = values;
+                        let onsets = &values[..(i * chunk_length).min(values.len())];
 
                         let score = onsets.last().unwrap()[1];
                         let peaks_by_songs = split_songs(&onsets, labels.len());
