@@ -84,7 +84,7 @@ fn calculate_pr(
                         threshold = score;
                         (max_tp, max_fp, max_fn) = (tp, fp, r#fn);
                     }
-                    pn.push((threshold, tp, fp, r#fn));
+                    pn.push((tp, fp, r#fn));
 
                     precisions.push(p);
                     recalls.push(r);
@@ -94,49 +94,59 @@ fn calculate_pr(
                     pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
                 )
             } else {
-                let mut onsets = Vec::new();
-                for chunk in values.chunks(values.len() / points.unwrap()) {
-                    onsets.extend_from_slice(chunk);
-                    let mut labels = labels.clone();
+                let n_chunks = points.unwrap() + (values.len() % points.unwrap()).min(1);
+                let chunk_length = values.len() / points.unwrap();
+                let iter: Vec<_> = (1..=n_chunks)
+                    .into_par_iter()
+                    .map_with((values, labels), |(values, labels), i| {
+                        values.truncate(i * chunk_length);
+                        let onsets = values;
 
-                    let score = chunk.last().unwrap()[1];
-                    let peaks_by_songs = split_songs(&onsets, labels.len());
-                    let onsets_by_song: Vec<Vec<f32>> = peaks_by_songs
-                        .into_par_iter()
-                        .map(|onsets| {
-                            onsets
-                                .into_iter()
-                                .map(|[time, _]| time)
-                                .collect::<Vec<f32>>()
-                        })
-                        // Less onsets get filtered here
-                        .map(|onsets| _combine_onsets(&onsets, cool_down, "min"))
-                        .collect();
-                    let (n_tp, n_fp, n_fn) = onsets_by_song
-                        .into_iter()
-                        .zip(labels.iter_mut())
-                        .par_bridge()
-                        .map(|(onsets, labels)| {
-                            // Here the chunk wise differentiates from the direct approach slightly
-                            _evaluate_detections(&onsets, labels, detect_window)
-                        })
-                        .reduce(|| (0, 0, 0), |a, b| (a.0 + b.0, a.1 + b.1, a.2 + b.2));
+                        let score = onsets.last().unwrap()[1];
+                        let peaks_by_songs = split_songs(&onsets, labels.len());
+                        let onsets_by_song: Vec<Vec<f32>> = peaks_by_songs
+                            .into_par_iter()
+                            .map(|onsets| {
+                                onsets
+                                    .into_iter()
+                                    .map(|[time, _]| time)
+                                    .collect::<Vec<f32>>()
+                            })
+                            // Less onsets get filtered here
+                            .map(|onsets| _combine_onsets(&onsets, cool_down, "min"))
+                            .collect();
+                        let (n_tp, n_fp, n_fn) = onsets_by_song
+                            .into_iter()
+                            .zip(labels.iter_mut())
+                            .par_bridge()
+                            .map(|(onsets, labels)| {
+                                // Here the chunk wise differentiates from the direct approach slightly
+                                _evaluate_detections(&onsets, labels, detect_window)
+                            })
+                            .reduce(|| (0, 0, 0), |a, b| (a.0 + b.0, a.1 + b.1, a.2 + b.2));
 
-                    tp = n_tp;
-                    fp = n_fp;
-                    r#fn = n_fn;
-                    let (p, r, f) = _calculate_prf(tp, fp, r#fn);
-                    if f > max_f_score {
-                        max_f_score = f;
-                        threshold = score;
-                        (max_tp, max_fp, max_fn) = (tp, fp, r#fn);
-                    }
-                    pn.push((threshold, tp, fp, r#fn));
+                        let (p, r, f) = _calculate_prf(n_tp, n_fp, n_fn);
 
-                    precisions.push(p);
-                    recalls.push(r);
-                    thresholds.push(score);
-                }
+                        (n_tp, n_fp, n_fn, p, r, f, score)
+                    })
+                    .collect();
+
+                let pn = iter
+                    .iter()
+                    .cloned()
+                    .map(|o| (o.0, o.1, o.2))
+                    .collect::<Vec<_>>();
+
+                let precisions = iter.iter().cloned().map(|o| o.3).collect::<Vec<_>>();
+                let recalls = iter.iter().cloned().map(|o| o.4).collect::<Vec<_>>();
+                let thresholds = iter.iter().cloned().map(|o| o.6).collect::<Vec<_>>();
+                let (max_tp, max_fp, max_fn, threshold, _) = iter
+                    .iter()
+                    .cloned()
+                    .map(|o| (o.0, o.1, o.2, o.6, o.5))
+                    .max_by(|a, b| a.4.total_cmp(&b.4))
+                    .unwrap();
+
                 (
                     pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
                 )
