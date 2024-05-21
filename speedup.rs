@@ -30,6 +30,10 @@ fn calculate_pr(
 
             values.par_sort_by(|a, b| a[1].total_cmp(&b[1]));
             values.reverse();
+            labels.par_iter_mut().for_each(|song| {
+                song.par_sort_by(|a, b| a.partial_cmp(b).unwrap());
+                song.dedup();
+            });
 
             if points.is_none() {
                 let mut tp: usize = 0;
@@ -74,7 +78,7 @@ fn calculate_pr(
                     if dist < detect_window {
                         tp += 1;
                         r#fn -= 1;
-                        annotations.remove(index - 1);
+                        annotations.remove(index);
                     } else {
                         fp += 1;
                     }
@@ -118,12 +122,12 @@ fn calculate_pr(
                             .map(|onsets| _combine_onsets(&onsets, cool_down, "min"))
                             .collect();
                         let (n_tp, n_fp, n_fn) = onsets_by_song
-                            .into_iter()
+                            .iter()
                             .zip(labels.iter())
                             .par_bridge()
-                            .map(|(onsets, cap_labels)| {
+                            .map(|(onsets, labels)| {
                                 // Here the chunk wise differentiates from the direct approach slightly
-                                _evaluate_detections(&onsets, cap_labels, detect_window)
+                                _evaluate_detections(onsets, labels, detect_window)
                             })
                             .reduce(|| (0, 0, 0), |a, b| (a.0 + b.0, a.1 + b.1, a.2 + b.2));
 
@@ -169,7 +173,7 @@ fn calculate_pr(
         );
     let (_, _, f_score) = _calculate_prf(a, b, c);
     let f_score_avg = out
-        .par_iter()
+        .iter()
         .map(|class| (class.4, class.5, class.6))
         .map(|(tp, fp, r#fn)| _calculate_prf(tp, fp, r#fn).2)
         .sum::<f32>()
@@ -291,15 +295,15 @@ fn _calculate_prf(tp: usize, fp: usize, r#fn: usize) -> (f32, f32, f32) {
 }
 
 fn split_songs(peaks: &[[f32; 3]], song_count: usize) -> Vec<Vec<[f32; 2]>> {
-    (0..song_count)
-        .par_bridge()
-        .map_with(peaks, |peaks, i| {
+    let out: Vec<Vec<[f32; 2]>> = (0..song_count)
+        .into_par_iter()
+        .map(|i| {
             let mut values: Vec<[f32; 2]> = peaks
                 .iter()
                 .cloned()
                 .filter_map(|[t, v, s]| if s as usize == i { Some([t, v]) } else { None })
                 .collect();
-            values.sort_by(|a, b| a[0].total_cmp(&b[0]));
+            values.sort_by(|a, b| a[0].partial_cmp(&b[0]).unwrap());
             values
         })
         .collect()
