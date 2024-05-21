@@ -46,6 +46,7 @@ def step(
         unfiltered = criterion(prediction, lbl_batch)
         no_silence = unfiltered * (lbl_batch != -1)
         full_context = no_silence[..., 9:]  # Receptive field if causal model is 9 frames
+        # full_context = full_context * torch.any(lbl_batch[..., 9:] > 0, dim=-1, keepdim=True)
         filtered = full_context.mean()
         loss = filtered
 
