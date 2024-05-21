@@ -114,7 +114,7 @@ fn calculate_pr(
 
                 let iter: Vec<_> = (1..=n_chunks)
                     .into_par_iter()
-                    .map_with((values, labels), |(values, labels), i| {
+                    .map(|i| {
                         let onsets = &values[..(i * chunk_length).min(values.len())];
 
                         let score = onsets.last().unwrap()[1];
