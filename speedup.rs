@@ -28,7 +28,7 @@ fn calculate_pr(
             let mut labels = labels;
             let mut values = values;
 
-            values.par_sort_by(|a, b| a[1].total_cmp(&b[1]));
+            values.par_sort_by(|a, b| a[1].partial_cmp(&b[1]).unwrap());
             values.reverse();
             labels.par_iter_mut().for_each(|song| {
                 song.par_sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -49,13 +49,21 @@ fn calculate_pr(
                 let mut thresholds = Vec::with_capacity(values.len());
 
                 let mut peaks_by_song = split_songs(&values, labels.len());
-                'calculation: for pred in values {
+                'calculation: for (i, pred) in values.into_iter().enumerate() {
                     let [time, score, song] = pred;
                     let song = song as usize;
 
                     let peaks = &mut peaks_by_song[song];
                     // Search index of peak
                     let index = peaks.partition_point(|a| a[0] < time);
+                    debug_assert_eq!(time, peaks[index][0], "Iteration: {i}");
+                    debug_assert!(
+                        peaks
+                            .binary_search_by(|a| a[0].partial_cmp(&time).unwrap())
+                            .is_ok(),
+                        "{time}, {:?}",
+                        peaks.last()
+                    );
                     for i in (0..index).rev() {
                         // Check if peak is close enough to be affected by the onset cool down
                         if time - peaks[i][0] > cool_down {
@@ -131,11 +139,30 @@ fn calculate_pr(
                             })
                             .reduce(|| (0, 0, 0), |a, b| (a.0 + b.0, a.1 + b.1, a.2 + b.2));
 
+                        debug_assert_ne!((n_tp, n_fp, n_fn), (0, 0, 0));
+
                         let (p, r, f) = _calculate_prf(n_tp, n_fp, n_fn);
 
-                        debug_assert_ne!((p, r, f), (0.0, 0.0, 0.0), "{}, {}, {}", n_tp, n_fp, n_fn);
+                        #[cfg(not(debug_assertions))]
+                        return (n_tp, n_fp, n_fn, p, r, f, score);
 
-                        (n_tp, n_fp, n_fn, p, r, f, score)
+                        #[cfg(debug_assertions)]
+                        {
+                            let n_unfiltered = onsets.len();
+                            let n_filtered: usize = onsets_by_song.iter().map(|v| v.len()).sum();
+                            return (
+                                n_tp,
+                                n_fp,
+                                n_fn,
+                                p,
+                                r,
+                                f,
+                                score,
+                                n_unfiltered,
+                                n_filtered,
+                                (i * chunk_length).min(values.len()),
+                            );
+                        }
                     })
                     .collect();
 
@@ -147,12 +174,31 @@ fn calculate_pr(
 
                 let precisions = iter.iter().cloned().map(|o| o.3).collect::<Vec<_>>();
                 let recalls = iter.iter().cloned().map(|o| o.4).collect::<Vec<_>>();
+
+                debug_assert_eq!(iter.len(), n_chunks);
+                #[cfg(debug_assertions)]
+                recalls.windows(2).enumerate().for_each(|(i, w)| {
+                    if w[0] > w[1] {
+                        println!("{:?}\n{:?}\n", iter[i], iter[i + 1])
+                    }
+                });
+
+                #[cfg(debug_assertions)]
+                debug_assert!(
+                    iter.windows(2).all(|w| w[0].7 < w[1].7),
+                    "Chunk sizes are not monotonically increasing"
+                );
+                debug_assert!(
+                    recalls.windows(2).all(|w| w[0] <= w[1]),
+                    "Recall is not monotonically increasing"
+                );
+
                 let thresholds = iter.iter().cloned().map(|o| o.6).collect::<Vec<_>>();
                 let (max_tp, max_fp, max_fn, threshold, _) = iter
                     .iter()
                     .cloned()
                     .map(|o| (o.0, o.1, o.2, o.6, o.5))
-                    .max_by(|a, b| a.4.total_cmp(&b.4))
+                    .max_by(|a, b| a.4.partial_cmp(&b.4).unwrap())
                     .unwrap();
 
                 (
@@ -230,6 +276,14 @@ fn _evaluate_detections(
     let mut tp = 0;
     let mut fp = 0;
     // Assume onsets are sorted ascending
+    debug_assert!(
+        onsets.windows(2).all(|w| w[0] < w[1]),
+        "Onset times are not strictly monotonically increasing"
+    );
+    debug_assert!(
+        labels.windows(2).all(|w| w[0] < w[1]),
+        "Label times are not strictly monotonically increasing"
+    );
     for (i, onset_time) in onsets.iter().enumerate().rev() {
         if labels.is_empty() {
             fp += i + 1;
@@ -269,6 +323,10 @@ fn find_closest_onset(onset: f32, labels: &[f32]) -> Option<(usize, f32)> {
         return None;
     }
     // Assume labels are sorted ascending
+    debug_assert!(
+        labels.windows(2).all(|w| w[0] < w[1]),
+        "Label times are not strictly monotonically increasing"
+    );
     let index = labels.partition_point(|a| a < &onset);
     let mut dist: (f32, f32) = (f32::INFINITY, f32::INFINITY);
     if index > 0 {
@@ -306,5 +364,7 @@ fn split_songs(peaks: &[[f32; 3]], song_count: usize) -> Vec<Vec<[f32; 2]>> {
             values.sort_by(|a, b| a[0].partial_cmp(&b[0]).unwrap());
             values
         })
-        .collect()
+        .collect();
+    debug_assert_eq!(peaks.len(), out.iter().map(|v| v.len()).sum::<usize>());
+    out
 }
