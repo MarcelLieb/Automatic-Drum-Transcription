@@ -45,7 +45,8 @@ def step(
         prediction = model(audio_batch)
         unfiltered = criterion(prediction, lbl_batch)
         no_silence = unfiltered * (lbl_batch != -1)
-        filtered = no_silence.mean()
+        full_context = no_silence[..., 9:]  # Receptive field if causal model is 9 frames
+        filtered = full_context.mean()
         loss = filtered
 
     scaler.scale(loss).backward()
@@ -268,6 +269,8 @@ def main(
         training_settings, audio_settings, annotation_settings
     )
 
+    cnnA_settings = CNNAttentionSettings(n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels)
+    model = CNNAttention(**asdict(cnnA_settings))
     model = CNN(**asdict(cnn_settings))
     model.to(device)
 
