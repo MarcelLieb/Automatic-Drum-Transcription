@@ -13,12 +13,13 @@ from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score
 from model.cnn import CNN
 from model import ModelEmaV2
+from model.cnnA import CNNAttention
 from settings import (
     AnnotationSettings,
     AudioProcessingSettings,
     TrainingSettings,
     CNNSettings,
-    EvaluationSettings,
+    EvaluationSettings, CNNAttentionSettings,
 )
 
 
