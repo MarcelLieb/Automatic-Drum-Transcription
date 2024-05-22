@@ -107,7 +107,7 @@ fn calculate_pr(
                     pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
                 )
             } else {
-                let chunk_length = values.len() / points.unwrap();
+                let chunk_length = (values.len() as f32 / points.unwrap() as f32).round() as usize;
                 let n_chunks = values.len().div_ceil(chunk_length);
 
                 debug_assert!(n_chunks * chunk_length >= values.len());
