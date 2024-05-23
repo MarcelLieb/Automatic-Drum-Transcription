@@ -85,6 +85,3 @@ fabric.properties
 /copilot/chatSessions
 
 ./copilot/chatSessions
-
-workspace.xml
-deployment.xml
