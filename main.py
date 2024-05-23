@@ -425,11 +425,26 @@ def main(
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
 
+    if best_model is not None:
+        model.load_state_dict(best_model)
+
+    if best_score > training_settings.min_save_score:
+        print("Saving model")
+        dic = {
+            "model": model.state_dict(),
+            "model_settings": asdict(cnn_settings),
+            "audio_settings": asdict(audio_settings),
+            "annotation_settings": asdict(annotation_settings),
+            "training_settings": asdict(training_settings),
+            "evaluation_settings": asdict(evaluation_settings),
+        }
+        torch.save(dic, f"./models/trained_model_{best_score * 100:.2f}.pt")
+
     # Make sure everything is written to disk
     writer.flush()
     writer.close()
 
-    return ema_model.module if ema_model is not None else model
+    return model
 
 
 if __name__ == "__main__":

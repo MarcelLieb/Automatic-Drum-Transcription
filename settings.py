@@ -43,6 +43,7 @@ class TrainingSettings:
     dataset_version: str = "L"
     splits: list[float] = (0.8, 0.1, 0.1)
     num_workers: int = 64
+    min_save_score: float = 0.64
 
 
 @dataclass
