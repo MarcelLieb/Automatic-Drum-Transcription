@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torchaudio
 
-from dataset.generics import ADTDataset
+from generics import ADTDataset
 from dataset.mapping import DrumMapping
 from settings import AudioProcessingSettings, AnnotationSettings
 

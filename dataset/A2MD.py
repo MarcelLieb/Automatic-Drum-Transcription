@@ -6,7 +6,7 @@ import torch
 import torchaudio
 import os
 
-from dataset.generics import ADTDataset
+from generics import ADTDataset
 from dataset.mapping import get_midi_to_class, three_class_mapping, DrumMapping
 from settings import AudioProcessingSettings, AnnotationSettings
 

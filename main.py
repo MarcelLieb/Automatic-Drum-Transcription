@@ -8,9 +8,10 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from dataset import get_dataset, ADTDataset
+from dataset.utils import get_dataset
 from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score
+from generics import ADTDataset
 from model.cnn import CNN
 from model import ModelEmaV2
 from model.cnnA import CNNAttention

@@ -6,7 +6,7 @@ import polars as pl
 import torch
 import torchaudio
 
-from dataset.generics import ADTDataset
+from generics import ADTDataset
 from dataset.mapping import DrumMapping, get_name_to_class_number
 from settings import AudioProcessingSettings, AnnotationSettings
 
