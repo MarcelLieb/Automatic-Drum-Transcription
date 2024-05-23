@@ -65,7 +65,6 @@ class CNN(nn.Module):
             diff = x[1:] - x[-1]
             diff = f.relu(f.pad(diff, (0, 0, 0, 0, 1, 0), mode="constant", value=0))
             x = torch.hstack((x, diff))
-        batch_size = x.size(0)
         # Add channel dimension
         x = x.unsqueeze(1)
         x = self.conv1(x)
@@ -75,13 +74,9 @@ class CNN(nn.Module):
         for residual in self.residuals:
             x = residual(x)
             x = self.dropout(x)
-        x = x.reshape(
-            (
-                batch_size,
-                self.num_channels * 2 * (self.n_dims // (self.down_sample_factor**2)),
-                -1,
-            )
-        )
+
+        bs, ch, h, w = x.size()
+        x = x.reshape(bs, ch * h, w)
         x = x.permute(0, 2, 1)
         x = self.fc1(x)
         x = self.activation(x)
