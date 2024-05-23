@@ -6,6 +6,8 @@
       <excludeFolder url="file://$MODULE_DIR$/data" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
       <excludeFolder url="file://$MODULE_DIR$/plots" />
+      <excludeFolder url="file://$MODULE_DIR$/models" />
+      <excludeFolder url="file://$MODULE_DIR$/runs" />
     </content>
     <orderEntry type="jdk" jdkName="Remote Python 3.10.12 (sftp://mmc-user@seppel.informatik.uni-augsburg.de:6107/home/mmc-user/.virtualenvs/Automatic-Drum-Transcription/bin/python)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
