@@ -62,8 +62,8 @@ class CNN(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         if self.flux:
-            diff = x[1:] - x[-1]
-            diff = f.relu(f.pad(diff, (0, 0, 0, 0, 1, 0), mode="constant", value=0))
+            diff = x[..., 1:] - x[..., :-1]
+            diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
             x = torch.hstack((x, diff))
         # Add channel dimension
         x = x.unsqueeze(1)
