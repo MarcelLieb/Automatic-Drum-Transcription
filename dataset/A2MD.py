@@ -228,13 +228,22 @@ class A2MD(ADTDataset):
 
         folder, identifier, drums, beats, down_beats = self.annotations[int(audio_idx)]
 
-        audio = (
+        full_audio = (
             load_audio(self.path, folder, identifier, self.sample_rate, self.normalize)
             if self.cache is None
             else self.cache[int(audio_idx)]
         )
-        audio = audio[start:end]
-
+        audio = full_audio[start:end]
+        if self.is_train and audio.shape[-1] < self.segment_length * self.sample_rate:
+            if start == 0:
+                audio = torch.cat(
+                    (torch.zeros(int(self.segment_length * self.sample_rate - audio.shape[-1])), audio)
+                )
+            else:
+                audio = torch.cat(
+                    (audio, torch.zeros(int(self.segment_length * self.sample_rate - audio.shape[-1])))
+                )
+            assert audio.shape[-1] == self.segment_length * self.sample_rate, "Audio too short"
         time_offset = start / self.sample_rate
 
         drums = [drum[drum >= time_offset] - time_offset for drum in drums]

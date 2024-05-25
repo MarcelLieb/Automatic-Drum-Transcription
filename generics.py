@@ -25,10 +25,12 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.pad_annotations = annotation_settings.pad_annotations
         self.pad_value = annotation_settings.pad_value
         self.lead_in = annotation_settings.lead_in
+        self.lead_out = annotation_settings.lead_out
         self.time_shift = annotation_settings.time_shift
         self.beats = annotation_settings.beats
         self.n_classes = annotation_settings.n_classes
         self.normalize = audio_settings.normalize
+        self.segment_length = self.lead_in + self.lead_out
 
     @abstractmethod
     def __len__(self):
