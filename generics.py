@@ -28,6 +28,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.time_shift = annotation_settings.time_shift
         self.beats = annotation_settings.beats
         self.n_classes = annotation_settings.n_classes
+        self.normalize = audio_settings.normalize
 
     @abstractmethod
     def __len__(self):

@@ -15,6 +15,7 @@ class AudioProcessingSettings:
     pad_mode: str = "constant"
     mel_min: float = 20.0
     mel_max: float = 20000.0
+    normalize: bool = True
 
 
 @dataclass

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import nnAudio.features
 import numpy as np
 import pretty_midi
 import torch
@@ -118,13 +119,14 @@ def get_segments(
 
 
 def load_audio(
-    path: str, folder: str, identifier: str, sample_rate: int
+    path: str, folder: str, identifier: str, sample_rate: int, normalize: bool
 ) -> torch.Tensor:
     audio_path = os.path.join(path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
     audio, sr = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
     audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(audio)
     audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
-    audio = audio / torch.max(torch.abs(audio))
+    if normalize:
+        audio = audio / torch.max(torch.abs(audio))
     return audio
 
 
@@ -191,7 +193,7 @@ class A2MD(ADTDataset):
             )
             # self.segments = calculate_segments(self.lengths, 5.0, sample_rate, fft_size) if is_train else None
             args = [
-                (path, folder, identifier, audio_settings.sample_rate)
+                (path, folder, identifier, audio_settings.sample_rate, self.normalize)
                 for folder, identifier, *_ in self.annotations
             ]
             self.cache = pool.starmap(load_audio, args) if is_train else None
@@ -227,7 +229,7 @@ class A2MD(ADTDataset):
         folder, identifier, drums, beats, down_beats = self.annotations[int(audio_idx)]
 
         audio = (
-            load_audio(self.path, folder, identifier, self.sample_rate)
+            load_audio(self.path, folder, identifier, self.sample_rate, self.normalize)
             if self.cache is None
             else self.cache[int(audio_idx)]
         )
