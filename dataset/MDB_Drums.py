@@ -6,6 +6,7 @@ import polars as pl
 import torch
 import torchaudio
 
+from dataset import load_audio
 from generics import ADTDataset
 from dataset.mapping import DrumMapping, get_name_to_class_number
 from settings import AudioProcessingSettings, AnnotationSettings
@@ -59,15 +60,6 @@ def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
     drums = [labels[labels[:, 1] == i][:, 0] for i in range(len(mapping))]
 
     return beats, drums
-
-
-def load_audio(path: str, identifier: str, sample_rate: int) -> torch.Tensor:
-    audio_path = os.path.join(path, "audio", "full_mix", f"{identifier}_MIX.wav")
-    audio, sr = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
-    audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(audio)
-    audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
-    audio = audio / torch.max(torch.abs(audio))
-    return audio
 
 
 class MDBDrums(ADTDataset):
@@ -124,7 +116,8 @@ class MDBDrums(ADTDataset):
     def __getitem__(self, idx):
         name = list(self.annotations.keys())[idx]
         beats, drums = self.annotations[name]
-        audio = load_audio(self.path, name, self.sample_rate)
+        path = self.get_full_path(name)
+        audio = load_audio(path, self.sample_rate, self.normalize)
 
         frames = (audio.shape[-1] - self.fft_size) // self.hop_size + 1
         labels = torch.zeros(((self.beats * 2) + 3, frames), dtype=torch.float32)
@@ -163,3 +156,7 @@ class MDBDrums(ADTDataset):
         if self.use_dataloader:
             return mel.permute(1, 0), labels.permute(1, 0), gt_labels
         return spectrum, labels, gt_labels
+
+    def get_full_path(self, identifier: str) -> Path:
+        audio_path = os.path.join(self.path, "audio", "full_mix", f"{identifier}_MIX.wav")
+        return Path(audio_path)

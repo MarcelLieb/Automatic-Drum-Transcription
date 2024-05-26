@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torchaudio
 
+from dataset import load_audio
 from generics import ADTDataset
 from dataset.mapping import DrumMapping
 from settings import AudioProcessingSettings, AnnotationSettings
@@ -100,7 +101,7 @@ class RBMA_13(ADTDataset):
         **_kwargs,
     ):
         super().__init__(audio_settings, annotation_settings)
-        self.root = root
+        self.path = root
         self.is_train = is_train
         self.use_dataloader = use_dataloader
         self.pad = (
@@ -159,16 +160,9 @@ class RBMA_13(ADTDataset):
         track = list(self.annotations.keys())[idx]
 
         beats, drums = self.annotations[track]
-        audio_path = os.path.join(self.root, "audio", f"{track}.mp3")
 
-        audio, sample_rate = torchaudio.load(
-            audio_path, normalize=True, backend="ffmpeg"
-        )
-        audio = torchaudio.transforms.Resample(
-            orig_freq=sample_rate, new_freq=self.sample_rate
-        )(audio)
-        audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
-        audio = audio / torch.max(torch.abs(audio))
+        path = self.get_full_path(track)
+        audio = load_audio(path, self.sample_rate, self.normalize)
 
         fft_size = self.fft_size
         hop_size = self.hop_size
@@ -211,6 +205,11 @@ class RBMA_13(ADTDataset):
         if self.use_dataloader:
             return mel.permute(1, 0), labels.permute(1, 0), gt_labels
         return spectrum, labels, gt_labels
+
+    def get_full_path(self, track: str) -> Path:
+        audio_path = os.path.join(self.path, "audio", f"{track}.mp3")
+        return Path(audio_path)
+
 
 
 def main():

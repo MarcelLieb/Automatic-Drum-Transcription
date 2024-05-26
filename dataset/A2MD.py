@@ -7,6 +7,7 @@ import torch
 import torchaudio
 import os
 
+from dataset import load_audio
 from generics import ADTDataset
 from dataset.mapping import get_midi_to_class, three_class_mapping, DrumMapping
 from settings import AudioProcessingSettings, AnnotationSettings
@@ -118,17 +119,6 @@ def get_segments(
     return np.concatenate(segments, axis=0)
 
 
-def load_audio(
-    path: str, folder: str, identifier: str, sample_rate: int, normalize: bool
-) -> torch.Tensor:
-    audio_path = os.path.join(path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
-    audio, sr = torchaudio.load(audio_path, normalize=True, backend="ffmpeg")
-    audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(audio)
-    audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
-    if normalize:
-        audio = audio / torch.max(torch.abs(audio))
-    return audio
-
 
 def get_tracks(path: str) -> dict[str, list[str]]:
     folders = [f"dist0p{x:02}" for x in range(0, 70, 10)]
@@ -191,10 +181,15 @@ class A2MD(ADTDataset):
                 if is_train
                 else None
             )
+            args = [
+                (folder, identifier)
+                for folder, identifier, *_ in self.annotations
+            ]
+            paths = pool.starmap(self.get_full_path, args)
             # self.segments = calculate_segments(self.lengths, 5.0, sample_rate, fft_size) if is_train else None
             args = [
-                (path, folder, identifier, audio_settings.sample_rate, self.normalize)
-                for folder, identifier, *_ in self.annotations
+                (path, audio_settings.sample_rate, self.normalize)
+                for path in paths
             ]
             self.cache = pool.starmap(load_audio, args) if is_train else None
 
@@ -227,9 +222,10 @@ class A2MD(ADTDataset):
             start, end = 0, -1
 
         folder, identifier, drums, beats, down_beats = self.annotations[int(audio_idx)]
+        path = self.get_full_path(folder, identifier)
 
         full_audio = (
-            load_audio(self.path, folder, identifier, self.sample_rate, self.normalize)
+            load_audio(path, self.sample_rate, self.normalize)
             if self.cache is None
             else self.cache[int(audio_idx)]
         )
@@ -292,5 +288,8 @@ class A2MD(ADTDataset):
 
         return mel, labels, gt_labels
 
-    def adjust_time_shift(self, time_shift: float):
-        self.time_shift = time_shift
+    def get_full_path(
+            self, folder: str, identifier: str,
+    ) -> Path:
+        audio_path = os.path.join(self.path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
+        return Path(audio_path)

@@ -1,9 +1,7 @@
-import random
 from typing import TypeVar
 
 import torch
 from torch.utils.data import DataLoader, Subset
-from torchaudio.transforms import Vol
 
 from dataset.RBMA13 import RBMA_13
 from dataset.MDB_Drums import MDBDrums
@@ -21,18 +19,6 @@ def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[torch.Tenso
     audio = audio.permute(0, 2, 1)
     annotation = annotation.permute(0, 2, 1)
     return audio, annotation, gts
-
-
-class Gain(torch.nn.Module):
-    def __init__(self, min_gain: float = -20.0, max_gain: float = -1):
-        super().__init__()
-        self.min_gain = min_gain
-        self.max_gain = max_gain
-
-    def forward(self, audio: torch.Tensor) -> torch.Tensor:
-        gain = random.uniform(self.min_gain, self.max_gain)
-        audio = Vol(gain, gain_type="db")(audio)
-        return audio
 
 
 def get_dataloader(dataset, batch_size, num_workers, is_train=False):
