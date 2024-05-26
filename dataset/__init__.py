@@ -1,6 +1,7 @@
 import random
 from pathlib import Path
 
+import numpy as np
 import torch
 import torchaudio
 from torchaudio.transforms import Vol
@@ -27,3 +28,6 @@ def load_audio(
     if normalize:
         audio = audio / torch.max(torch.abs(audio))
     return audio
+
+def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int) -> np.array:
+    return (np.round((time_stamps * sample_rate) / hop_size)).astype(int)
