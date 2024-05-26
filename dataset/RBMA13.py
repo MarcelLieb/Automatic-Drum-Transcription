@@ -204,7 +204,7 @@ class RBMA_13(ADTDataset):
 
         if self.use_dataloader:
             return mel.permute(1, 0), labels.permute(1, 0), gt_labels
-        return spectrum, labels, gt_labels
+        return mel, labels, gt_labels
 
     def get_full_path(self, track: str) -> Path:
         audio_path = os.path.join(self.path, "audio", f"{track}.mp3")
