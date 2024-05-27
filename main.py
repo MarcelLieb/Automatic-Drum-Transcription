@@ -127,7 +127,7 @@ def evaluate(
     device_str = "cuda" if "cuda" in device_str else "cpu"
     dataset: ADTDataset = dataloader.dataset
     mapping = dataset.mapping
-    sample_rate, hop_size = dataset.sample_rate, dataset.hop_size
+    sample_rate, hop_size, fft_size = dataset.sample_rate, dataset.hop_size, dataset.fft_size
     predictions = []
     groundtruth = []
     with torch.no_grad():
@@ -149,6 +149,7 @@ def evaluate(
                 prediction.sigmoid().cpu().detach().float(),
                 sample_rate,
                 hop_size,
+                fft_size,
                 evaluation_settings.peak_mean_range,
                 evaluation_settings.peak_max_range,
             )

@@ -1,15 +1,14 @@
+import os
 from pathlib import Path
 
-import nnAudio.features
 import numpy as np
 import pretty_midi
 import torch
 import torchaudio
-import os
 
 from dataset import load_audio, get_indices
-from generics import ADTDataset
 from dataset.mapping import get_midi_to_class, three_class_mapping, DrumMapping
+from generics import ADTDataset
 from settings import AudioProcessingSettings, AnnotationSettings
 
 A2MD_PATH = "./data/a2md_public/"
@@ -251,16 +250,16 @@ class A2MD(ADTDataset):
         labels = torch.zeros((self.n_classes, frames), dtype=torch.float32)
 
         if self.beats:
-            beat_indices = get_indices(beats, self.sample_rate, self.hop_size)
+            beat_indices = get_indices(beats, self.sample_rate, self.hop_size, self.fft_size)
             beat_indices = beat_indices[beat_indices < frames]
-            down_beat_indices = get_indices(down_beats, self.sample_rate, self.hop_size)
+            down_beat_indices = get_indices(down_beats, self.sample_rate, self.hop_size, self.fft_size)
             down_beat_indices = down_beat_indices[down_beat_indices < frames]
             labels[0, down_beat_indices] = 1
             labels[1, beat_indices] = 1
 
         hop_length = self.hop_size / self.sample_rate
 
-        drum_indices = [get_indices(drum, self.sample_rate, self.hop_size) for drum in drums]
+        drum_indices = [get_indices(drum, self.sample_rate, self.hop_size, self.fft_size) for drum in drums]
         drum_indices = [drum[drum < frames] for drum in drum_indices]
         for i, drum_class in enumerate(drum_indices):
             for j in range(round(self.time_shift // hop_length) + 1):

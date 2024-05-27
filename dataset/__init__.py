@@ -29,5 +29,5 @@ def load_audio(
         audio = audio / torch.max(torch.abs(audio))
     return audio
 
-def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int) -> np.array:
-    return (np.round((time_stamps * sample_rate) / hop_size)).astype(int)
+def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int, fft_size: int) -> np.array:
+    return (np.round((time_stamps * sample_rate) / hop_size + 0.5) - (np.ceil(fft_size / hop_size) - 1)).astype(int)

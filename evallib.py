@@ -17,6 +17,7 @@ def peak_pick_max_mean(
     data: torch.tensor,
     sample_rate: int,
     hop_size: int,
+    fft_size: int,
     mean_range: int = 2,
     max_range: int = 2,
 ):
@@ -29,7 +30,8 @@ def peak_pick_max_mean(
     maximum = max_filter(padded)
     assert maximum.shape == mean.shape and maximum.shape == data.shape
 
-    time = torch.tensor(range(data.shape[-1])) * hop_size / sample_rate
+    # Inverse of (np.round((time * sample_rate) / hop_size + 0.5) - (np.ceil(fft_size / hop_size) - 1)).astype(int)
+    time = (torch.arange(0, data.shape[-1], dtype=torch.float32) * hop_size - hop_size / 2 + (np.ceil(fft_size / hop_size) - 1) * hop_size) / sample_rate
 
     out = []
     # iterate over batch
