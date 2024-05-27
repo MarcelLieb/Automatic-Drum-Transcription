@@ -119,12 +119,18 @@ class Conv1dVNormActivation(nn.Module):
         super(Conv1dVNormActivation, self).__init__()
         self.conv = Conv1dVertical(in_channels, out_channels, kernel_size)
         # TODO: Ask if the norm is used properly
+        # self.norm = nn.BatchNorm1d(out_channels)
         self.norm = nn.BatchNorm2d(out_channels)
         self.activation = activation
 
     def forward(self, x):
         x = self.conv(x)
+        # bs, chan, h, w = x.shape
+        # x = x.permute(0, 3, 1, 2)
+        # x = x.reshape(bs * w, chan, h)
         x = self.norm(x)
+        # x = x.reshape(bs, w, chan, h)
+        # x = x.permute(0, 2, 3, 1)
         x = self.activation(x)
         return x
 
