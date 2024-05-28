@@ -134,9 +134,11 @@ class RBMA_13(ADTDataset):
             splits = [int(name.split("-")[-1]) for name in self.annotations.keys()]
         tracks = [f"RBMA-13-Track-{number:02}" for number in splits]
         self.annotations = {track: self.annotations[track] for track in tracks}
+        self.annotations = [(identifier, annotation[0], annotation[1]) for identifier, annotation in self.annotations.items()]
+        self.annotations.sort(key=lambda x: int(x[0].split("-")[-1]))
 
-        lengths = [get_length(root, track) for track in tracks]
-        drum_labels = [self.annotations[track][1] for track in tracks]
+        lengths = [get_length(root, track[0]) for track in self.annotations]
+        drum_labels = [track[2] for track in self.annotations]
         self.segments = (
             get_segments(
                 lengths,
@@ -157,9 +159,7 @@ class RBMA_13(ADTDataset):
         self.time_shift = time_shift
 
     def __getitem__(self, idx):
-        track = list(self.annotations.keys())[idx]
-
-        beats, drums = self.annotations[track]
+        track, beats, drums = self.annotations[idx]
 
         path = self.get_full_path(track)
         audio = load_audio(path, self.sample_rate, self.normalize)

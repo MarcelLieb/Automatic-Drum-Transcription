@@ -164,6 +164,7 @@ class A2MD(ADTDataset):
             self.annotations = [
                 annotation for annotation in self.annotations if annotation is not None
             ]
+            self.annotations.sort(key=lambda x: int(x[1].split("_")[-2]))
             args = [
                 (path, folder, identifier)
                 for folder, identifier, *_ in self.annotations
