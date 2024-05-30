@@ -127,7 +127,7 @@ def evaluate(
     device_str = "cuda" if "cuda" in device_str else "cpu"
     dataset: ADTDataset = dataloader.dataset
     mapping = dataset.mapping
-    sample_rate, hop_size, fft_size = dataset.sample_rate, dataset.hop_size, dataset.fft_size
+    sample_rate, hop_size, fft_size, time_shift = dataset.sample_rate, dataset.hop_size, dataset.fft_size, dataset.time_shift
     predictions = []
     groundtruth = []
     with torch.no_grad():
@@ -153,6 +153,8 @@ def evaluate(
                 evaluation_settings.peak_mean_range,
                 evaluation_settings.peak_max_range,
             )
+            # Shift back onsets
+            peaks = [[peak - time_shift for peak in cls] for cls in peaks]
             predictions.extend(peaks)
             groundtruth.extend(gts)
             loss = loss.mean()

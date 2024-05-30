@@ -1,5 +1,6 @@
 import random
 from pathlib import Path
+from typing import Sequence
 
 import numpy as np
 import torch
@@ -29,5 +30,66 @@ def load_audio(
         audio = audio / torch.max(torch.abs(audio))
     return audio
 
-def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int, fft_size: int) -> np.array:
-    return (np.round((time_stamps * sample_rate) / hop_size + 0.5) - (np.ceil(fft_size / hop_size) - 1)).astype(int)
+
+def get_segments(
+    lengths: list[float],
+    drum_labels: list[list[np.array]],
+    lead_in: float,
+    lead_out: float,
+    sample_rate: int,
+    unique: bool = False,
+) -> np.array:
+    """
+    :param lengths: List of lengths of the audio files
+    :param drum_labels: List of drum labels
+    :param lead_in: Length of the lead-in in seconds
+    :param lead_out: Length of the lead-out in seconds
+    :param sample_rate: Sample rate of the audio files
+    :param unique: If True, only unique segments are returned
+    :return: List of tuples containing the start and end indices of the segments and the index of the audio file
+    """
+    segments = []
+    for i, (length, drum_label) in enumerate(zip(lengths, drum_labels)):
+        labels = np.concatenate(drum_label)
+        if unique:
+            labels = np.unique(labels)
+        start = ((labels * sample_rate) - (lead_in * sample_rate)).astype(int)
+        start = np.clip(start, 0, length * sample_rate)
+        end = (labels * sample_rate + lead_out * sample_rate).astype(int)
+        end = np.clip(end, 0, length * sample_rate)
+        out = np.stack((start, end, np.zeros_like(start) + i), axis=1).astype(int)
+        segments.append(out)
+    return np.concatenate(segments, axis=0)
+
+
+def segment_audio(audio: torch.Tensor, start: int, end: int, length: int) -> torch.Tensor:
+    cut_audio = audio[..., start:end]
+    if cut_audio.shape[-1] < length:
+        if start == 0:
+            cut_audio = torch.cat(
+                (torch.zeros(int(length - cut_audio.shape[-1])), cut_audio)
+            )
+        else:
+            cut_audio = torch.cat(
+                (cut_audio, torch.zeros(int(length - cut_audio.shape[-1])))
+            )
+        assert cut_audio.shape[-1] == length, "Audio too short"
+    return cut_audio
+
+
+def get_labels(onset_times: Sequence[np.ndarray], sample_rate: float, hop_size: int, length: int) -> torch.Tensor:
+    labels = torch.zeros(len(onset_times), length)
+    for i, cls in enumerate(onset_times):
+        indices = get_indices(cls, sample_rate, hop_size)
+        indices = indices[indices < length]
+        labels[i, indices] = 1
+
+    return labels
+
+
+def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int) -> np.array:
+    return np.round((time_stamps * sample_rate) / hop_size).astype(int)
+
+
+def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.array:
+    return (np.arange(length) * hop_size) / sample_rate
