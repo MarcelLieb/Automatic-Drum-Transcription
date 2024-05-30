@@ -42,6 +42,10 @@ class CNN(nn.Module):
             kernel_size=(down_sample_factor, 1), stride=(down_sample_factor, 1)
         )
 
+        self.resample = nn.Conv2d(
+            num_channels, num_channels * 2, kernel_size=1, stride=1
+        )
+
         self.residuals = nn.ModuleList()
         for _ in range(num_residual_blocks):
             self.residuals.append(
@@ -69,8 +73,10 @@ class CNN(nn.Module):
         x = x.unsqueeze(1)
         x = self.conv1(x)
         x = self.pool1(x)
+        skip = x
         x = self.conv2(x)
         x = self.pool2(x)
+        x = x + self.resample(torch.nn.functional.interpolate(skip, size=x.shape[2:], mode="nearest"))
         for residual in self.residuals:
             x = residual(x)
             x = self.dropout(x)
