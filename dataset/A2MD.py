@@ -210,7 +210,7 @@ class A2MD(ADTDataset):
 
         drums = [drum + self.time_shift for drum in drums]
 
-        time_stamps = [down_beats, beats, *drums]
+        time_stamps = [down_beats, beats, *drums] if self.beats else [*drums]
         time_stamps = [cls[cls >= time_offset] - time_offset for cls in time_stamps]
         labels = get_labels(time_stamps, self.sample_rate, self.hop_size, mel.shape[-1])
 
