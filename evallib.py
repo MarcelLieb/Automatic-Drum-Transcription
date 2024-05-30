@@ -6,6 +6,8 @@ import torch
 
 import rustimport.import_hook
 
+from dataset import get_time_index
+
 rustimport.settings.compile_release_binaries = True
 cargo_path = os.path.join(str(Path.home()), ".cargo", "bin")
 if cargo_path not in os.environ["PATH"]:
@@ -30,8 +32,7 @@ def peak_pick_max_mean(
     maximum = max_filter(padded)
     assert maximum.shape == mean.shape and maximum.shape == data.shape
 
-    # Inverse of (np.round((time * sample_rate) / hop_size + 0.5) - (np.ceil(fft_size / hop_size) - 1)).astype(int)
-    time = (torch.arange(0, data.shape[-1], dtype=torch.float32) * hop_size - hop_size / 2 + (np.ceil(fft_size / hop_size) - 1) * hop_size) / sample_rate
+    time = torch.tensor(get_time_index(data.shape[-1], sample_rate, hop_size))
 
     out = []
     # iterate over batch

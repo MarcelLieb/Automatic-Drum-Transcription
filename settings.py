@@ -11,7 +11,7 @@ class AudioProcessingSettings:
     hop_size: int = 441
     fft_size: int = 2048
     n_mels: int = 12 * 7
-    center: bool = False
+    center: bool = True
     pad_mode: str = "constant"
     mel_min: float = 20.0
     mel_max: float = 20000.0

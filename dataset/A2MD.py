@@ -6,7 +6,7 @@ import pretty_midi
 import torch
 import torchaudio
 
-from dataset import load_audio, get_indices
+from dataset import load_audio, segment_audio, get_labels, get_segments
 from dataset.mapping import get_midi_to_class, three_class_mapping, DrumMapping
 from generics import ADTDataset
 from settings import AudioProcessingSettings, AnnotationSettings
@@ -88,35 +88,6 @@ def calculate_segments(
             if end - start > fft_size:
                 segments.append((start, end, i))
     return segments
-
-
-def get_segments(
-    lengths: list[float],
-    drum_labels: list[list[np.array]],
-    lead_in: float,
-    lead_out: float,
-    sample_rate: int,
-) -> np.array:
-    """
-    :param lengths: List of lengths of the audio files
-    :param drum_labels: List of drum labels
-    :param lead_in: Length of the lead-in in seconds
-    :param lead_out: Length of the lead-out in seconds
-    :param sample_rate: Sample rate of the audio files
-    :return: List of tuples containing the start and end indices of the segments and the index of the audio file
-    """
-    segments = []
-    for i, (length, drum_label) in enumerate(zip(lengths, drum_labels)):
-        labels = np.concatenate(drum_label)
-        # labels = np.unique(labels)
-        start = ((labels * sample_rate) - (lead_in * sample_rate)).astype(int)
-        start = np.clip(start, 0, length * sample_rate)
-        end = (labels * sample_rate + lead_out * sample_rate).astype(int)
-        end = np.clip(end, 0, length * sample_rate)
-        out = np.stack((start, end, np.zeros_like(start) + i), axis=1).astype(int)
-        segments.append(out)
-    return np.concatenate(segments, axis=0)
-
 
 
 def get_tracks(path: str) -> dict[str, list[str]]:
@@ -229,53 +200,23 @@ class A2MD(ADTDataset):
             if self.cache is None
             else self.cache[int(audio_idx)]
         )
-        audio = full_audio[start:end]
-        if self.is_train and audio.shape[-1] < self.segment_length * self.sample_rate:
-            if start == 0:
-                audio = torch.cat(
-                    (torch.zeros(int(self.segment_length * self.sample_rate - audio.shape[-1])), audio)
-                )
-            else:
-                audio = torch.cat(
-                    (audio, torch.zeros(int(self.segment_length * self.sample_rate - audio.shape[-1])))
-                )
-            assert audio.shape[-1] == self.segment_length * self.sample_rate, "Audio too short"
+        audio = segment_audio(full_audio, start, end, self.segment_length * self.sample_rate)
+
+        spectrum = self.spectrum(audio)
+        spectrum = torch.log1p(spectrum)
+        mel = self.filter_bank(spectrum)
+
         time_offset = start / self.sample_rate
 
-        drums = [drum[drum >= time_offset] - time_offset for drum in drums]
-        beats = beats[beats >= time_offset] - time_offset
-        down_beats = down_beats[down_beats >= time_offset] - time_offset
+        drums = [drum + self.time_shift for drum in drums]
 
-        frames = (audio.shape[-1] - self.fft_size) // self.hop_size + 1
-
-        labels = torch.zeros((self.n_classes, frames), dtype=torch.float32)
-
-        if self.beats:
-            beat_indices = get_indices(beats, self.sample_rate, self.hop_size, self.fft_size)
-            beat_indices = beat_indices[beat_indices < frames]
-            down_beat_indices = get_indices(down_beats, self.sample_rate, self.hop_size, self.fft_size)
-            down_beat_indices = down_beat_indices[down_beat_indices < frames]
-            labels[0, down_beat_indices] = 1
-            labels[1, beat_indices] = 1
-
-        hop_length = self.hop_size / self.sample_rate
-
-        drum_indices = [get_indices(drum, self.sample_rate, self.hop_size, self.fft_size) for drum in drums]
-        drum_indices = [drum[drum < frames] for drum in drum_indices]
-        for i, drum_class in enumerate(drum_indices):
-            for j in range(round(self.time_shift // hop_length) + 1):
-                shifted_drum_class = drum_class + j
-                labels[
-                    int(self.beats) * 2 + i,
-                    shifted_drum_class[shifted_drum_class < frames],
-                ] = 1
+        time_stamps = [down_beats, beats, *drums]
+        time_stamps = [cls[cls >= time_offset] - time_offset for cls in time_stamps]
+        labels = get_labels(time_stamps, self.sample_rate, self.hop_size, mel.shape[-1])
 
         if self.pad is not None:
             padded = self.pad(labels.unsqueeze(0)).squeeze(0) * self.pad_value
             labels = torch.maximum(labels, padded)
-        spectrum = self.spectrum(audio)
-        spectrum = torch.log1p(spectrum)
-        mel = self.filter_bank(spectrum)
 
         gt_labels = [down_beats, beats, *drums]
 

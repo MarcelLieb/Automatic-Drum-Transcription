@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torchaudio
 
-from dataset import load_audio, get_indices
+from dataset import load_audio, get_indices, get_segments
 from generics import ADTDataset
 from dataset.mapping import DrumMapping
 from settings import AudioProcessingSettings, AnnotationSettings
@@ -63,32 +63,6 @@ def get_length(path: str, song: str):
     return meta_data.num_frames / meta_data.sample_rate
 
 
-def get_segments(
-    lengths: list[float],
-    drum_labels: list[list[np.array]],
-    lead_in: float,
-    sample_rate: int,
-) -> np.array:
-    """
-    :param lengths: List of lengths of the audio files
-    :param drum_labels: List of drum labels
-    :param lead_in: Length of the lead-in in seconds
-    :param sample_rate: Sample rate of the audio files
-    :return: List of tuples containing the start and end indices of the segments and the index of the audio file
-    """
-    segments = []
-    for i, (length, drum_label) in enumerate(zip(lengths, drum_labels)):
-        labels = np.concatenate(drum_label)
-        # labels = np.unique(labels)
-        start = ((labels * sample_rate) - (lead_in * sample_rate)).astype(int)
-        start = np.clip(start, 0, length * sample_rate)
-        end = (labels * sample_rate + 0.125 * sample_rate).astype(int)
-        end = np.clip(end, 0, length * sample_rate)
-        out = np.stack((start, end, np.zeros_like(start) + i), axis=1).astype(int)
-        segments.append(out)
-    return np.concatenate(segments, axis=0)
-
-
 class RBMA_13(ADTDataset):
     def __init__(
         self,
@@ -143,8 +117,9 @@ class RBMA_13(ADTDataset):
             get_segments(
                 lengths,
                 drum_labels,
-                annotation_settings.lead_in,
-                audio_settings.sample_rate,
+                self.lead_in,
+                self.lead_out,
+                self.sample_rate,
             )
             if self.is_train
             else None
@@ -164,24 +139,20 @@ class RBMA_13(ADTDataset):
         path = self.get_full_path(track)
         audio = load_audio(path, self.sample_rate, self.normalize)
 
-        fft_size = self.fft_size
-        hop_size = self.hop_size
-        sample_rate = self.sample_rate
-
-        frames = (audio.shape[-1] - fft_size) // hop_size + 1
+        frames = (audio.shape[-1] - self.fft_size) // self.hop_size + 1
         labels = torch.zeros(((self.beats * 2) + 3, frames), dtype=torch.float32)
 
         if self.beats:
-            down_beat_indices = get_indices(beats[0], self.sample_rate, self.hop_size, self.fft_size)
+            down_beat_indices = get_indices(beats[0], self.sample_rate, self.hop_size)
             down_beat_indices = down_beat_indices[down_beat_indices < frames]
-            beat_indices = get_indices(beats[1], self.sample_rate, self.hop_size, self.fft_size)
+            beat_indices = get_indices(beats[1], self.sample_rate, self.hop_size)
             beat_indices = beat_indices[beat_indices < frames]
             labels[0, down_beat_indices] = 1
             labels[1, beat_indices] = 1
 
         hop_length = self.hop_size / self.sample_rate
 
-        drum_indices = [get_indices(drum, self.sample_rate, self.hop_size, self.fft_size) for drum in drums]
+        drum_indices = [get_indices(drum, self.sample_rate, self.hop_size) for drum in drums]
         drum_indices = [drum[drum < frames] for drum in drum_indices]
         for i, drum_class in enumerate(drum_indices):
             for j in range(round(self.time_shift // hop_length) + 1):
