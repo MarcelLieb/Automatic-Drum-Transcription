@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import resource
 
 from dataset.datasets import get_dataset
 from dataset.mapping import DrumMapping
@@ -261,6 +262,11 @@ def main(
     cnn_settings = CNNSettings(
         n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels
     )
+
+    # Multiprocessing headaches
+    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+    torch.multiprocessing.set_sharing_strategy("file_system")
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)

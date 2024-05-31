@@ -76,6 +76,7 @@ def get_dataset(
     train, val, test = get_splits(
         training_settings.dataset_version, training_settings.splits, path
     )
+    torch.multiprocessing.set_start_method("spawn")
     train = A2MD(
         split=train,
         audio_settings=audio_settings,
@@ -106,6 +107,7 @@ def get_dataset(
         use_dataloader=True,
         is_train=False,
     )
+    torch.multiprocessing.set_start_method("fork", force=True)
     dataloader_train = get_dataloader(
         train,
         training_settings.batch_size,
