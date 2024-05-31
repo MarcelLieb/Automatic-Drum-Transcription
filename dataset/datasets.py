@@ -3,7 +3,7 @@ from typing import TypeVar
 import torch
 from torch.utils.data import DataLoader, Subset
 
-from dataset.RBMA13 import RBMA_13
+from dataset.RBMA13 import RBMA13
 from dataset.MDB_Drums import MDBDrums
 from dataset.A2MD import A2MD, get_tracks
 from settings import TrainingSettings, AudioProcessingSettings, AnnotationSettings
@@ -93,7 +93,7 @@ def get_dataset(
         use_dataloader=True,
         is_train=False,
     )
-    test_rbma = RBMA_13(
+    test_rbma = RBMA13(
         root="./data/rbma_13",
         audio_settings=audio_settings,
         annotation_settings=annotation_settings,

@@ -6,42 +6,12 @@ import pretty_midi
 import torch
 import torchaudio
 
-from dataset import load_audio, segment_audio, get_labels, get_segments
-from dataset.mapping import get_midi_to_class, three_class_mapping, DrumMapping
+from dataset import load_audio, get_segments, get_drums
+from dataset.mapping import DrumMapping
 from generics import ADTDataset
 from settings import AudioProcessingSettings, AnnotationSettings
 
 A2MD_PATH = "./data/a2md_public/"
-
-
-def get_drums(
-    midi: pretty_midi.PrettyMIDI,
-    mapping: tuple[tuple[str, ...], ...] = three_class_mapping,
-):
-    drum_instruments = [
-        instrument for instrument in midi.instruments if instrument.is_drum
-    ]
-    notes = np.array(
-        [
-            (note.pitch, note.start)
-            for instrument in drum_instruments
-            for note in instrument.notes
-        ]
-    )
-    notes = np.array(sorted(notes, key=lambda x: x[1]))
-    n_classes = len(mapping)
-    midi_to_class = get_midi_to_class(mapping)
-    if len(notes) == 0:
-        return None
-    if len(notes.shape) == 1:
-        notes = notes[np.newaxis, ...]
-    notes = notes[midi_to_class[notes[:, 0].astype(int)] != -1]
-
-    drum_classes = []
-    for i in range(n_classes):
-        drum_classes.append(notes[midi_to_class[notes[:, 0].astype(int)] == i, 1])
-
-    return drum_classes
 
 
 def get_annotation(
@@ -53,12 +23,12 @@ def get_annotation(
     midi = pretty_midi.PrettyMIDI(
         midi_file=os.path.join(path, "align_mid", folder, f"align_mid_{identifier}.mid")
     )
-    drums = get_drums(midi, mapping=mapping.value)
+    drums = get_drums(midi, mapping=mapping)
     if drums is None:
         return None
     beats = midi.get_beats()
     down_beats = midi.get_downbeats()
-    return folder, identifier, drums, beats, down_beats
+    return (folder, identifier), drums, [down_beats, beats]
 
 
 def get_length(path: str, folder: str, identifier: str):
@@ -113,38 +83,30 @@ class A2MD(ADTDataset):
         use_dataloader=False,
         **_kwargs,
     ):
-        super().__init__(audio_settings, annotation_settings)
+        super().__init__(audio_settings, annotation_settings, is_train=is_train, use_dataloader=use_dataloader)
         self.path = path
         self.split = split
-        self.use_dataloader = use_dataloader
-        self.is_train = is_train
-        self.pad = (
-            torch.nn.MaxPool1d(3, stride=1, padding=1)
-            if annotation_settings.pad_annotations
-            else None
-        )
 
         args = []
         for i, (folder, identifiers) in enumerate(split.items()):
             for identifier in identifiers:
                 args.append((path, folder, identifier, self.mapping))
-        torch.multiprocessing.set_sharing_strategy("file_system")
-        with torch.multiprocessing.Pool() as pool:
+        with torch.multiprocessing.Pool(torch.multiprocessing.cpu_count()) as pool:
             self.annotations = pool.starmap(get_annotation, args)
             # filter tracks without drums
             self.annotations = [
                 annotation for annotation in self.annotations if annotation is not None
             ]
-            self.annotations.sort(key=lambda x: int(x[1].split("_")[-2]))
+            self.annotations.sort(key=lambda x: int(x[0][1].split("_")[-2]))
             args = [
                 (path, folder, identifier)
-                for folder, identifier, *_ in self.annotations
+                for (folder, identifier), *_ in self.annotations
             ]
-            self.lengths = pool.starmap(get_length, args) if is_train else None
+            lengths = pool.starmap(get_length, args) if is_train else None
             self.segments = (
                 get_segments(
-                    self.lengths,
-                    [drums for _, _, drums, *_ in self.annotations],
+                    lengths,
+                    [drums for _, drums, *_ in self.annotations],
                     annotation_settings.lead_in,
                     annotation_settings.lead_out,
                     audio_settings.sample_rate,
@@ -153,10 +115,11 @@ class A2MD(ADTDataset):
                 else None
             )
             args = [
-                (folder, identifier)
-                for folder, identifier, *_ in self.annotations
+                (self.path, identification)
+                for identification, *_ in self.annotations
             ]
-            paths = pool.starmap(self.get_full_path, args)
+            # use static method to avoid passing self to pool
+            paths = pool.starmap(A2MD._get_full_path, args)
             # self.segments = calculate_segments(self.lengths, 5.0, sample_rate, fft_size) if is_train else None
             args = [
                 (path, audio_settings.sample_rate, self.normalize)
@@ -164,71 +127,17 @@ class A2MD(ADTDataset):
             ]
             self.cache = pool.starmap(load_audio, args) if is_train else None
 
-        self.spectrum = torchaudio.transforms.Spectrogram(
-            n_fft=self.fft_size,
-            hop_length=self.hop_size,
-            win_length=self.fft_size // 2,
-            power=2,
-            center=self.center,
-            pad_mode=self.pad_mode,
-            normalized=True,
-            onesided=True,
-        )
-        self.filter_bank = torchaudio.transforms.MelScale(
-            n_mels=self.n_mels,
-            sample_rate=self.sample_rate,
-            f_min=audio_settings.mel_min,
-            f_max=audio_settings.mel_max,
-            n_stft=self.fft_size // 2 + 1,
-        )
-
     def __len__(self):
         return len(self.segments) if self.is_train else len(self.annotations)
 
-    def __getitem__(self, idx):
-        if self.is_train:
-            start, end, audio_idx = self.segments[idx]
-        else:
-            audio_idx = idx
-            start, end = 0, -1
 
-        folder, identifier, drums, beats, down_beats = self.annotations[int(audio_idx)]
-        path = self.get_full_path(folder, identifier)
-
-        full_audio = (
-            load_audio(path, self.sample_rate, self.normalize)
-            if self.cache is None
-            else self.cache[int(audio_idx)]
-        )
-        audio = segment_audio(full_audio, start, end, self.segment_length * self.sample_rate)
-
-        spectrum = self.spectrum(audio)
-        spectrum = torch.log1p(spectrum)
-        mel = self.filter_bank(spectrum)
-
-        time_offset = start / self.sample_rate
-
-        drums = [drum + self.time_shift for drum in drums]
-
-        time_stamps = [down_beats, beats, *drums] if self.beats else [*drums]
-        time_stamps = [cls[cls >= time_offset] - time_offset for cls in time_stamps]
-        labels = get_labels(time_stamps, self.sample_rate, self.hop_size, mel.shape[-1])
-
-        if self.pad is not None:
-            padded = self.pad(labels.unsqueeze(0)).squeeze(0) * self.pad_value
-            labels = torch.maximum(labels, padded)
-
-        gt_labels = [down_beats, beats, *drums]
-
-        if self.use_dataloader:
-            # allows use of torch.nn.utils.rnn.pad_sequence
-            # it expects the variable length dimension to be the first dimension
-            return mel.permute(1, 0), labels.permute(1, 0), gt_labels
-
-        return mel, labels, gt_labels
+    @staticmethod
+    def _get_full_path(root: str, identification: tuple[str, str]) -> Path:
+        folder, identifier = identification
+        audio_path = os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
+        return Path(audio_path)
 
     def get_full_path(
-            self, folder: str, identifier: str,
+            self, identification: tuple[str, str]
     ) -> Path:
-        audio_path = os.path.join(self.path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
-        return Path(audio_path)
+        return self._get_full_path(self.path, identification)

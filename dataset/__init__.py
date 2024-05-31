@@ -3,9 +3,12 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
+import pretty_midi
 import torch
 import torchaudio
 from torchaudio.transforms import Vol
+
+from dataset.mapping import DrumMapping, get_midi_to_class
 
 
 class Gain(torch.nn.Module):
@@ -29,6 +32,36 @@ def load_audio(
     if normalize:
         audio = audio / torch.max(torch.abs(audio))
     return audio
+
+
+def get_drums(
+    midi: pretty_midi.PrettyMIDI,
+    mapping: DrumMapping
+):
+    drum_instruments = [
+        instrument for instrument in midi.instruments if instrument.is_drum
+    ]
+    notes = np.array(
+        [
+            (note.pitch, note.start)
+            for instrument in drum_instruments
+            for note in instrument.notes
+        ]
+    )
+    notes = np.array(sorted(notes, key=lambda x: x[1]))
+    n_classes = len(mapping)
+    midi_to_class = get_midi_to_class(mapping.value)
+    if len(notes) == 0:
+        return None
+    if len(notes.shape) == 1:
+        notes = notes[np.newaxis, ...]
+    notes = notes[midi_to_class[notes[:, 0].astype(int)] != -1]
+
+    drum_classes = []
+    for i in range(n_classes):
+        drum_classes.append(notes[midi_to_class[notes[:, 0].astype(int)] == i, 1])
+
+    return drum_classes
 
 
 def get_segments(
