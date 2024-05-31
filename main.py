@@ -365,7 +365,7 @@ def main(
             f"Loss: {train_loss * 100:.4f}\t "
             f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
         )
-        if f_score > 0.60 and f_score >= best_score:
+        if f_score > evaluation_settings.min_test_score and f_score >= best_score:
             test_loss, test_f_score, test_avg_f_score = evaluate(
                 epoch,
                 model if ema_model is None else ema_model.module,

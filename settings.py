@@ -54,6 +54,7 @@ class EvaluationSettings:
     onset_cooldown: int = 0.02
     detect_tolerance: int = 0.025
     ignore_beats: bool = True
+    min_test_score: float = 0.54
 
 
 @dataclass
