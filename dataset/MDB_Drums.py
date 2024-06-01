@@ -3,10 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import polars as pl
-import torch
-import torchaudio
 
-from dataset import load_audio, get_indices
 from generics import ADTDataset
 from dataset.mapping import DrumMapping, get_name_to_class_number
 from settings import AudioProcessingSettings, AnnotationSettings

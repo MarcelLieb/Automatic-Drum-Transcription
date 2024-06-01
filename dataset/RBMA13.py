@@ -3,9 +3,8 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torchaudio
 
-from dataset import get_segments
+from dataset import get_label_windows, get_length
 from generics import ADTDataset
 from dataset.mapping import DrumMapping
 from settings import AudioProcessingSettings, AnnotationSettings
@@ -57,12 +56,6 @@ def rename_rbma_audio_files():
     return positions
 
 
-def get_length(path: str, song: str):
-    audio_path = os.path.join(path, "audio", f"{song}.mp3")
-    meta_data = torchaudio.info(audio_path, backend="ffmpeg")
-    return meta_data.num_frames / meta_data.sample_rate
-
-
 class RBMA13(ADTDataset):
     def __init__(
         self,
@@ -85,10 +78,10 @@ class RBMA13(ADTDataset):
         self.annotations = [(identifier, annotation[1], annotation[0]) for identifier, annotation in self.annotations.items()]
         self.annotations.sort(key=lambda x: int(x[0].split("-")[-1]))
 
-        lengths = [get_length(root, track[0]) for track in self.annotations]
+        lengths = [get_length(self.get_full_path(track[0])) for track in self.annotations]
         drum_labels = [track[2] for track in self.annotations]
         self.segments = (
-            get_segments(
+            get_label_windows(
                 lengths,
                 drum_labels,
                 self.lead_in,

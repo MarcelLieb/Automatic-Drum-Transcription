@@ -4,9 +4,8 @@ from pathlib import Path
 import numpy as np
 import pretty_midi
 import torch
-import torchaudio
 
-from dataset import load_audio, get_segments, get_drums
+from dataset import load_audio, get_label_windows, get_drums, get_length
 from dataset.mapping import DrumMapping
 from generics import ADTDataset
 from settings import AudioProcessingSettings, AnnotationSettings
@@ -29,12 +28,6 @@ def get_annotation(
     beats = midi.get_beats()
     down_beats = midi.get_downbeats()
     return (folder, identifier), drums, [down_beats, beats]
-
-
-def get_length(path: str, folder: str, identifier: str):
-    audio_path = os.path.join(path, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
-    meta_data = torchaudio.info(audio_path, backend="ffmpeg")
-    return meta_data.num_frames / meta_data.sample_rate
 
 
 def calculate_segments(
@@ -99,12 +92,14 @@ class A2MD(ADTDataset):
             ]
             self.annotations.sort(key=lambda x: int(x[0][1].split("_")[-2]))
             args = [
-                (path, folder, identifier)
-                for (folder, identifier), *_ in self.annotations
+                (self.path, identification)
+                for identification, *_ in self.annotations
             ]
-            lengths = pool.starmap(get_length, args) if is_train else None
+            # use static method to avoid passing self to pool
+            paths = pool.starmap(A2MD._get_full_path, args)
+            lengths = pool.starmap(get_length, paths) if is_train else None
             self.segments = (
-                get_segments(
+                get_label_windows(
                     lengths,
                     [drums for _, drums, *_ in self.annotations],
                     annotation_settings.lead_in,
@@ -114,12 +109,6 @@ class A2MD(ADTDataset):
                 if is_train
                 else None
             )
-            args = [
-                (self.path, identification)
-                for identification, *_ in self.annotations
-            ]
-            # use static method to avoid passing self to pool
-            paths = pool.starmap(A2MD._get_full_path, args)
             # self.segments = calculate_segments(self.lengths, 5.0, sample_rate, fft_size) if is_train else None
             args = [
                 (path, audio_settings.sample_rate, self.normalize)

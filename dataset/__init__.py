@@ -34,6 +34,11 @@ def load_audio(
     return audio
 
 
+def get_length(path: str | Path) -> float:
+    meta_data = torchaudio.info(path, backend="ffmpeg")
+    return meta_data.num_frames / meta_data.sample_rate
+
+
 def get_drums(
     midi: pretty_midi.PrettyMIDI,
     mapping: DrumMapping
@@ -64,7 +69,7 @@ def get_drums(
     return drum_classes
 
 
-def get_segments(
+def get_label_windows(
     lengths: list[float],
     drum_labels: list[list[np.array]],
     lead_in: float,
