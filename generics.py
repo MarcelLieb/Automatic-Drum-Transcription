@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import Any
 
 import numpy as np
@@ -7,7 +7,7 @@ import torchaudio
 from torch.utils.data import Dataset
 
 from dataset import load_audio, segment_audio, get_labels
-from settings import AudioProcessingSettings, AnnotationSettings
+from settings import DatasetSettings
 
 
 class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
@@ -130,3 +130,35 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
     def adjust_time_shift(self, time_shift: float):
         self.time_shift = time_shift
+
+
+class ConcatADTDataset(ADTDataset, ABC):
+    def __init__(self, settings: DatasetSettings, datasets: list[ADTDataset]):
+        super().__init__(settings, datasets[0].is_train, datasets[0].use_dataloader)
+        self.datasets = datasets
+        self.lengths = [len(dataset) for dataset in datasets]
+        self.cumulative_lengths = np.cumsum(self.lengths)
+
+    def __len__(self):
+        return self.cumulative_lengths[-1]
+
+    def __getitem__(self, idx):
+        if idx < 0:
+            if -idx > self.__len__():
+                raise ValueError(
+                    "absolute value of index should not exceed dataset length"
+                )
+            idx = self.__len__() + idx
+        dataset_idx = np.searchsorted(self.cumulative_lengths, idx, side="right")
+        if dataset_idx == 0:
+            sample_idx = idx
+        else:
+            sample_idx = idx - self.cumulative_lengths[dataset_idx - 1]
+        return self.datasets[dataset_idx][sample_idx]
+
+    def adjust_time_shift(self, time_shift: float):
+        for dataset in self.datasets:
+            dataset.adjust_time_shift(time_shift)
+
+    def get_full_path(self, identification: Any):
+        raise NotImplementedError("get_full_path is not implemented for ConcatADTDataset")

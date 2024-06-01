@@ -17,11 +17,9 @@ from model.cnn import CNN
 from model import ModelEmaV2
 from model.cnnA import CNNAttention
 from settings import (
-    AnnotationSettings,
-    AudioProcessingSettings,
     TrainingSettings,
     CNNSettings,
-    EvaluationSettings, CNNAttentionSettings,
+    EvaluationSettings, CNNAttentionSettings, DatasetSettings,
 )
 
 
@@ -255,12 +253,14 @@ def evaluate(
 
 def main(
     training_settings: TrainingSettings = TrainingSettings(),
-    audio_settings: AudioProcessingSettings = AudioProcessingSettings(),
-    annotation_settings: AnnotationSettings = AnnotationSettings(),
+    dataset_settings: DatasetSettings = DatasetSettings(),
     evaluation_settings: EvaluationSettings = EvaluationSettings(),
 ):
+    n_classes = dataset_settings.annotation_settings.n_classes
+    n_mels = dataset_settings.audio_settings.n_mels
+
     cnn_settings = CNNSettings(
-        n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels
+        n_classes=n_classes, n_mels=n_mels
     )
 
     # Multiprocessing headaches
@@ -273,15 +273,14 @@ def main(
 
     print(training_settings)
     print(evaluation_settings)
-    print(audio_settings)
-    print(annotation_settings)
+    print(dataset_settings)
     print(cnn_settings)
 
     loader_train, loader_val, loader_test_rbma, loader_test_mdb = get_dataset(
-        training_settings, audio_settings, annotation_settings
+        training_settings, dataset_settings=dataset_settings
     )
 
-    cnnA_settings = CNNAttentionSettings(n_classes=annotation_settings.n_classes, n_mels=audio_settings.n_mels)
+    cnnA_settings = CNNAttentionSettings(n_classes=n_classes, n_mels=n_mels)
     model = CNNAttention(**asdict(cnnA_settings))
     model = CNN(**asdict(cnn_settings))
     model.to(device)
@@ -407,7 +406,7 @@ def main(
             best_score = f_score
             best_model = (ema_model.module if ema_model is not None else model).state_dict()
             last_improvement = 0
-        elif last_improvement >= 5 and annotation_settings.time_shift > 0.0:
+        elif last_improvement >= 5 and dataset_settings.annotation_settings.time_shift > 0.0:
             last_improvement = 0
             """
             optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
@@ -424,12 +423,17 @@ def main(
     hyperparameters = {
         **asdict(training_settings),
         **asdict(evaluation_settings),
-        **asdict(audio_settings),
-        **asdict(annotation_settings),
+        **asdict(dataset_settings.audio_settings),
+        **asdict(dataset_settings.annotation_settings),
         **asdict(cnn_settings),
         "splits": str(training_settings.splits),
-        "mapping": str(annotation_settings.mapping.name),
+        "mapping": str(dataset_settings.annotation_settings.mapping.name),
         "activation": cnn_settings.activation.__class__.__name__,
+        "segment_type": dataset_settings.segment_type,
+        "frame_length": dataset_settings.frame_length,
+        "frame_overlap": dataset_settings.frame_overlap,
+        "label_lead_in": dataset_settings.label_lead_in,
+        "label_lead_out": dataset_settings.label_lead_out,
     }
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
@@ -442,8 +446,7 @@ def main(
         dic = {
             "model": model.state_dict(),
             "model_settings": asdict(cnn_settings),
-            "audio_settings": asdict(audio_settings),
-            "annotation_settings": asdict(annotation_settings),
+            "dataset_settings": asdict(dataset_settings),
             "training_settings": asdict(training_settings),
             "evaluation_settings": asdict(evaluation_settings),
         }

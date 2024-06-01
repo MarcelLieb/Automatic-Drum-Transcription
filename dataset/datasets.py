@@ -12,8 +12,7 @@ from settings import TrainingSettings, DatasetSettings
 
 def get_dataset(
     training_settings: TrainingSettings,
-    audio_settings: AudioProcessingSettings,
-    annotation_settings: AnnotationSettings,
+    dataset_settings: DatasetSettings,
 ) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
@@ -21,40 +20,60 @@ def get_dataset(
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
 ]:
     path = "./data/a2md_public/"
-    train, val, test = get_splits(
+    train_split, val_split, test_split = get_a2md_splits(
         training_settings.dataset_version, training_settings.splits, path
     )
     torch.multiprocessing.set_start_method("spawn")
-    train = A2MD(
-        split=train,
-        audio_settings=audio_settings,
-        annotation_settings=annotation_settings,
-        path=path,
-        use_dataloader=True,
-        is_train=True,
-    )
+
+    if training_settings.train_set == "all":
+        a2md = A2MD(
+            split=None,
+            settings=dataset_settings,
+            path=path,
+            use_dataloader=True,
+            is_train=True,
+        )
+        test_rbma = RBMA13(
+            path="./data/rbma_13",
+            settings=dataset_settings,
+            use_dataloader=True,
+            is_train=True,
+        )
+        test_mdb = MDBDrums(
+            path="./data/MDB Drums",
+            settings=dataset_settings,
+            use_dataloader=True,
+            is_train=True,
+        )
+        train = ConcatADTDataset(dataset_settings, [a2md, test_rbma, test_mdb])
+    else:
+        train = A2MD(
+            split=train_split,
+            settings=dataset_settings,
+            path=path,
+            use_dataloader=True,
+            is_train=True,
+        )
     val = A2MD(
-        split=val,
-        audio_settings=audio_settings,
-        annotation_settings=annotation_settings,
+        split=val_split,
+        settings=dataset_settings,
         path=path,
         use_dataloader=True,
         is_train=False,
     )
     test_rbma = RBMA13(
-        root="./data/rbma_13",
-        audio_settings=audio_settings,
-        annotation_settings=annotation_settings,
+        path="./data/rbma_13",
+        settings=dataset_settings,
         use_dataloader=True,
         is_train=False,
     )
     test_mdb = MDBDrums(
         path="./data/MDB Drums",
-        audio_settings=audio_settings,
-        annotation_settings=annotation_settings,
+        settings=dataset_settings,
         use_dataloader=True,
         is_train=False,
     )
+
     torch.multiprocessing.set_start_method("fork", force=True)
     dataloader_train = get_dataloader(
         train,

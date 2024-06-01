@@ -1,11 +1,12 @@
 import random
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, TypeVar
 
 import numpy as np
 import pretty_midi
 import torch
 import torchaudio
+from torch.utils.data import Subset
 from torchaudio.transforms import Vol
 
 from dataset.mapping import DrumMapping, get_midi_to_class
@@ -78,7 +79,7 @@ def get_label_windows(
     unique: bool = False,
 ) -> np.array:
     """
-    :param lengths: List of lengths of the audio files
+    :param lengths: List of lengths of the audio files in seconds
     :param drum_labels: List of drum labels
     :param lead_in: Length of the lead-in in seconds
     :param lead_out: Length of the lead-out in seconds
@@ -186,3 +187,15 @@ def get_dataloader(dataset, batch_size, num_workers, is_train=False):
 
 T = TypeVar("T")
 
+
+def get_splits(splits: list[float], data: list[T]) -> list[list[T]]:
+    assert abs(sum(splits) - 1) < 1e-4
+    generator = torch.Generator().manual_seed(42)
+    split: list[Subset] = torch.utils.data.random_split(
+        range(len(data)), splits, generator=generator
+    )
+    out = [[]] * len(split)
+    for i, s in enumerate(split):
+        out[i] = [data[j] for j in s.indices]
+
+    return out

@@ -16,7 +16,7 @@ class AudioProcessingSettings:
     pad_mode: Literal["constant", "reflect"] = "constant"
     mel_min: float = 20.0
     mel_max: float = 20000.0
-    normalize: bool = True
+    normalize: bool = False
 
 
 @dataclass
@@ -53,10 +53,11 @@ class TrainingSettings:
     ema: bool = False
     scheduler: bool = True
     early_stopping: int | None = None
-    splits: list[float] = (0.8, 0.1, 0.1)
     dataset_version: Literal["S", "M", "L"] = "L"
+    splits: list[float] = (0.85, 0.15, 0.0)
     num_workers: int = 64
-    min_save_score: float = 0.64
+    min_save_score: float = 0.62
+    train_set: Literal["all", "a2md_train"] = "all"
 
 
 @dataclass
