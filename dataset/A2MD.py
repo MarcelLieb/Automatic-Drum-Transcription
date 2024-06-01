@@ -97,7 +97,8 @@ class A2MD(ADTDataset):
             ]
             # use static method to avoid passing self to pool
             paths = pool.starmap(A2MD._get_full_path, args)
-            lengths = pool.starmap(get_length, paths) if is_train else None
+            args = [(path, ) for path in paths]
+            lengths = pool.starmap(get_length, args) if is_train else None
             self.segments = (
                 get_label_windows(
                     lengths,
