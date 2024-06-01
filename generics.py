@@ -14,11 +14,12 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
     @abstractmethod
     def __init__(
         self,
-        audio_settings: AudioProcessingSettings,
-        annotation_settings: AnnotationSettings,
+        settings: DatasetSettings,
         is_train: bool,
         use_dataloader: bool = False,
     ):
+        audio_settings = settings.audio_settings
+        annotation_settings = settings.annotation_settings
         self.sample_rate = audio_settings.sample_rate
         self.hop_size = audio_settings.hop_size
         self.fft_size = audio_settings.fft_size
@@ -30,13 +31,19 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.mapping = annotation_settings.mapping
         self.pad_annotations = annotation_settings.pad_annotations
         self.pad_value = annotation_settings.pad_value
-        self.lead_in = annotation_settings.lead_in
-        self.lead_out = annotation_settings.lead_out
         self.time_shift = annotation_settings.time_shift
         self.beats = annotation_settings.beats
         self.n_classes = annotation_settings.n_classes
         self.normalize = audio_settings.normalize
-        self.segment_length = self.lead_in + self.lead_out
+
+        self.segment_type = settings.segment_type
+
+        self.lead_in = settings.label_lead_in
+        self.lead_out = settings.label_lead_out
+
+        self.segment_length = self.lead_in + self.lead_out if settings.segment_type == "label" else settings.frame_length
+        self.segment_overlap = settings.frame_overlap
+
         self.is_train = is_train
         self.use_dataloader = use_dataloader
 

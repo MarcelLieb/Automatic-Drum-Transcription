@@ -4,10 +4,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from dataset import get_label_windows, get_length
+from dataset import get_label_windows, get_length, get_segments
 from generics import ADTDataset
-from dataset.mapping import DrumMapping
-from settings import AudioProcessingSettings, AnnotationSettings
+from settings import DatasetSettings
 
 rbma_13_path = "./data/rbma_13/"
 
@@ -56,43 +55,51 @@ def rename_rbma_audio_files():
     return positions
 
 
+def get_tracks(path: str) -> list[int]:
+    return [
+        int(file.split("-")[-1].split(".")[0])
+        for file in os.listdir(os.path.join(path, "annotations", "drums"))
+        if file.endswith(".txt")
+    ]
+
+
 class RBMA13(ADTDataset):
     def __init__(
         self,
-        root: str | Path,
-        audio_settings: AudioProcessingSettings,
-        annotation_settings: AnnotationSettings,
-        use_dataloader=False,
+        path: str | Path,
+        settings: DatasetSettings,
         splits: list[int] | None = None,
         is_train=False,
-        **_kwargs,
+        use_dataloader=False,
     ):
-        super().__init__(audio_settings, annotation_settings, is_train=is_train, use_dataloader=use_dataloader)
-        self.path = root
+        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader)
+        self.path = path
 
-        self.annotations = load_rbma(root)
+        self.annotations = load_rbma(path)
         if splits is None:
-            splits = [int(name.split("-")[-1]) for name in self.annotations.keys()]
+            splits = get_tracks(path)
         tracks = [f"RBMA-13-Track-{number:02}" for number in splits]
         self.annotations = {track: self.annotations[track] for track in tracks}
         self.annotations = [(identifier, annotation[1], annotation[0]) for identifier, annotation in self.annotations.items()]
         self.annotations.sort(key=lambda x: int(x[0].split("-")[-1]))
 
-        lengths = [get_length(self.get_full_path(track[0])) for track in self.annotations]
-        drum_labels = [track[2] for track in self.annotations]
-        self.segments = (
-            get_label_windows(
-                lengths,
-                drum_labels,
-                self.lead_in,
-                self.lead_out,
-                self.sample_rate,
-            )
-            if self.is_train
-            else None
-        )
-
-        self.label_spreader = torch.nn.MaxPool1d(3, stride=1, padding=1)
+        if is_train:
+            lengths = [get_length(self.get_full_path(track[0])) for track in self.annotations]
+            if self.segment_type == "label":
+                self.segments = get_label_windows(
+                    lengths,
+                    [drums for _, drums, *_ in self.annotations],
+                    self.lead_in,
+                    self.lead_out,
+                    self.sample_rate
+                )
+            elif self.segment_type == "frame":
+                self.segments = get_segments(
+                    lengths,
+                    self.segment_length,
+                    self.segment_overlap,
+                    self.sample_rate,
+                )
 
     def __len__(self):
         return len(self.annotations)
@@ -108,13 +115,10 @@ class RBMA13(ADTDataset):
 
 
 def main():
-    a_settings = AudioProcessingSettings()
-    an_settings = AnnotationSettings(mapping=DrumMapping.THREE_CLASS_STANDARD)
+    settings = DatasetSettings()
     dataset = RBMA13(
         "../data/rbma_13/",
-        a_settings,
-        an_settings,
-        False,
+        settings,
     )
     averages = torch.zeros((4, 82))
     total_pos = torch.zeros(4)

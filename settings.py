@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 
 from torch import nn
 
@@ -12,7 +13,7 @@ class AudioProcessingSettings:
     fft_size: int = 2048
     n_mels: int = 12 * 7
     center: bool = True
-    pad_mode: str = "constant"
+    pad_mode: Literal["constant", "reflect"] = "constant"
     mel_min: float = 20.0
     mel_max: float = 20000.0
     normalize: bool = True
@@ -23,14 +24,25 @@ class AnnotationSettings:
     mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
     pad_annotations: bool = False
     pad_value: float = 0.5
-    lead_in: float = 0.25
-    lead_out: float = 0.12
     time_shift: float = 0.0
     beats: bool = False
 
     @property
     def n_classes(self):
         return len(self.mapping) + 2 * int(self.beats)
+
+
+@dataclass
+class DatasetSettings:
+    audio_settings: AudioProcessingSettings = AudioProcessingSettings()
+    annotation_settings: AnnotationSettings = AnnotationSettings()
+    segment_type: Literal["frame", "label"] | None = "frame"
+    frame_length: float = 0.25
+    frame_overlap: float = 0.10
+    label_lead_in: float = 0.25
+    label_lead_out: float = 0.10
+
+
 
 
 @dataclass
@@ -41,8 +53,8 @@ class TrainingSettings:
     ema: bool = False
     scheduler: bool = True
     early_stopping: int | None = None
-    dataset_version: str = "L"
     splits: list[float] = (0.8, 0.1, 0.1)
+    dataset_version: Literal["S", "M", "L"] = "L"
     num_workers: int = 64
     min_save_score: float = 0.64
 

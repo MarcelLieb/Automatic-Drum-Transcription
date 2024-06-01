@@ -100,6 +100,32 @@ def get_label_windows(
     return np.concatenate(segments, axis=0)
 
 
+def get_segments(lengths: list[float], segment_length: float, overlap: float, sample_rate: int) -> np.array:
+    """
+    Computes overlapping segments for a list of audio files
+    :param lengths: List of lengths of the audio files in seconds
+    :param segment_length: Length of the segments in seconds
+    :param overlap: Overlap between segments in seconds
+    :param sample_rate: Sample rate of the audio files
+    :return: List of tuples containing the start and end indices of the segments and the index of the audio file
+    """
+    segments = []
+    for i, length in enumerate(lengths):
+        n_segments = int(np.ceil((length - segment_length) / (segment_length - overlap))) + 1
+        for j in range(n_segments):
+            start = int(j * (segment_length - overlap) * sample_rate)
+            end = min(
+                int(((j + 1) * (segment_length - overlap) + overlap) * sample_rate) , int(length * sample_rate)
+            )
+            if end != int(length * sample_rate):
+                assert abs((end - start) - int(segment_length * sample_rate)) <= 1, f"Segment length not correct\n Expected:{int(segment_length * sample_rate)}, Got: {end - start}"
+            if end - start > 0:
+                segments.append((start, end, i))
+    return np.array(segments)
+
+
+
+
 def segment_audio(audio: torch.Tensor, start: int, end: int, length: int) -> torch.Tensor:
     cut_audio = audio[..., start:end]
     if cut_audio.shape[-1] < length:
@@ -131,3 +157,32 @@ def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int) -> np.
 
 def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.array:
     return (np.arange(length) * hop_size) / sample_rate
+
+def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
+    audio, annotation, gts = zip(*batch)
+    audio = torch.nn.utils.rnn.pad_sequence(audio, batch_first=True, padding_value=0.0)
+    annotation = list(annotation)
+    annotation = torch.nn.utils.rnn.pad_sequence(
+        annotation, batch_first=True, padding_value=-1
+    )
+    audio = audio.permute(0, 2, 1)
+    annotation = annotation.permute(0, 2, 1)
+    return audio, annotation, gts
+
+
+def get_dataloader(dataset, batch_size, num_workers, is_train=False):
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=is_train,
+        num_workers=num_workers,
+        collate_fn=audio_collate,
+        drop_last=False,
+        pin_memory=True,
+        prefetch_factor=4,
+    )
+    return dataloader
+
+
+T = TypeVar("T")
+

@@ -4,9 +4,10 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
+from dataset import get_length, get_label_windows, get_segments
 from generics import ADTDataset
 from dataset.mapping import DrumMapping, get_name_to_class_number
-from settings import AudioProcessingSettings, AnnotationSettings
+from settings import DatasetSettings
 
 label_translator = {
     "KD": "BD",
@@ -35,7 +36,7 @@ label_translator = {
 
 def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
     labels = pl.read_csv(
-        os.path.join(root, "annotations", "subclass", f"{name}_subclass.txt"),
+        os.path.join(root, "annotations", "subclass", f"MusicDelta_{name}_subclass.txt"),
         separator="\t",
         has_header=False,
         new_columns=["time", "class"],
@@ -50,7 +51,7 @@ def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
         .cast(pl.Float32),
     ).to_numpy()
     beats = np.loadtxt(
-        os.path.join(root, "annotations", "beats", f"{name}_MIX.beats"), delimiter="\t"
+        os.path.join(root, "annotations", "beats", f"MusicDelta_{name}_MIX.beats"), delimiter="\t"
     )
     beats = [beats[beats[:, 1] == 1][:, 0], beats[:, 0]]
 
@@ -59,35 +60,60 @@ def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
     return beats, drums
 
 
+def get_tracks(path: str | Path) -> list[str]:
+    return [
+        file.split("_")[1]
+        for file in os.listdir(os.path.join(path, "annotations", "subclass"))
+        if file.endswith(".txt")
+    ]
+
+
 class MDBDrums(ADTDataset):
     def __init__(
         self,
         path: str | Path,
-        audio_settings: AudioProcessingSettings,
-        annotation_settings: AnnotationSettings,
+        settings: DatasetSettings,
+        split: list[str] | None = None,
+        is_train: bool = False,
         use_dataloader: bool = False,
-        is_train: bool = True,
     ):
         super().__init__(
-            audio_settings,
-            annotation_settings,
+            settings,
             is_train=is_train,
             use_dataloader=use_dataloader,
         )
         self.path = path
+        self.split = split if split is not None else get_tracks(path)
 
         self.annotations = {}
-        for root, dirs, files in os.walk(os.path.join(path, "annotations", "subclass")):
-            for file in files:
-                name = "_".join(file.split("_")[:2])
-                self.annotations[name] = get_annotations(path, name, self.mapping)
+        for name in self.split:
+            self.annotations[name] = get_annotations(path, name, settings.annotation_settings.mapping)
+
         self.annotations = [(name, drums, beats) for name, (beats, drums) in self.annotations.items()]
         self.annotations.sort(key=lambda x: x[0])
+
+        if is_train:
+            lengths = [get_length(self.get_full_path(track[0])) for track in self.annotations]
+            if self.segment_type == "label":
+                self.segments = get_label_windows(
+                    lengths,
+                    [drums for _, drums, *_ in self.annotations],
+                    self.lead_in,
+                    self.lead_out,
+                    self.sample_rate
+                )
+            elif self.segment_type == "frame":
+                self.segments = get_segments(
+                    lengths,
+                    self.segment_length,
+                    self.segment_overlap,
+                    self.sample_rate,
+                )
 
     def __len__(self):
         return len(self.annotations)
 
 
     def get_full_path(self, identifier: str) -> Path:
-        audio_path = os.path.join(self.path, "audio", "full_mix", f"{identifier}_MIX.wav")
+        audio_path = os.path.join(self.path, "audio", "full_mix", f"MusicDelta_{identifier}_MIX.wav")
         return Path(audio_path)

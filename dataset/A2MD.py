@@ -1,14 +1,13 @@
 import os
 from pathlib import Path
 
-import numpy as np
 import pretty_midi
 import torch
 
-from dataset import load_audio, get_label_windows, get_drums, get_length
+from dataset import load_audio, get_label_windows, get_drums, get_length, get_segments, get_splits as get_splits_data
 from dataset.mapping import DrumMapping
 from generics import ADTDataset
-from settings import AudioProcessingSettings, AnnotationSettings
+from settings import DatasetSettings
 
 A2MD_PATH = "./data/a2md_public/"
 
@@ -30,29 +29,6 @@ def get_annotation(
     return (folder, identifier), drums, [down_beats, beats]
 
 
-def calculate_segments(
-    lengths: list[float], segment_length: float, sample_rate: int, fft_size: int
-) -> list[tuple[int, int, int]]:
-    """
-    :param lengths: List of lengths of the audio files
-    :param segment_length: Length of the segments in seconds
-    :param sample_rate: Sample rate of the audio files
-    :param fft_size: Size of the fft window
-    :return: List of tuples containing the start and end indices of the segments and the index of the audio file
-    """
-    segments = []
-    for i, length in enumerate(lengths):
-        n_segments = int(np.ceil(length / segment_length))
-        for j in range(n_segments):
-            start = int(j * segment_length * sample_rate)
-            end = min(
-                int((j + 1) * segment_length * sample_rate), int(length * sample_rate)
-            )
-            if end - start > fft_size:
-                segments.append((start, end, i))
-    return segments
-
-
 def get_tracks(path: str) -> dict[str, list[str]]:
     folders = [f"dist0p{x:02}" for x in range(0, 70, 10)]
     out = {}
@@ -65,23 +41,42 @@ def get_tracks(path: str) -> dict[str, list[str]]:
     return out
 
 
+def get_splits(
+    version: str, splits: list[float], path: str
+) -> list[dict[str, list[str]]]:
+    assert abs(sum(splits) - 1) < 1e-4
+    cut_off = {
+        "L": 0.7,
+        "M": 0.4,
+        "S": 0.2,
+    }
+    folders = [f"dist0p{x:02}" for x in range(0, int(cut_off[version] * 100), 10)]
+    tracks = get_tracks(path)
+    out = [{} for _ in range(len(splits))]
+    for folder in folders:
+        identifiers = tracks[folder]
+        split = get_splits_data(splits, identifiers)
+        for i, s in enumerate(split):
+            out[i][folder] = s
+
+    return out
+
+
 class A2MD(ADTDataset):
     def __init__(
         self,
-        split: dict[str, list[str]],
-        audio_settings: AudioProcessingSettings,
-        annotation_settings: AnnotationSettings,
-        path: Path | str = A2MD_PATH,
-        is_train: bool = False,
-        use_dataloader=False,
-        **_kwargs,
+        path: Path | str,
+        settings: DatasetSettings,
+        split: dict[str, list[str]] | None = None,
+        is_train: bool=False,
+        use_dataloader: bool=False,
     ):
-        super().__init__(audio_settings, annotation_settings, is_train=is_train, use_dataloader=use_dataloader)
+        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader)
         self.path = path
-        self.split = split
+        self.split = get_tracks(path) if split is None else split
 
         args = []
-        for i, (folder, identifiers) in enumerate(split.items()):
+        for i, (folder, identifiers) in enumerate(self.split.items()):
             for identifier in identifiers:
                 args.append((path, folder, identifier, self.mapping))
         with torch.multiprocessing.Pool(torch.multiprocessing.cpu_count()) as pool:
@@ -97,22 +92,26 @@ class A2MD(ADTDataset):
             ]
             # use static method to avoid passing self to pool
             paths = pool.starmap(A2MD._get_full_path, args)
-            args = [(path, ) for path in paths]
-            lengths = pool.starmap(get_length, args) if is_train else None
-            self.segments = (
-                get_label_windows(
-                    lengths,
-                    [drums for _, drums, *_ in self.annotations],
-                    annotation_settings.lead_in,
-                    annotation_settings.lead_out,
-                    audio_settings.sample_rate,
-                )
-                if is_train
-                else None
-            )
-            # self.segments = calculate_segments(self.lengths, 5.0, sample_rate, fft_size) if is_train else None
+            if is_train:
+                args = [(path,) for path in paths]
+                lengths = pool.starmap(get_length, args)
+                if self.segment_type == "label":
+                    self.segments = get_label_windows(
+                        lengths,
+                        [drums for _, drums, *_ in self.annotations],
+                        self.lead_in,
+                        self.lead_out,
+                        self.sample_rate
+                    )
+                elif self.segment_type == "frame":
+                    self.segments = get_segments(
+                        lengths,
+                        self.segment_length,
+                        self.segment_overlap,
+                        self.sample_rate,
+                    )
             args = [
-                (path, audio_settings.sample_rate, self.normalize)
+                (path, self.sample_rate, self.normalize)
                 for path in paths
             ]
             self.cache = pool.starmap(load_audio, args) if is_train else None
