@@ -24,12 +24,12 @@ def peak_pick_max_mean(
     max_range: int = 2,
 ):
     mean_filter = torch.nn.AvgPool1d(kernel_size=mean_range + 1, stride=1, padding=0)
+    padded = torch.nn.functional.pad(data, (mean_range, 0), mode="constant", value=0.0)
+    mean: torch.Tensor = mean_filter(padded)
+    difference: torch.Tensor = data - mean
     max_filter = torch.nn.MaxPool1d(kernel_size=max_range + 1, stride=1, padding=0)
-    padded = torch.nn.functional.pad(data, (mean_range, 0), mode="reflect")
-    mean = mean_filter(padded)
-    difference = data - mean
-    padded = torch.nn.functional.pad(mean, (max_range, 0), mode="reflect")
-    maximum = max_filter(padded)
+    padded = torch.nn.functional.pad(data, (max_range, 0), mode="constant", value=0.0)
+    maximum: torch.Tensor = max_filter(padded)
     assert maximum.shape == mean.shape and maximum.shape == data.shape
 
     time = torch.tensor(get_time_index(data.shape[-1], sample_rate, hop_size))
@@ -42,7 +42,12 @@ def peak_pick_max_mean(
         for j in range(data.shape[1]):
             # assume positive thresholds only
             out[i].append(
-                torch.stack((time, difference[i, j]))[:, difference[i, j] >= 0.0]
+                torch.stack((time, difference[i, j]))[
+                    :,
+                    torch.logical_and(
+                        difference[i, j] >= 0.0, data[i, j] >= maximum[i, j]
+                    ),
+                ]
             )
     return out
 

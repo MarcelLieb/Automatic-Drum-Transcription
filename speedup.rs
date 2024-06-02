@@ -108,16 +108,16 @@ fn calculate_pr(
                 )
             } else {
                 let chunk_length = (values.len() as f32 / points.unwrap() as f32).round() as usize;
-                let n_chunks = values.len().div_ceil(chunk_length);
+                let n_chunks = if chunk_length == 0 { 1 } else { values.len().div_ceil(chunk_length) };
 
                 debug_assert!(n_chunks * chunk_length >= values.len());
+                debug_assert!(n_chunks * (chunk_length - 1) < values.len());
 
                 let iter: Vec<_> = (1..=n_chunks)
                     .into_par_iter()
                     .map(|i| {
                         let onsets = &values[..(i * chunk_length).min(values.len())];
 
-                        let score = onsets.last().unwrap()[1];
                         let peaks_by_songs = split_songs(&onsets, labels.len());
                         let onsets_by_song: Vec<Vec<f32>> = peaks_by_songs
                             .into_par_iter()
@@ -142,6 +142,7 @@ fn calculate_pr(
                         debug_assert_ne!((n_tp, n_fp, n_fn), (0, 0, 0));
 
                         let (p, r, f) = _calculate_prf(n_tp, n_fp, n_fn);
+                        let score = onsets.last().unwrap_or(&[0.0_f32, 0., 0.])[1];
 
                         #[cfg(not(debug_assertions))]
                         return (n_tp, n_fp, n_fn, p, r, f, score);
@@ -199,7 +200,7 @@ fn calculate_pr(
                     .cloned()
                     .map(|o| (o.0, o.1, o.2, o.6, o.5))
                     .max_by(|a, b| a.4.partial_cmp(&b.4).unwrap())
-                    .unwrap();
+                    .unwrap_or((0, 0, labels.iter().map(|song| song.len()).sum(), 0.0, 0.0));
 
                 (
                     pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
