@@ -80,18 +80,23 @@ class RBMA13(ADTDataset):
             splits = get_tracks(path)
         tracks = [f"RBMA-13-Track-{number:02}" for number in splits]
         self.annotations = {track: self.annotations[track] for track in tracks}
-        self.annotations = [(identifier, annotation[1], annotation[0]) for identifier, annotation in self.annotations.items()]
+        self.annotations = [
+            (identifier, annotation[1], annotation[0])
+            for identifier, annotation in self.annotations.items()
+        ]
         self.annotations.sort(key=lambda x: int(x[0].split("-")[-1]))
 
         if is_train:
-            lengths = [get_length(self.get_full_path(track[0])) for track in self.annotations]
+            lengths = [
+                get_length(self.get_full_path(track[0])) for track in self.annotations
+            ]
             if self.segment_type == "label":
                 self.segments = get_label_windows(
                     lengths,
                     [drums for _, drums, *_ in self.annotations],
                     self.lead_in,
                     self.lead_out,
-                    self.sample_rate
+                    self.sample_rate,
                 )
             elif self.segment_type == "frame":
                 self.segments = get_segments(
@@ -107,11 +112,9 @@ class RBMA13(ADTDataset):
     def adjust_time_shift(self, time_shift: float):
         self.time_shift = time_shift
 
-
     def get_full_path(self, track: str) -> Path:
         audio_path = os.path.join(self.path, "audio", f"{track}.mp3")
         return Path(audio_path)
-
 
 
 def main():

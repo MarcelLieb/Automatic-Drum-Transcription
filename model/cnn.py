@@ -78,7 +78,9 @@ class CNN(nn.Module):
         skip = x
         x = self.conv2(x)
         x = self.pool2(x)
-        x = x + self.resample(torch.nn.functional.interpolate(skip, size=x.shape[2:], mode="nearest"))
+        x = x + self.resample(
+            torch.nn.functional.interpolate(skip, size=x.shape[2:], mode="nearest")
+        )
         for residual in self.residuals:
             x = residual(x)
             x = self.dropout2d(x)

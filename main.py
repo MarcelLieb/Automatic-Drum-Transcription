@@ -19,7 +19,9 @@ from model.cnnA import CNNAttention
 from settings import (
     TrainingSettings,
     CNNSettings,
-    EvaluationSettings, CNNAttentionSettings, DatasetSettings,
+    EvaluationSettings,
+    CNNAttentionSettings,
+    DatasetSettings,
 )
 
 
@@ -126,7 +128,12 @@ def evaluate(
     device_str = "cuda" if "cuda" in device_str else "cpu"
     dataset: ADTDataset = dataloader.dataset
     mapping = dataset.mapping
-    sample_rate, hop_size, fft_size, time_shift = dataset.sample_rate, dataset.hop_size, dataset.fft_size, dataset.time_shift
+    sample_rate, hop_size, fft_size, time_shift = (
+        dataset.sample_rate,
+        dataset.hop_size,
+        dataset.fft_size,
+        dataset.time_shift,
+    )
     predictions = []
     groundtruth = []
     with torch.no_grad():
@@ -259,9 +266,7 @@ def main(
     n_classes = dataset_settings.annotation_settings.n_classes
     n_mels = dataset_settings.audio_settings.n_mels
 
-    cnn_settings = CNNSettings(
-        n_classes=n_classes, n_mels=n_mels
-    )
+    cnn_settings = CNNSettings(n_classes=n_classes, n_mels=n_mels)
 
     # Multiprocessing headaches
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -404,9 +409,14 @@ def main(
         last_improvement += 1
         if best_score <= f_score:
             best_score = f_score
-            best_model = (ema_model.module if ema_model is not None else model).state_dict()
+            best_model = (
+                ema_model.module if ema_model is not None else model
+            ).state_dict()
             last_improvement = 0
-        elif last_improvement >= 5 and dataset_settings.annotation_settings.time_shift > 0.0:
+        elif (
+            last_improvement >= 5
+            and dataset_settings.annotation_settings.time_shift > 0.0
+        ):
             last_improvement = 0
             """
             optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
@@ -417,7 +427,10 @@ def main(
             """
         if val_loss <= best_loss:
             best_loss = val_loss
-        if training_settings.early_stopping is not None and last_improvement >= training_settings.early_stopping:
+        if (
+            training_settings.early_stopping is not None
+            and last_improvement >= training_settings.early_stopping
+        ):
             break
 
     hyperparameters = {

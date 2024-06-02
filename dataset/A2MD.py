@@ -4,7 +4,14 @@ from pathlib import Path
 import pretty_midi
 import torch
 
-from dataset import load_audio, get_label_windows, get_drums, get_length, get_segments, get_splits as get_splits_data
+from dataset import (
+    load_audio,
+    get_label_windows,
+    get_drums,
+    get_length,
+    get_segments,
+    get_splits as get_splits_data,
+)
 from dataset.mapping import DrumMapping
 from generics import ADTDataset
 from settings import DatasetSettings
@@ -68,8 +75,8 @@ class A2MD(ADTDataset):
         path: Path | str,
         settings: DatasetSettings,
         split: dict[str, list[str]] | None = None,
-        is_train: bool=False,
-        use_dataloader: bool=False,
+        is_train: bool = False,
+        use_dataloader: bool = False,
     ):
         super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader)
         self.path = path
@@ -87,8 +94,7 @@ class A2MD(ADTDataset):
             ]
             self.annotations.sort(key=lambda x: int(x[0][1].split("_")[-2]))
             args = [
-                (self.path, identification)
-                for identification, *_ in self.annotations
+                (self.path, identification) for identification, *_ in self.annotations
             ]
             # use static method to avoid passing self to pool
             paths = pool.starmap(A2MD._get_full_path, args)
@@ -101,7 +107,7 @@ class A2MD(ADTDataset):
                         [drums for _, drums, *_ in self.annotations],
                         self.lead_in,
                         self.lead_out,
-                        self.sample_rate
+                        self.sample_rate,
                     )
                 elif self.segment_type == "frame":
                     self.segments = get_segments(
@@ -110,23 +116,19 @@ class A2MD(ADTDataset):
                         self.segment_overlap,
                         self.sample_rate,
                     )
-            args = [
-                (path, self.sample_rate, self.normalize)
-                for path in paths
-            ]
+            args = [(path, self.sample_rate, self.normalize) for path in paths]
             self.cache = pool.starmap(load_audio, args) if is_train else None
 
     def __len__(self):
         return len(self.segments) if self.is_train else len(self.annotations)
 
-
     @staticmethod
     def _get_full_path(root: str, identification: tuple[str, str]) -> Path:
         folder, identifier = identification
-        audio_path = os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
+        audio_path = os.path.join(
+            root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3"
+        )
         return Path(audio_path)
 
-    def get_full_path(
-            self, identification: tuple[str, str]
-    ) -> Path:
+    def get_full_path(self, identification: tuple[str, str]) -> Path:
         return self._get_full_path(self.path, identification)

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from enum import Enum
 
 import numpy as np
@@ -105,7 +106,7 @@ def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
 
 
 def get_name_to_class_number(mapping: DrumMapping):
-    dic = {}
+    dic = defaultdict(lambda: -1)
     for idx, drum_classes in enumerate(mapping.value):
         for drum_class in drum_classes:
             dic[drum_class] = idx

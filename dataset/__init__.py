@@ -24,9 +24,7 @@ class Gain(torch.nn.Module):
         return audio
 
 
-def load_audio(
-    path: str | Path, sample_rate: int, normalize: bool
-) -> torch.Tensor:
+def load_audio(path: str | Path, sample_rate: int, normalize: bool) -> torch.Tensor:
     audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg")
     audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(audio)
     audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
@@ -40,10 +38,7 @@ def get_length(path: str | Path) -> float:
     return meta_data.num_frames / meta_data.sample_rate
 
 
-def get_drums(
-    midi: pretty_midi.PrettyMIDI,
-    mapping: DrumMapping
-):
+def get_drums(midi: pretty_midi.PrettyMIDI, mapping: DrumMapping):
     drum_instruments = [
         instrument for instrument in midi.instruments if instrument.is_drum
     ]
@@ -101,7 +96,9 @@ def get_label_windows(
     return np.concatenate(segments, axis=0)
 
 
-def get_segments(lengths: list[float], segment_length: float, overlap: float, sample_rate: int) -> np.array:
+def get_segments(
+    lengths: list[float], segment_length: float, overlap: float, sample_rate: int
+) -> np.array:
     """
     Computes overlapping segments for a list of audio files
     :param lengths: List of lengths of the audio files in seconds
@@ -112,22 +109,27 @@ def get_segments(lengths: list[float], segment_length: float, overlap: float, sa
     """
     segments = []
     for i, length in enumerate(lengths):
-        n_segments = int(np.ceil((length - segment_length) / (segment_length - overlap))) + 1
+        n_segments = (
+            int(np.ceil((length - segment_length) / (segment_length - overlap))) + 1
+        )
         for j in range(n_segments):
             start = int(j * (segment_length - overlap) * sample_rate)
             end = min(
-                int(((j + 1) * (segment_length - overlap) + overlap) * sample_rate) , int(length * sample_rate)
+                int(((j + 1) * (segment_length - overlap) + overlap) * sample_rate),
+                int(length * sample_rate),
             )
             if end != int(length * sample_rate):
-                assert abs((end - start) - int(segment_length * sample_rate)) <= 1, f"Segment length not correct\n Expected:{int(segment_length * sample_rate)}, Got: {end - start}"
+                assert (
+                    abs((end - start) - int(segment_length * sample_rate)) <= 1
+                ), f"Segment length not correct\n Expected:{int(segment_length * sample_rate)}, Got: {end - start}"
             if end - start > 0:
                 segments.append((start, end, i))
     return np.array(segments)
 
 
-
-
-def segment_audio(audio: torch.Tensor, start: int, end: int, length: int) -> torch.Tensor:
+def segment_audio(
+    audio: torch.Tensor, start: int, end: int, length: int
+) -> torch.Tensor:
     cut_audio = audio[..., start:end]
     if cut_audio.shape[-1] < length:
         if start == 0:
@@ -142,7 +144,9 @@ def segment_audio(audio: torch.Tensor, start: int, end: int, length: int) -> tor
     return cut_audio
 
 
-def get_labels(onset_times: Sequence[np.ndarray], sample_rate: float, hop_size: int, length: int) -> torch.Tensor:
+def get_labels(
+    onset_times: Sequence[np.ndarray], sample_rate: float, hop_size: int, length: int
+) -> torch.Tensor:
     labels = torch.zeros(len(onset_times), length)
     for i, cls in enumerate(onset_times):
         indices = get_indices(cls, sample_rate, hop_size)
@@ -158,6 +162,7 @@ def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int) -> np.
 
 def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.array:
     return (np.arange(length) * hop_size) / sample_rate
+
 
 def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
     audio, annotation, gts = zip(*batch)

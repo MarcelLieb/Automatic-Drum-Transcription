@@ -43,8 +43,6 @@ class DatasetSettings:
     label_lead_out: float = 0.10
 
 
-
-
 @dataclass
 class TrainingSettings:
     learning_rate: float = 1e-4

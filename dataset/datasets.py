@@ -9,7 +9,6 @@ from generics import ConcatADTDataset
 from settings import TrainingSettings, DatasetSettings
 
 
-
 def get_dataset(
     training_settings: TrainingSettings,
     dataset_settings: DatasetSettings,

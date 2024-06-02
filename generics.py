@@ -41,7 +41,11 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.lead_in = settings.label_lead_in
         self.lead_out = settings.label_lead_out
 
-        self.segment_length = self.lead_in + self.lead_out if settings.segment_type == "label" else settings.frame_length
+        self.segment_length = (
+            self.lead_in + self.lead_out
+            if settings.segment_type == "label"
+            else settings.frame_length
+        )
         self.segment_overlap = settings.frame_overlap
 
         self.is_train = is_train
@@ -68,7 +72,9 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         self.annotations: list[tuple[Any, list[np.array], list[np.array]]] | None = None
 
-        self.annotation_padder = torch.nn.MaxPool1d(3, stride=1, padding=1) if self.pad_annotations else None
+        self.annotation_padder = (
+            torch.nn.MaxPool1d(3, stride=1, padding=1) if self.pad_annotations else None
+        )
 
         self.cache = None
         self.segments = None
@@ -98,10 +104,14 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             if self.cache is None
             else self.cache[int(audio_idx)]
         )
-        audio = segment_audio(full_audio, start, end, int(self.segment_length * self.sample_rate))
+        audio = segment_audio(
+            full_audio, start, end, int(self.segment_length * self.sample_rate)
+        )
         if not self.center:
             # align frames with the end of the window
-            audio = torch.nn.functional.pad(audio, (self.fft_size - self.hop_size, 0), mode=self.pad_mode)
+            audio = torch.nn.functional.pad(
+                audio, (self.fft_size - self.hop_size, 0), mode=self.pad_mode
+            )
 
         spectrum = self.spectrum(audio)
         spectrum = torch.log1p(spectrum)
@@ -116,7 +126,9 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         labels = get_labels(time_stamps, self.sample_rate, self.hop_size, mel.shape[-1])
 
         if self.pad_annotations:
-            padded = self.annotation_padder(labels.unsqueeze(0)).squeeze(0) * self.pad_value
+            padded = (
+                self.annotation_padder(labels.unsqueeze(0)).squeeze(0) * self.pad_value
+            )
             labels = torch.maximum(labels, padded)
 
         gt_labels = [*beats, *drums]
@@ -161,4 +173,6 @@ class ConcatADTDataset(ADTDataset, ABC):
             dataset.adjust_time_shift(time_shift)
 
     def get_full_path(self, identification: Any):
-        raise NotImplementedError("get_full_path is not implemented for ConcatADTDataset")
+        raise NotImplementedError(
+            "get_full_path is not implemented for ConcatADTDataset"
+        )
