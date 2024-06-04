@@ -45,7 +45,10 @@ def peak_pick_max_mean(
                 torch.stack((time, difference[i, j]))[
                     :,
                     torch.logical_and(
-                        difference[i, j] >= 0.0, data[i, j] >= maximum[i, j]
+                        torch.logical_and(
+                            difference[i, j] >= 0.0, data[i, j] >= maximum[i, j]
+                        ),
+                        data[i, j] >= 0.0,
                     ),
                 ]
             )
