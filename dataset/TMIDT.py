@@ -6,7 +6,13 @@ from typing import Any
 import numpy as np
 import torch
 
-from dataset import DrumMapping, get_midi_to_class, get_length, get_label_windows, get_segments
+from dataset import (
+    DrumMapping,
+    get_midi_to_class,
+    get_length,
+    get_label_windows,
+    get_segments,
+)
 from generics import ADTDataset
 from settings import DatasetSettings
 
@@ -41,7 +47,10 @@ def get_annotations(
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        drums = np.loadtxt(file_path, delimiter="\t", )
+        drums = np.loadtxt(
+            file_path,
+            delimiter="\t",
+        )
     if len(drums.shape) == 2:
         drums[:, 1] = np.vectorize(drum_map.get)(drums[:, 1].astype(int))
 
@@ -77,7 +86,7 @@ class TMIDT(ADTDataset):
         settings: DatasetSettings,
         split: list[str] | None = None,
         is_train: bool = False,
-        use_dataloader: bool = False
+        use_dataloader: bool = False,
     ):
         super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader)
 
@@ -110,8 +119,6 @@ class TMIDT(ADTDataset):
                         self.sample_rate,
                     )
 
-
-
     def __len__(self):
         return len(self.segments) if self.is_train else len(self.annotations)
 
@@ -124,7 +131,9 @@ class TMIDT(ADTDataset):
         return self._get_full_path(self.path, identification)
 
 
-if __name__ == '__main__':
-    a = get_annotations(Path('../data/midi'), '35_ABBA_-_SOS_accomp', DrumMapping.THREE_CLASS_STANDARD)
-    d = TMIDT(Path('../data/midi'), DatasetSettings())
+if __name__ == "__main__":
+    a = get_annotations(
+        Path("../data/midi"), "35_ABBA_-_SOS_accomp", DrumMapping.THREE_CLASS_STANDARD
+    )
+    d = TMIDT(Path("../data/midi"), DatasetSettings())
     _a = d[0]
