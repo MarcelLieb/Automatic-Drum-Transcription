@@ -92,3 +92,5 @@ class CNNAttentionSettings:
     causal: bool = True
     flux: bool = False
     activation: nn.Module = nn.SELU()
+    num_attention_blocks: int = 2
+    context_size: int = 50

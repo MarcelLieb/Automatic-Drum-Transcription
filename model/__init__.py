@@ -1,7 +1,61 @@
+import math
 from copy import deepcopy
 
 import torch
 from torch import nn as nn
+
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(
+            torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model)
+        )
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer("pe", pe)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[seq_len, batch_size, embedding_dim]``
+        """
+        x = x + self.pe[: x.size(0)]
+        return self.dropout(x)
+
+
+class AttentionBlock(nn.Module):
+    def __init__(self, d_model, n_heads, attention_mask, causal, activation, dropout=0.1):
+        super(AttentionBlock, self).__init__()
+        self.multihead = nn.MultiheadAttention(
+            embed_dim=d_model, num_heads=n_heads, dropout=dropout, batch_first=True
+        )
+        self.activation = activation
+        self.causal = causal
+        self.mask = attention_mask
+        self.dense1 = nn.Linear(d_model, d_model)
+        self.dense2 = nn.Linear(d_model, d_model)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.dropout1 = nn.Dropout(dropout)
+
+    def forward(self, x):
+        skip = x
+        x = self.norm1(x)
+        x, _ = self.multihead(x, x, x, attn_mask=self.mask, need_weights=False, is_causal=self.causal)
+        x = x + skip
+        x = self.norm2(x)
+        skip = x
+        x = self.dense1(x)
+        x = self.activation(x)
+        x = self.dropout1(x)
+        x = self.dense2(x)
+        x = x + skip
+        return x
 
 
 class ModelEmaV2(nn.Module):

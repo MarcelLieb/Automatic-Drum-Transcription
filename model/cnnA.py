@@ -3,12 +3,21 @@ from torch import nn
 from torch.nn import functional as f
 
 
-from model import ResidualBlock1d
+from model import ResidualBlock1d, PositionalEncoding, AttentionBlock
 
 
 class CNNAttention(nn.Module):
     def __init__(
-        self, n_mels, n_classes, flux, activation, causal, num_channels, dropout=0.1
+        self,
+        n_mels,
+        n_classes,
+        flux,
+        activation,
+        causal,
+        num_channels,
+        num_attention_blocks=3,
+        context_size=25,
+        dropout=0.1,
     ):
         super(CNNAttention, self).__init__()
         self.activation = activation
@@ -30,12 +39,25 @@ class CNNAttention(nn.Module):
         )
         self.pool2 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
 
-        self.attention = nn.MultiheadAttention(
-            embed_dim=num_channels * (self.n_dims // 4),
-            num_heads=2,
-            dropout=dropout,
-            batch_first=True,
+        self.pos_enc = PositionalEncoding(num_channels * (self.n_dims // 4), dropout)
+        self.mask = nn.Transformer.generate_square_subsequent_mask(
+            context_size, device=torch.device("cuda")
         )
+
+        attention_blocks = []
+        for _ in range(num_attention_blocks):
+            attention_blocks.append(
+                AttentionBlock(
+                    num_channels * (self.n_dims // 4),
+                    1,
+                    self.mask,
+                    self.causal,
+                    self.activation,
+                    dropout,
+                )
+            )
+        self.attention_blocks = nn.Sequential(*attention_blocks)
+
         self.fc1 = nn.Linear(num_channels * (self.n_dims // 4), n_classes)
 
     def forward(self, x):
@@ -50,12 +72,8 @@ class CNNAttention(nn.Module):
         x = self.pool2(x)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
-        mask = nn.Transformer.generate_square_subsequent_mask(
-            x.size(1), device=x.device
-        )
-        x, _ = self.attention(
-            x, x, x, attn_mask=mask, is_causal=self.causal, need_weights=False
-        )
+        x = self.pos_enc(x)
+        x = self.attention_blocks(x)
         x = self.fc1(x)
         x = x.permute(0, 2, 1)
         x = self.activation(x)
