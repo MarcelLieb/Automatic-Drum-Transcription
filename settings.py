@@ -55,7 +55,8 @@ class TrainingSettings:
     splits: list[float] = (0.85, 0.15, 0.0)
     num_workers: int = 64
     min_save_score: float = 0.62
-    train_set: Literal["all", "a2md_train"] = "all"
+    test_batch_size: int = 4
+    train_set: Literal["all", "a2md_train"] = "a2md_train"
 
 
 @dataclass

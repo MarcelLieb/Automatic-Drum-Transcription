@@ -81,12 +81,21 @@ def get_dataset(
         is_train=True,
     )
     dataloader_val = get_dataloader(
-        val, 1, training_settings.num_workers, is_train=False
+        val,
+        training_settings.test_batch_size,
+        training_settings.num_workers,
+        is_train=False,
     )
     dataloader_test_rbma = get_dataloader(
-        test_rbma, 1, training_settings.num_workers, is_train=False
+        test_rbma,
+        training_settings.test_batch_size,
+        training_settings.num_workers,
+        is_train=False,
     )
     dataloader_test_mdb = get_dataloader(
-        test_mdb, 1, training_settings.num_workers, is_train=False
+        test_mdb,
+        training_settings.test_batch_size,
+        training_settings.num_workers,
+        is_train=False,
     )
     return dataloader_train, dataloader_val, dataloader_test_rbma, dataloader_test_mdb
