@@ -16,6 +16,7 @@ class CNNAttention(nn.Module):
         causal,
         num_channels,
         num_attention_blocks=3,
+        num_heads=8,
         context_size=25,
         dropout=0.1,
     ):
@@ -49,7 +50,7 @@ class CNNAttention(nn.Module):
             attention_blocks.append(
                 AttentionBlock(
                     num_channels * (self.n_dims // 4),
-                    1,
+                    num_heads,
                     self.mask,
                     self.causal,
                     self.activation,
