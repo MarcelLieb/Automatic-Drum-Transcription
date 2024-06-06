@@ -267,29 +267,33 @@ def main(
     n_classes = dataset_settings.annotation_settings.n_classes
     n_mels = dataset_settings.audio_settings.n_mels
 
-    cnn_settings = CNNSettings(n_classes=n_classes, n_mels=n_mels)
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = torch.device(device)
+
+    match training_settings.model_settings:
+        case "cnn":
+            model_settings = CNNSettings(n_classes=n_classes, n_mels=n_mels)
+            model = CNN(**asdict(model_settings))
+        case "cnn_attention":
+            model_settings = CNNAttentionSettings(n_classes=n_classes, n_mels=n_mels)
+            model = CNNAttention(**asdict(model_settings))
+        case _:
+            raise ValueError("Invalid model setting")
+    model.to(device)
 
     # Multiprocessing headaches
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
     torch.multiprocessing.set_sharing_strategy("file_system")
 
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    device = torch.device(device)
-
     print(training_settings)
     print(evaluation_settings)
     print(dataset_settings)
-    print(cnn_settings)
+    print(model_settings)
 
     loader_train, loader_val, loader_test_rbma, loader_test_mdb = get_dataset(
         training_settings, dataset_settings=dataset_settings
     )
-
-    cnnA_settings = CNNAttentionSettings(n_classes=n_classes, n_mels=n_mels)
-    model = CNNAttention(**asdict(cnnA_settings))
-    model = CNN(**asdict(cnn_settings))
-    model.to(device)
 
     ema_model = (
         ModelEmaV2(model, decay=0.999, device=device) if training_settings.ema else None
@@ -439,10 +443,10 @@ def main(
         **asdict(evaluation_settings),
         **asdict(dataset_settings.audio_settings),
         **asdict(dataset_settings.annotation_settings),
-        **asdict(cnn_settings),
+        **asdict(model_settings),
         "splits": str(training_settings.splits),
         "mapping": str(dataset_settings.annotation_settings.mapping.name),
-        "activation": cnn_settings.activation.__class__.__name__,
+        "activation": model_settings.activation.__class__.__name__,
         "segment_type": dataset_settings.segment_type,
         "frame_length": dataset_settings.frame_length,
         "frame_overlap": dataset_settings.frame_overlap,

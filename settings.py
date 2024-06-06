@@ -57,6 +57,7 @@ class TrainingSettings:
     min_save_score: float = 0.62
     test_batch_size: int = 4
     train_set: Literal["all", "a2md_train"] = "a2md_train"
+    model_settings: Literal["cnn", "cnn_attention"] = "cnn_attention"
 
 
 @dataclass
