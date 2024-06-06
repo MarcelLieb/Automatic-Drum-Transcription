@@ -151,9 +151,9 @@ def evaluate(
             with torch.autocast(device_type=device_str, dtype=torch.float16):
                 prediction = model(audio)
                 unfiltered = criterion(prediction, lbl)
-                no_silence = unfiltered * (lbl != -1)
+                filtered_pred = prediction.sigmoid() * (lbl != -1)
             peaks = peak_pick_max_mean(
-                prediction.sigmoid().cpu().detach().float(),
+                filtered_pred.cpu().detach().float(),
                 sample_rate,
                 hop_size,
                 fft_size,
@@ -164,7 +164,7 @@ def evaluate(
             peaks = [[peak - time_shift for peak in cls] for cls in peaks]
             predictions.extend(peaks)
             groundtruth.extend(gts)
-            loss = no_silence.mean()
+            loss = unfiltered[lbl != -1].mean()
             total_loss += loss.item()
     precisions, recalls, thresholds, f, f_avg, best_thresholds = calculate_pr(
         predictions,
