@@ -48,7 +48,7 @@ def step(
         prediction = model(audio_batch)
         unfiltered = criterion(prediction, lbl_batch)
         no_silence = unfiltered * (lbl_batch != -1)
-        full_context = no_silence[..., 9:]  # Receptive field if causal model is 9 frames
+        full_context = no_silence[..., 49:]  # Receptive field if causal model is 9 frames
         # full_context = full_context * torch.any(lbl_batch[..., 9:] > 0, dim=-1, keepdim=True)
         filtered = full_context.mean()
         loss = filtered
@@ -463,7 +463,7 @@ def main(
         print("Saving model")
         dic = {
             "model": model.state_dict(),
-            "model_settings": asdict(cnn_settings),
+            "model_settings": asdict(model_settings),
             "dataset_settings": asdict(dataset_settings),
             "training_settings": asdict(training_settings),
             "evaluation_settings": asdict(evaluation_settings),
