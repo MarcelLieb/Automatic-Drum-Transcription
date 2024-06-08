@@ -57,7 +57,7 @@ class TrainingSettings:
     min_save_score: float = 0.62
     test_batch_size: int = 4
     train_set: Literal["all", "a2md_train"] = "a2md_train"
-    model_settings: Literal["cnn", "cnn_attention"] = "cnn_attention"
+    model_settings: Literal["cnn", "cnn_attention", "mamba"] = "mamba"
 
 
 @dataclass
@@ -98,3 +98,15 @@ class CNNAttentionSettings:
     num_heads: int = 8
     context_size: int = 50
     expansion_factor: int = 4
+
+
+@dataclass
+class CNNMambaSettings:
+    n_classes: int
+    n_mels: int
+    num_channels: int = 24
+    dropout: float = 0.3
+    causal: bool = True
+    flux: bool = False
+    activation: nn.Module = nn.SELU()
+    n_layers: int = 4

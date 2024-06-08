@@ -16,12 +16,14 @@ from generics import ADTDataset
 from model.cnn import CNN
 from model import ModelEmaV2
 from model.cnnA import CNNAttention
+from model.cnnM import CNNMamba
 from settings import (
     TrainingSettings,
     CNNSettings,
     EvaluationSettings,
     CNNAttentionSettings,
     DatasetSettings,
+    CNNMambaSettings,
 )
 
 
@@ -48,9 +50,9 @@ def step(
         prediction = model(audio_batch)
         unfiltered = criterion(prediction, lbl_batch)
         no_silence = unfiltered * (lbl_batch != -1)
-        full_context = no_silence[..., 49:]  # Receptive field if causal model is 9 frames
+        # full_context = no_silence[..., 49:]  # Receptive field if causal model is 9 frames
         # full_context = full_context * torch.any(lbl_batch[..., 9:] > 0, dim=-1, keepdim=True)
-        filtered = full_context.mean()
+        filtered = no_silence.mean()
         loss = filtered
 
     scaler.scale(loss).backward()
@@ -166,6 +168,7 @@ def evaluate(
             groundtruth.extend(gts)
             loss = unfiltered[lbl != -1].mean()
             total_loss += loss.item()
+            torch.cuda.empty_cache()
     precisions, recalls, thresholds, f, f_avg, best_thresholds = calculate_pr(
         predictions,
         groundtruth,
@@ -278,6 +281,9 @@ def main(
         case "cnn_attention":
             model_settings = CNNAttentionSettings(n_classes=n_classes, n_mels=n_mels)
             model = CNNAttention(**asdict(model_settings))
+        case "mamba":
+            model_settings = CNNMambaSettings(n_classes=n_classes, n_mels=n_mels)
+            model = CNNMamba(**asdict(model_settings))
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
