@@ -172,6 +172,7 @@ def evaluate(
         onset_cooldown=evaluation_settings.onset_cooldown,
         detection_window=evaluation_settings.detect_tolerance,
         ignore_beats=evaluation_settings.ignore_beats,
+        pr_points=evaluation_settings.pr_points,
     )
     f_scores = [
         calculate_f_score(precision, recall)

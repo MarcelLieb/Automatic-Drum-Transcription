@@ -89,7 +89,7 @@ def calculate_pr(
         gt = gt[2:]
         classes = classes[2:]
     prts, best_thresholds, f_score, f_score_avg = rust_calculate_pr(
-        classes, gt, detection_window, onset_cooldown, 1000
+        classes, gt, detection_window, onset_cooldown, pr_points
     )
     precisions = [torch.tensor(prts[i][0]) for i in range(len(prts))]
     recalls = [torch.tensor(prts[i][1]) for i in range(len(prts))]

@@ -68,6 +68,7 @@ class EvaluationSettings:
     detect_tolerance: int = 0.025
     ignore_beats: bool = True
     min_test_score: float = 0.54
+    pr_points: int | None = 1000
 
 
 @dataclass
