@@ -98,6 +98,7 @@ class CNNAttentionSettings:
     num_heads: int = 8
     context_size: int = 50
     expansion_factor: int = 4
+    use_relative_pos: bool = False
 
 
 @dataclass

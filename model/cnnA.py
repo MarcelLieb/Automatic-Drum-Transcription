@@ -19,6 +19,7 @@ class CNNAttention(nn.Module):
         num_heads=8,
         expansion_factor=4,
         context_size=25,
+        use_relative_pos=False,
         dropout=0.1,
     ):
         super(CNNAttention, self).__init__()
@@ -50,6 +51,8 @@ class CNNAttention(nn.Module):
             context_size, device=torch.device("cuda")
         )
 
+        self.use_relative_pos = use_relative_pos
+
         attention_blocks = []
         for _ in range(num_attention_blocks):
             attention_blocks.append(
@@ -61,6 +64,7 @@ class CNNAttention(nn.Module):
                     self.activation,
                     dropout,
                     expansion_factor=expansion_factor,
+                    use_relative_pe=use_relative_pos and not causal,
                 )
             )
         self.attention_blocks = nn.Sequential(*attention_blocks)
@@ -81,7 +85,8 @@ class CNNAttention(nn.Module):
         x = self.dropout2(x)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
-        x = self.pos_enc(x)
+        if not self.use_relative_pos:
+            x = self.pos_enc(x)
         x = self.attention_blocks(x)
         x = self.fc1(x)
         x = x.permute(0, 2, 1)
