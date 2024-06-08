@@ -48,6 +48,7 @@ class TrainingSettings:
     learning_rate: float = 1e-4
     epochs: int = 30
     batch_size: int = 512
+    weight_decay: float = 0.0
     ema: bool = False
     scheduler: bool = True
     early_stopping: int | None = None

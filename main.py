@@ -321,7 +321,7 @@ def main(
     optimizer = optim.RAdam(
         model.parameters(),
         lr=initial_lr,
-        weight_decay=1e-5,  # decoupled_weight_decay=True,
+        weight_decay=training_settings.weight_decay,  # decoupled_weight_decay=True,
     )
     scheduler = (
         optim.lr_scheduler.OneCycleLR(
