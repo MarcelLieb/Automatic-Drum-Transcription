@@ -61,6 +61,7 @@ def calculate_pr(
     ignore_beats: bool = False,
     detection_window: float = 0.05,
     onset_cooldown: float = 0.02,
+    pr_points: int | None = 1000,
 ) -> tuple[
     list[torch.Tensor],
     list[torch.Tensor],
