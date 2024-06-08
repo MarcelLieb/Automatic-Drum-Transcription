@@ -33,6 +33,7 @@ class CNNAttention(nn.Module):
             activation=self.activation,
         )
         self.pool1 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
+        self.dropout1 = nn.Dropout(dropout)
         self.conv2 = ResidualBlock1d(
             num_channels,
             num_channels,
@@ -40,6 +41,7 @@ class CNNAttention(nn.Module):
             activation=self.activation,
         )
         self.pool2 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
+        self.dropout2 = nn.Dropout(dropout)
 
         self.pos_enc = PositionalEncoding(num_channels * (self.n_dims // 4), dropout)
         self.mask = nn.Transformer.generate_square_subsequent_mask(
@@ -71,8 +73,10 @@ class CNNAttention(nn.Module):
         x = x.unsqueeze(1)
         x = self.conv1(x)
         x = self.pool1(x)
+        x = self.dropout1(x)
         x = self.conv2(x)
         x = self.pool2(x)
+        x = self.dropout2(x)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
         x = self.pos_enc(x)
