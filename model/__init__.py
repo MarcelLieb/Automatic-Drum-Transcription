@@ -29,7 +29,17 @@ class PositionalEncoding(nn.Module):
 
 
 class AttentionBlock(nn.Module):
-    def __init__(self, d_model, n_heads, attention_mask, causal, activation, dropout=0.1, projection: bool = False):
+    def __init__(
+        self,
+        d_model,
+        n_heads,
+        attention_mask,
+        causal,
+        activation,
+        dropout=0.1,
+        projection: bool = False,
+        expansion_factor: int = 4,
+    ):
         super(AttentionBlock, self).__init__()
         self.multihead = nn.MultiheadAttention(
             embed_dim=d_model, num_heads=n_heads, dropout=dropout, batch_first=True
@@ -38,19 +48,26 @@ class AttentionBlock(nn.Module):
         self.projection = projection
         self.causal = causal
         self.mask = attention_mask
-        self.dense1 = nn.Linear(d_model, d_model)
-        self.dense2 = nn.Linear(d_model, d_model)
-        self.key_dense = nn.Linear(d_model, d_model)
-        self.value_dense = nn.Linear(d_model, d_model)
-        self.query_dense = nn.Linear(d_model, d_model)
+        self.dense1 = nn.Linear(d_model, d_model * expansion_factor)
+        self.dense2 = nn.Linear(d_model * expansion_factor, d_model)
+        if self.projection:
+            self.key_dense = nn.Linear(d_model, d_model)
+            self.value_dense = nn.Linear(d_model, d_model)
+            self.query_dense = nn.Linear(d_model, d_model)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
 
     def forward(self, x):
         skip = x
-        q, k, v = (self.query_dense(x), self.key_dense(x), self.value_dense(x)) if self.projection else (x, x, x)
-        x, _ = self.multihead(q, k, v, attn_mask=self.mask, need_weights=False, is_causal=self.causal)
+        q, k, v = (
+            (self.query_dense(x), self.key_dense(x), self.value_dense(x))
+            if self.projection
+            else (x, x, x)
+        )
+        x, _ = self.multihead(
+            q, k, v, attn_mask=self.mask, need_weights=False, is_causal=self.causal
+        )
         x = x + skip
         x = self.norm1(x)
         skip = x

@@ -17,6 +17,7 @@ class CNNAttention(nn.Module):
         num_channels,
         num_attention_blocks=3,
         num_heads=8,
+        expansion_factor=4,
         context_size=25,
         dropout=0.1,
     ):
@@ -55,6 +56,7 @@ class CNNAttention(nn.Module):
                     self.causal,
                     self.activation,
                     dropout,
+                    expansion_factor=expansion_factor,
                 )
             )
         self.attention_blocks = nn.Sequential(*attention_blocks)
