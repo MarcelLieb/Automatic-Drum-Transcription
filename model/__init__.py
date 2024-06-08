@@ -69,18 +69,19 @@ class AttentionBlock(nn.Module):
 
     def forward(self, x):
         skip = x
-        q, k, v = (
-            (self.query_dense(x), self.key_dense(x), self.value_dense(x))
-            if self.projection
-            else (x, x, x)
-        )
-        x, _ = (
-            self.multihead(
-                q, k, v, attn_mask=self.mask, need_weights=False, is_causal=self.causal
+        if self.use_relative_pe:
+            x = self.multihead(x)
+        else:
+            q, k, v = (
+                (self.query_dense(x), self.key_dense(x), self.value_dense(x))
+                if self.projection
+                else (x, x, x)
             )
-            if not self.use_relative_pe
-            else self.multihead(x)
-        )
+            x, _ = (
+                self.multihead(
+                    q, k, v, attn_mask=self.mask, need_weights=False, is_causal=self.causal
+                )
+            )
         x = x + skip
         x = self.norm1(x)
         skip = x
@@ -102,6 +103,7 @@ class MultiHeadSelfAttention(nn.Module):
         self.n_head = n_head
         self.init_weights()
         self.use_relative_pe = use_relative_pe
+        self.L = L
 
         if use_relative_pe:
             self.position_bias = nn.Parameter(torch.zeros(2 * L - 1, n_head))
@@ -130,7 +132,8 @@ class MultiHeadSelfAttention(nn.Module):
 
         if self.use_relative_pe:
             b_pos = self.position_bias[self.rel_pos_idx.view(-1)]  # [L*L, n_head]
-            b_pos = b_pos.view(L, L, self.n_head)
+            b_pos = b_pos.view(self.L, self.L, self.n_head)
+            b_pos = b_pos[:L, :L, :]  # [L, L, n_head]
             b_pos = torch.transpose(
                 torch.transpose(b_pos, 1, 2), 0, 1
             )  # [n_head, L, L]
