@@ -70,7 +70,9 @@ class PScan(torch.autograd.Function):
             Xa[:, :, 1].add_(Aa[:, :, 1].mul(Xa[:, :, 0]))
             Aa[:, :, 1].mul_(Aa[:, :, 0])
 
-            Xa[:, :, 3].add_(Aa[:, :, 3].mul(Xa[:, :, 2] + Aa[:, :, 2].mul(Xa[:, :, 1])))
+            Xa[:, :, 3].add_(
+                Aa[:, :, 3].mul(Xa[:, :, 2] + Aa[:, :, 2].mul(Xa[:, :, 1]))
+            )
         elif Xa.size(2) == 2:
             Xa[:, :, 1].add_(Aa[:, :, 1].mul(Xa[:, :, 0]))
             return
@@ -78,14 +80,14 @@ class PScan(torch.autograd.Function):
             return
 
         #  down sweep (first 2 steps unfolded)
-        Aa = A[:, :, 2 ** (num_steps - 2) - 1:L:2 ** (num_steps - 2)]
-        Xa = X[:, :, 2 ** (num_steps - 2) - 1:L:2 ** (num_steps - 2)]
+        Aa = A[:, :, 2 ** (num_steps - 2) - 1 : L : 2 ** (num_steps - 2)]
+        Xa = X[:, :, 2 ** (num_steps - 2) - 1 : L : 2 ** (num_steps - 2)]
         Xa[:, :, 2].add_(Aa[:, :, 2].mul(Xa[:, :, 1]))
         Aa[:, :, 2].mul_(Aa[:, :, 1])
 
         for k in range(num_steps - 3, -1, -1):
-            Aa = A[:, :, 2 ** k - 1:L:2 ** k]
-            Xa = X[:, :, 2 ** k - 1:L:2 ** k]
+            Aa = A[:, :, 2**k - 1 : L : 2**k]
+            Xa = X[:, :, 2**k - 1 : L : 2**k]
 
             T = Xa.size(2)
             Aa = Aa.view(B, D, T // 2, 2, -1)
@@ -127,7 +129,9 @@ class PScan(torch.autograd.Function):
             Xa[:, :, 2].add_(Aa[:, :, 2].mul(Xa[:, :, 3]))
             Aa[:, :, 2].mul_(Aa[:, :, 3])
 
-            Xa[:, :, 0].add_(Aa[:, :, 0].mul(Xa[:, :, 1].add(Aa[:, :, 1].mul(Xa[:, :, 2]))))
+            Xa[:, :, 0].add_(
+                Aa[:, :, 0].mul(Xa[:, :, 1].add(Aa[:, :, 1].mul(Xa[:, :, 2])))
+            )
         elif Xa.size(2) == 2:
             Xa[:, :, 0].add_(Aa[:, :, 0].mul(Xa[:, :, 1]))
             return
@@ -135,14 +139,14 @@ class PScan(torch.autograd.Function):
             return
 
         #  down sweep (first 2 steps unfolded)
-        Aa = A[:, :, 0:L:2 ** (num_steps - 2)]
-        Xa = X[:, :, 0:L:2 ** (num_steps - 2)]
+        Aa = A[:, :, 0 : L : 2 ** (num_steps - 2)]
+        Xa = X[:, :, 0 : L : 2 ** (num_steps - 2)]
         Xa[:, :, 1].add_(Aa[:, :, 1].mul(Xa[:, :, 2]))
         Aa[:, :, 1].mul_(Aa[:, :, 2])
 
         for k in range(num_steps - 3, -1, -1):
-            Aa = A[:, :, 0:L:2 ** k]
-            Xa = X[:, :, 0:L:2 ** k]
+            Aa = A[:, :, 0 : L : 2**k]
+            Xa = X[:, :, 0 : L : 2**k]
 
             T = Xa.size(2)
             Aa = Aa.view(B, D, T // 2, 2, -1)
@@ -216,8 +220,9 @@ class PScan(torch.autograd.Function):
         # prepare tensors
         grad_output = grad_output.transpose(2, 1)
         A_in = A_in.transpose(2, 1)  #  (B, D, npo2(L), N)
-        A = torch.nn.functional.pad(A_in[:, :, 1:],
-                                    (0, 0, 0, 1))  #  (B, D, npo2(L), N) shift 1 to the left (see hand derivation)
+        A = torch.nn.functional.pad(
+            A_in[:, :, 1:], (0, 0, 0, 1)
+        )  #  (B, D, npo2(L), N) shift 1 to the left (see hand derivation)
 
         #  reverse parallel scan (modifies grad_output in-place)
         PScan.pscan_rev(A, grad_output)

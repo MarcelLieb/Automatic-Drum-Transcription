@@ -108,7 +108,11 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             full_audio, start, end, int(self.segment_length * self.sample_rate)
         )
         # segments get padded at the front if start is 0, therefore the true start may be negative
-        start = (end - start) - int(self.segment_length * self.sample_rate) if start == 0 else start
+        start = (
+            (end - start) - int(self.segment_length * self.sample_rate)
+            if start == 0
+            else start
+        )
         if not self.center:
             # align frames with the end of the window
             audio = torch.nn.functional.pad(

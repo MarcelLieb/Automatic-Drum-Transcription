@@ -45,9 +45,15 @@ class AttentionBlock(nn.Module):
         super(AttentionBlock, self).__init__()
         self.projection = projection and not use_relative_pe
         self.use_relative_pe = use_relative_pe and not causal
-        self.multihead = nn.MultiheadAttention(
-            embed_dim=d_model, num_heads=n_heads, dropout=dropout, batch_first=True
-        ) if not self.use_relative_pe else MultiHeadSelfAttention(L=39_000, d_model=d_model, n_head=n_heads, use_relative_pe=True)
+        self.multihead = (
+            nn.MultiheadAttention(
+                embed_dim=d_model, num_heads=n_heads, dropout=dropout, batch_first=True
+            )
+            if not self.use_relative_pe
+            else MultiHeadSelfAttention(
+                L=39_000, d_model=d_model, n_head=n_heads, use_relative_pe=True
+            )
+        )
         self.activation = activation
         self.causal = causal
         self.mask = attention_mask
@@ -68,9 +74,13 @@ class AttentionBlock(nn.Module):
             if self.projection
             else (x, x, x)
         )
-        x, _ = self.multihead(
-            q, k, v, attn_mask=self.mask, need_weights=False, is_causal=self.causal
-        ) if not self.use_relative_pe else self.multihead(x)
+        x, _ = (
+            self.multihead(
+                q, k, v, attn_mask=self.mask, need_weights=False, is_causal=self.causal
+            )
+            if not self.use_relative_pe
+            else self.multihead(x)
+        )
         x = x + skip
         x = self.norm1(x)
         skip = x
@@ -94,13 +104,10 @@ class MultiHeadSelfAttention(nn.Module):
         self.use_relative_pe = use_relative_pe
 
         if use_relative_pe:
-            self.position_bias = nn.Parameter(
-                torch.zeros(2 * L - 1, n_head)
-            )
-            abs_pos = torch.arange(0, L).unsqueeze(0) # [L] | int
-            rel_pos = abs_pos.T - abs_pos # [L, L] | int | {-(L-1), ..., 0, ..., (L-1)}
-            self.rel_pos_idx = rel_pos + (L-1) # [L, L] | int | {0, ..., (2*L-1)}
-
+            self.position_bias = nn.Parameter(torch.zeros(2 * L - 1, n_head))
+            abs_pos = torch.arange(0, L).unsqueeze(0)  # [L] | int
+            rel_pos = abs_pos.T - abs_pos  # [L, L] | int | {-(L-1), ..., 0, ..., (L-1)}
+            self.rel_pos_idx = rel_pos + (L - 1)  # [L, L] | int | {0, ..., (2*L-1)}
 
     def init_weights(self):
         nn.init.xavier_uniform_(self.W_qkv.weight)
@@ -113,33 +120,34 @@ class MultiHeadSelfAttention(nn.Module):
         B, L, d_model = x.shape
         d_head = self.d_model // self.n_head
 
-        qkv = self.W_qkv(x) # [B, L, d_model*3]
-        qkv = qkv.reshape(B, L, self.n_head, d_head*3)
-        qkv = qkv.permute(0, 2, 1, 3) # [B, n_head, L, d_head*3]
-        q, k, v = qkv.chunk(3, dim=-1) # Each tensor : [B, n_head, L, d_head]
+        qkv = self.W_qkv(x)  # [B, L, d_model*3]
+        qkv = qkv.reshape(B, L, self.n_head, d_head * 3)
+        qkv = qkv.permute(0, 2, 1, 3)  # [B, n_head, L, d_head*3]
+        q, k, v = qkv.chunk(3, dim=-1)  # Each tensor : [B, n_head, L, d_head]
 
         # Compute the attention scores from q and k, and combine the values in v
-        dot_products = torch.matmul(q, k.transpose(-2, -1)) # [B, n_head, L, L]
+        dot_products = torch.matmul(q, k.transpose(-2, -1))  # [B, n_head, L, L]
 
         if self.use_relative_pe:
-            b_pos = self.position_bias[self.rel_pos_idx.view(-1)] # [L*L, n_head]
+            b_pos = self.position_bias[self.rel_pos_idx.view(-1)]  # [L*L, n_head]
             b_pos = b_pos.view(L, L, self.n_head)
-            b_pos = torch.transpose(torch.transpose(b_pos, 1, 2), 0, 1) # [n_head, L, L]
-            b_pos = b_pos.unsqueeze(0) # [B, n_head, L, L]
+            b_pos = torch.transpose(
+                torch.transpose(b_pos, 1, 2), 0, 1
+            )  # [n_head, L, L]
+            b_pos = b_pos.unsqueeze(0)  # [B, n_head, L, L]
 
             dot_products = dot_products + b_pos
 
-
         attention = f.softmax(
-            dot_products / math.sqrt(d_head), # d_head = d_k in the paper
-            dim=-1
-        ) # [B, n_head, L, L]
-        att_vals = torch.matmul(attention, v) # [B, n_head, L, d_head]
-        att_vals = att_vals.permute(0, 2, 1, 3) # [B, L, n_head, d_head]
+            dot_products / math.sqrt(d_head),  # d_head = d_k in the paper
+            dim=-1,
+        )  # [B, n_head, L, L]
+        att_vals = torch.matmul(attention, v)  # [B, n_head, L, d_head]
+        att_vals = att_vals.permute(0, 2, 1, 3)  # [B, L, n_head, d_head]
         att_vals = att_vals.reshape(B, L, self.d_model)  # [B, L, n_head, d_model]
 
         # Combine the information from different heads
-        att_vals = self.W_o(att_vals) # [B, L, n_head, d_model]
+        att_vals = self.W_o(att_vals)  # [B, L, n_head, d_model]
 
         return att_vals
 

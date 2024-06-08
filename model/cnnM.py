@@ -41,7 +41,9 @@ class CNNMamba(nn.Module):
         self.pool2 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
         self.dropout2 = nn.Dropout(dropout)
 
-        config = MambaConfig(d_model=num_channels * (self.n_dims // 4), n_layers=n_layers)
+        config = MambaConfig(
+            d_model=num_channels * (self.n_dims // 4), n_layers=n_layers
+        )
         self.mamba = Mamba(config)
 
         self.fc1 = nn.Linear(num_channels * (self.n_dims // 4), n_classes)

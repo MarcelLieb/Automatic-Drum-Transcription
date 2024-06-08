@@ -52,8 +52,7 @@ def step(
         no_silence = unfiltered * (lbl_batch != -1)
         # full_context = no_silence[..., 49:]  # Receptive field if causal model is 9 frames
         # full_context = full_context * torch.any(lbl_batch[..., 9:] > 0, dim=-1, keepdim=True)
-        filtered = no_silence.mean()
-        loss = filtered
+        loss = no_silence.mean()
 
     scaler.scale(loss).backward()
     scaler.step(optimizer)
@@ -64,7 +63,7 @@ def step(
     ):
         scheduler.step()
 
-    return filtered.item()
+    return loss.item()
 
 
 def train_epoch(
