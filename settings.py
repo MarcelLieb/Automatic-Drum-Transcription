@@ -22,9 +22,9 @@ class AudioProcessingSettings:
 @dataclass
 class AnnotationSettings:
     mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
-    pad_annotations: bool = False
+    pad_annotations: bool = True
     pad_value: float = 0.5
-    time_shift: float = 0.0
+    time_shift: float = 0.015
     beats: bool = False
 
     @property
@@ -37,17 +37,17 @@ class DatasetSettings:
     audio_settings: AudioProcessingSettings = AudioProcessingSettings()
     annotation_settings: AnnotationSettings = AnnotationSettings()
     segment_type: Literal["frame", "label"] | None = "frame"
-    frame_length: float = 0.25
-    frame_overlap: float = 0.10
+    frame_length: float = 2.0
+    frame_overlap: float = 0.1
     label_lead_in: float = 0.25
     label_lead_out: float = 0.10
 
 
 @dataclass
 class TrainingSettings:
-    learning_rate: float = 1e-4
+    learning_rate: float = 5e-5
     epochs: int = 30
-    batch_size: int = 512
+    batch_size: int = 32
     weight_decay: float = 0.0
     ema: bool = False
     scheduler: bool = True
@@ -56,7 +56,7 @@ class TrainingSettings:
     splits: list[float] = (0.85, 0.15, 0.0)
     num_workers: int = 64
     min_save_score: float = 0.62
-    test_batch_size: int = 4
+    test_batch_size: int = 1
     train_set: Literal["all", "a2md_train"] = "a2md_train"
     model_settings: Literal["cnn", "cnn_attention", "mamba"] = "mamba"
 
@@ -90,14 +90,14 @@ class CNNSettings:
 class CNNAttentionSettings:
     n_classes: int
     n_mels: int
-    num_channels: int = 16
-    dropout: float = 0.1
+    num_channels: int = 32
+    dropout: float = 0.3
     causal: bool = True
     flux: bool = False
     activation: nn.Module = nn.SELU()
-    num_attention_blocks: int = 2
+    num_attention_blocks: int = 5
     num_heads: int = 8
-    context_size: int = 50
+    context_size: int = 200
     expansion_factor: int = 4
     use_relative_pos: bool = False
 
@@ -111,4 +111,4 @@ class CNNMambaSettings:
     causal: bool = True
     flux: bool = False
     activation: nn.Module = nn.SELU()
-    n_layers: int = 4
+    n_layers: int = 3
