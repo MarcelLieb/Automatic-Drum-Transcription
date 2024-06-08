@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as f
 
 
-from model import ResidualBlock1d, PositionalEncoding, AttentionBlock
+from model import PositionalEncoding, AttentionBlock, ResidualBlock
 
 
 class CNNAttention(nn.Module):
@@ -26,19 +26,21 @@ class CNNAttention(nn.Module):
         self.flux = flux
         self.n_dims = n_mels * (1 + flux)
         self.causal = causal
-        self.conv1 = ResidualBlock1d(
+        self.conv1 = ResidualBlock(
             1,
             num_channels,
             kernel_size=3,
             activation=self.activation,
+            causal=causal,
         )
         self.pool1 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
         self.dropout1 = nn.Dropout(dropout)
-        self.conv2 = ResidualBlock1d(
+        self.conv2 = ResidualBlock(
             num_channels,
             num_channels,
             kernel_size=3,
             activation=self.activation,
+            causal=causal,
         )
         self.pool2 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
         self.dropout2 = nn.Dropout(dropout)
