@@ -38,12 +38,11 @@ class AttentionBlock(nn.Module):
         causal,
         activation,
         dropout=0.1,
-        projection: bool = False,
         expansion_factor: int = 4,
         use_relative_pe=True,
     ):
         super(AttentionBlock, self).__init__()
-        self.projection = projection and not use_relative_pe
+        self.projection = not use_relative_pe
         self.use_relative_pe = use_relative_pe and not causal
         self.multihead = (
             nn.MultiheadAttention(
@@ -59,10 +58,6 @@ class AttentionBlock(nn.Module):
         self.mask = attention_mask
         self.dense1 = nn.Linear(d_model, d_model * expansion_factor)
         self.dense2 = nn.Linear(d_model * expansion_factor, d_model)
-        if self.projection:
-            self.key_dense = nn.Linear(d_model, d_model)
-            self.value_dense = nn.Linear(d_model, d_model)
-            self.query_dense = nn.Linear(d_model, d_model)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
@@ -72,14 +67,9 @@ class AttentionBlock(nn.Module):
         if self.use_relative_pe:
             x = self.multihead(x)
         else:
-            q, k, v = (
-                (self.query_dense(x), self.key_dense(x), self.value_dense(x))
-                if self.projection
-                else (x, x, x)
-            )
             x, _ = (
                 self.multihead(
-                    q, k, v, attn_mask=self.mask, need_weights=False, is_causal=self.causal
+                    x, x, x, attn_mask=self.mask, need_weights=False, is_causal=self.causal
                 )
             )
         x = x + skip
