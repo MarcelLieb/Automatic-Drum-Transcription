@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict as dataclass_asdict, is_dataclass
 from typing import Literal
 
 from torch import nn
@@ -6,7 +6,25 @@ from torch import nn
 from dataset.mapping import DrumMapping
 
 
-@dataclass
+def asdict(settings):
+    dic = dataclass_asdict(settings)
+    out = {}
+    for key, value in dic.items():
+        if is_dataclass(value) or isinstance(value, dict):
+            if is_dataclass(value):
+                value = asdict(value)
+            for subkey, subvalue in value.items():
+                out[subkey] = subvalue
+        elif isinstance(value, (int, float, str, bool)):
+            out[key] = value
+        elif isinstance(value, nn.Module):
+            out[key] = value.__class__.__name__
+        else:
+            out[key] = str(value)
+    return out
+
+
+@dataclass(frozen=True)
 class AudioProcessingSettings:
     sample_rate: int = 44100
     hop_size: int = 441
@@ -19,7 +37,7 @@ class AudioProcessingSettings:
     normalize: bool = False
 
 
-@dataclass
+@dataclass(frozen=True)
 class AnnotationSettings:
     mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
     pad_annotations: bool = True
@@ -32,7 +50,7 @@ class AnnotationSettings:
         return len(self.mapping) + 2 * int(self.beats)
 
 
-@dataclass
+@dataclass(frozen=True)
 class DatasetSettings:
     audio_settings: AudioProcessingSettings = AudioProcessingSettings()
     annotation_settings: AnnotationSettings = AnnotationSettings()
@@ -43,7 +61,7 @@ class DatasetSettings:
     label_lead_out: float = 0.10
 
 
-@dataclass
+@dataclass(frozen=True)
 class TrainingSettings:
     learning_rate: float = 1e-4
     epochs: int = 20
@@ -61,7 +79,7 @@ class TrainingSettings:
     model_settings: Literal["cnn", "cnn_attention", "mamba"] = "cnn_attention"
 
 
-@dataclass
+@dataclass(frozen=True)
 class EvaluationSettings:
     peak_mean_range: int = 2
     peak_max_range: int = 2
@@ -72,7 +90,7 @@ class EvaluationSettings:
     pr_points: int | None = 1000
 
 
-@dataclass
+@dataclass(frozen=True)
 class CNNSettings:
     n_classes: int
     n_mels: int
@@ -86,7 +104,7 @@ class CNNSettings:
     down_sample_factor: 2 | 3 | 4 = 2
 
 
-@dataclass
+@dataclass(frozen=True)
 class CNNAttentionSettings:
     n_classes: int
     n_mels: int
@@ -102,7 +120,7 @@ class CNNAttentionSettings:
     use_relative_pos: bool = False
 
 
-@dataclass
+@dataclass(frozen=True)
 class CNNMambaSettings:
     n_classes: int
     n_mels: int
