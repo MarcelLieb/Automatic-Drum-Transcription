@@ -11,6 +11,9 @@ class CNNMamba(nn.Module):
         self,
         n_mels,
         n_classes,
+        d_state,
+        d_conv,
+        expand,
         flux,
         activation,
         causal,
@@ -42,7 +45,11 @@ class CNNMamba(nn.Module):
         self.dropout2 = nn.Dropout(dropout)
 
         config = MambaConfig(
-            d_model=num_channels * (self.n_dims // 4), n_layers=n_layers
+            d_model=num_channels * (self.n_dims // 4),
+            n_layers=n_layers,
+            d_state=d_state,
+            d_conv=d_conv,
+            expand_factor=expand,
         )
         self.mamba = Mamba(config)
 
@@ -63,6 +70,7 @@ class CNNMamba(nn.Module):
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
         x = self.mamba(x)
+        print(x.shape)
         x = self.fc1(x)
         x = x.permute(0, 2, 1)
         x = self.activation(x)

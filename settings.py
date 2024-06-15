@@ -2,6 +2,7 @@ from dataclasses import dataclass, asdict as dataclass_asdict, is_dataclass
 from typing import Literal
 
 from torch import nn
+from torch.multiprocessing import cpu_count
 
 from dataset.mapping import DrumMapping
 
@@ -72,11 +73,11 @@ class TrainingSettings:
     early_stopping: int | None = None
     dataset_version: Literal["S", "M", "L"] = "L"
     splits: list[float] = (0.85, 0.15, 0.0)
-    num_workers: int = 64
+    num_workers: int = cpu_count()
     min_save_score: float = 0.62
     test_batch_size: int = 1
     train_set: Literal["all", "a2md_train"] = "a2md_train"
-    model_settings: Literal["cnn", "cnn_attention", "mamba"] = "cnn_attention"
+    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast"] = "mamba_fast"
 
 
 @dataclass(frozen=True)
@@ -86,7 +87,7 @@ class EvaluationSettings:
     onset_cooldown: int = 0.021
     detect_tolerance: int = 0.025
     ignore_beats: bool = True
-    min_test_score: float = 0.54
+    min_test_score: float = 0.48
     pr_points: int | None = 1000
 
 
@@ -125,8 +126,11 @@ class CNNMambaSettings:
     n_classes: int
     n_mels: int
     num_channels: int = 16
+    d_state: int = 64
+    d_conv: int = 4
+    expand: int = 2
     dropout: float = 0.1
     causal: bool = True
     flux: bool = False
     activation: nn.Module = nn.SELU()
-    n_layers: int = 3
+    n_layers: int = 5

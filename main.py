@@ -17,6 +17,7 @@ from model.cnn import CNN
 from model import ModelEmaV2
 from model.cnnA import CNNAttention
 from model.cnnM import CNNMamba
+from model.cnnM2 import CNNMambaFast
 from settings import (
     TrainingSettings,
     CNNSettings,
@@ -284,6 +285,9 @@ def main(
         case "mamba":
             model_settings = CNNMambaSettings(n_classes=n_classes, n_mels=n_mels)
             model = CNNMamba(**dataclass_asdict(model_settings))
+        case "mamba_fast":
+            model_settings = CNNMambaSettings(n_classes=n_classes, n_mels=n_mels)
+            model = CNNMambaFast(**dataclass_asdict(model_settings))
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
