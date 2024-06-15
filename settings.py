@@ -37,7 +37,7 @@ class DatasetSettings:
     audio_settings: AudioProcessingSettings = AudioProcessingSettings()
     annotation_settings: AnnotationSettings = AnnotationSettings()
     segment_type: Literal["frame", "label"] | None = "frame"
-    frame_length: float = 2.0
+    frame_length: float = 8.0
     frame_overlap: float = 0.1
     label_lead_in: float = 0.25
     label_lead_out: float = 0.10
@@ -45,10 +45,10 @@ class DatasetSettings:
 
 @dataclass
 class TrainingSettings:
-    learning_rate: float = 5e-5
-    epochs: int = 30
-    batch_size: int = 32
-    weight_decay: float = 0.0
+    learning_rate: float = 1e-4
+    epochs: int = 20
+    batch_size: int = 16
+    weight_decay: float = 1e-5
     ema: bool = False
     scheduler: bool = True
     early_stopping: int | None = None
@@ -58,14 +58,14 @@ class TrainingSettings:
     min_save_score: float = 0.62
     test_batch_size: int = 1
     train_set: Literal["all", "a2md_train"] = "a2md_train"
-    model_settings: Literal["cnn", "cnn_attention", "mamba"] = "mamba"
+    model_settings: Literal["cnn", "cnn_attention", "mamba"] = "cnn_attention"
 
 
 @dataclass
 class EvaluationSettings:
     peak_mean_range: int = 2
     peak_max_range: int = 2
-    onset_cooldown: int = 0.02
+    onset_cooldown: int = 0.021
     detect_tolerance: int = 0.025
     ignore_beats: bool = True
     min_test_score: float = 0.54
@@ -83,17 +83,17 @@ class CNNSettings:
     flux: bool = True
     activation: nn.Module = nn.SELU()
     classifier_dim: int = 2**6
-    down_sample_factor: 2 | 3 | 4 = 3
+    down_sample_factor: 2 | 3 | 4 = 2
 
 
 @dataclass
 class CNNAttentionSettings:
     n_classes: int
     n_mels: int
-    num_channels: int = 32
-    dropout: float = 0.3
+    num_channels: int = 24
+    dropout: float = 0.1
     causal: bool = True
-    flux: bool = False
+    flux: bool = True
     activation: nn.Module = nn.SELU()
     num_attention_blocks: int = 5
     num_heads: int = 8
@@ -106,8 +106,8 @@ class CNNAttentionSettings:
 class CNNMambaSettings:
     n_classes: int
     n_mels: int
-    num_channels: int = 24
-    dropout: float = 0.3
+    num_channels: int = 16
+    dropout: float = 0.1
     causal: bool = True
     flux: bool = False
     activation: nn.Module = nn.SELU()
