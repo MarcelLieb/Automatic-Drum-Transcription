@@ -1,4 +1,4 @@
-from dataclasses import asdict
+from dataclasses import asdict as dataclass_asdict
 
 import numpy as np
 import torch
@@ -24,6 +24,7 @@ from settings import (
     CNNAttentionSettings,
     DatasetSettings,
     CNNMambaSettings,
+    asdict,
 )
 
 
@@ -276,13 +277,13 @@ def main(
     match training_settings.model_settings:
         case "cnn":
             model_settings = CNNSettings(n_classes=n_classes, n_mels=n_mels)
-            model = CNN(**asdict(model_settings))
+            model = CNN(**dataclass_asdict(model_settings))
         case "cnn_attention":
             model_settings = CNNAttentionSettings(n_classes=n_classes, n_mels=n_mels)
-            model = CNNAttention(**asdict(model_settings))
+            model = CNNAttention(**dataclass_asdict(model_settings))
         case "mamba":
             model_settings = CNNMambaSettings(n_classes=n_classes, n_mels=n_mels)
-            model = CNNMamba(**asdict(model_settings))
+            model = CNNMamba(**dataclass_asdict(model_settings))
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
@@ -450,14 +451,6 @@ def main(
         **asdict(dataset_settings.audio_settings),
         **asdict(dataset_settings.annotation_settings),
         **asdict(model_settings),
-        "splits": str(training_settings.splits),
-        "mapping": str(dataset_settings.annotation_settings.mapping.name),
-        "activation": model_settings.activation.__class__.__name__,
-        "segment_type": dataset_settings.segment_type,
-        "frame_length": dataset_settings.frame_length,
-        "frame_overlap": dataset_settings.frame_overlap,
-        "label_lead_in": dataset_settings.label_lead_in,
-        "label_lead_out": dataset_settings.label_lead_out,
     }
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
