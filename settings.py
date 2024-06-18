@@ -68,6 +68,7 @@ class TrainingSettings:
     epochs: int = 20
     batch_size: int = 16
     weight_decay: float = 1e-5
+    positive_weight: float = 4.0
     ema: bool = False
     scheduler: bool = True
     early_stopping: int | None = None

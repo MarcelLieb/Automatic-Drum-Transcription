@@ -36,6 +36,7 @@ def step(
     audio_batch: torch.Tensor,
     lbl_batch: torch.Tensor,
     scaler: torch.cuda.amp.GradScaler,
+    positive_weight: float,
     scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     """Performs one update step for the model
@@ -54,6 +55,8 @@ def step(
         no_silence = unfiltered * (lbl_batch != -1)
         # full_context = no_silence[..., 49:]  # Receptive field if causal model is 9 frames
         # full_context = full_context * torch.any(lbl_batch[..., 9:] > 0, dim=-1, keepdim=True)
+        no_silence[lbl_batch > 0] = no_silence[lbl_batch > 0] * positive_weight
+        no_silence = no_silence / (positive_weight + 1)
         loss = no_silence.mean()
 
     scaler.scale(loss).backward()
@@ -78,6 +81,7 @@ def train_epoch(
     optimizer,
     scaler,
     scheduler,
+    positive_weight,
     tensorboard_writer=None,
 ):
     total_loss = 0
@@ -101,6 +105,7 @@ def train_epoch(
             lbl_batch=lbl,
             scaler=scaler,
             scheduler=scheduler,
+            positive_weight=positive_weight,
         )
         if ema_model is not None:
             ema_model.update(model)
@@ -358,6 +363,7 @@ def main(
             optimizer,
             scaler,
             scheduler,
+            positive_weight=training_settings.positive_weight,
             tensorboard_writer=writer,
         )
         torch.cuda.empty_cache()
