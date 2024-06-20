@@ -185,7 +185,7 @@ def get_dataloader(dataset, batch_size, num_workers, is_train=False):
         collate_fn=audio_collate,
         drop_last=False,
         pin_memory=True,
-        prefetch_factor=4,
+        prefetch_factor=4 if num_workers > 0 else None,
     )
     return dataloader
 
