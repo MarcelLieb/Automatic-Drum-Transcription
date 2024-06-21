@@ -1,13 +1,12 @@
 from abc import abstractmethod, ABC
 from typing import Any
 
-import librosa
 import numpy as np
 import torch
 import torchaudio
 from torch.utils.data import Dataset
 
-from dataset import load_audio, segment_audio, get_labels
+from dataset import get_labels, load_audio
 from settings import DatasetSettings
 
 
@@ -100,10 +99,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         identification, drums, beats = self.annotations[int(audio_idx)]
         path = self.get_full_path(identification)
 
-        if end == -1:
-            end = librosa.get_duration(filename=path)
-
-        audio = torch.tensor(librosa.load(path, sr=self.sample_rate, mono=True, offset=start, duration=end-start)[0])#
+        audio = load_audio(path, self.sample_rate, self.normalize, start, end)
 
         if audio.shape[-1] < int(self.segment_length * self.sample_rate) and start == 0:
             audio = torch.cat((torch.zeros(int(self.segment_length * self.sample_rate) - audio.shape[-1]), audio))
