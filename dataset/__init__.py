@@ -124,7 +124,7 @@ def get_segments(
                 ), f"Segment length not correct\n Expected:{int(segment_length * sample_rate)}, Got: {end - start}"
             if end - start > 0:
                 segments.append((start, end, i))
-    return np.array(segments)
+    return np.array(segments) / sample_rate
 
 
 def segment_audio(

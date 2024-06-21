@@ -1,6 +1,7 @@
 from abc import abstractmethod, ABC
 from typing import Any
 
+import librosa
 import numpy as np
 import torch
 import torchaudio
@@ -99,14 +100,16 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         identification, drums, beats = self.annotations[int(audio_idx)]
         path = self.get_full_path(identification)
 
-        full_audio = (
-            load_audio(path, self.sample_rate, self.normalize)
-            if self.cache is None
-            else self.cache[int(audio_idx)]
-        )
-        audio = segment_audio(
-            full_audio, start, end, int(self.segment_length * self.sample_rate)
-        )
+        if end == -1:
+            end = librosa.get_duration(filename=path)
+
+        audio = torch.tensor(librosa.load(path, sr=self.sample_rate, mono=True, offset=start, duration=end-start)[0])#
+
+        if audio.shape[-1] < int(self.segment_length * self.sample_rate) and start == 0:
+            audio = torch.cat((torch.zeros(int(self.segment_length * self.sample_rate) - audio.shape[-1]), audio))
+        elif audio.shape[-1] < int(self.segment_length * self.sample_rate):
+            audio = torch.cat((audio, torch.zeros(int(self.segment_length * self.sample_rate) - audio.shape[-1])))
+
         # segments get padded at the front if start is 0, therefore the true start may be negative
         start = (
             (end - start) - int(self.segment_length * self.sample_rate)
