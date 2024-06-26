@@ -6,7 +6,7 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
-from dataset import get_labels, load_audio
+from dataset import get_labels, load_audio, segment_audio
 from settings import DatasetSettings
 
 
@@ -90,16 +90,22 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
     def __getitem__(self, idx):
         if self.segments is not None:
             start, end, audio_idx = self.segments[idx]
+            audio_idx = int(audio_idx)
         else:
             audio_idx = idx
             start, end = 0, -1
 
         assert self.annotations is not None, "Annotations are not loaded"
 
-        identification, drums, beats = self.annotations[int(audio_idx)]
+        identification, drums, beats = self.annotations[audio_idx]
         path = self.get_full_path(identification)
 
-        audio = load_audio(path, self.sample_rate, self.normalize, start, end)
+        if self.cache is None:
+            audio = load_audio(path, self.sample_rate, self.normalize, start, end)
+        else:
+            full_audio = self.cache[audio_idx]
+            start, end, segment_length = (np.array((start, end, self.segment_length)) * self.sample_rate).astype(int)
+            audio = segment_audio(full_audio, start, end, segment_length)
 
         if audio.shape[-1] < int(self.segment_length * self.sample_rate) and start == 0:
             audio = torch.cat((torch.zeros(int(self.segment_length * self.sample_rate) - audio.shape[-1]), audio))
