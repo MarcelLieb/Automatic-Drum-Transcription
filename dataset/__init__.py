@@ -26,15 +26,27 @@ class Gain(torch.nn.Module):
         return audio
 
 
-def load_audio(path: str | Path, sample_rate: int, normalize: bool, start: float=0, end: float=-1) -> torch.Tensor:
+def load_audio(
+    path: str | Path,
+    sample_rate: int,
+    normalize: bool,
+    start: float = 0,
+    end: float = -1,
+) -> torch.Tensor:
     if (start, end) == (0, -1):
         audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg")
-        audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(audio)
+        audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(
+            audio
+        )
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
     else:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            audio = torch.tensor(librosa.load(path, sr=sample_rate, mono=True, offset=start, duration=end - start)[0])
+            audio = torch.tensor(
+                librosa.load(
+                    path, sr=sample_rate, mono=True, offset=start, duration=end - start
+                )[0]
+            )
     if normalize:
         audio = audio / torch.max(torch.abs(audio))
     return audio

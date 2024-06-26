@@ -67,10 +67,8 @@ class AttentionBlock(nn.Module):
         if self.use_relative_pe:
             x = self.multihead(x)
         else:
-            x, _ = (
-                self.multihead(
-                    x, x, x, attn_mask=self.mask, need_weights=False, is_causal=self.causal
-                )
+            x, _ = self.multihead(
+                x, x, x, attn_mask=self.mask, need_weights=False, is_causal=self.causal
             )
         x = x + skip
         x = self.norm1(x)

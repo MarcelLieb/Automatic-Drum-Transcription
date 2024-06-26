@@ -104,13 +104,29 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             audio = load_audio(path, self.sample_rate, self.normalize, start, end)
         else:
             full_audio = self.cache[audio_idx]
-            start, end, segment_length = (np.array((start, end, self.segment_length)) * self.sample_rate).astype(int)
+            start, end, segment_length = (
+                np.array((start, end, self.segment_length)) * self.sample_rate
+            ).astype(int)
             audio = segment_audio(full_audio, start, end, segment_length)
 
         if audio.shape[-1] < int(self.segment_length * self.sample_rate) and start == 0:
-            audio = torch.cat((torch.zeros(int(self.segment_length * self.sample_rate) - audio.shape[-1]), audio))
+            audio = torch.cat(
+                (
+                    torch.zeros(
+                        int(self.segment_length * self.sample_rate) - audio.shape[-1]
+                    ),
+                    audio,
+                )
+            )
         elif audio.shape[-1] < int(self.segment_length * self.sample_rate):
-            audio = torch.cat((audio, torch.zeros(int(self.segment_length * self.sample_rate) - audio.shape[-1])))
+            audio = torch.cat(
+                (
+                    audio,
+                    torch.zeros(
+                        int(self.segment_length * self.sample_rate) - audio.shape[-1]
+                    ),
+                )
+            )
 
         # segments get padded at the front if start is 0, therefore the true start may be negative
         start = (
