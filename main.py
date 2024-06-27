@@ -1,20 +1,20 @@
 from dataclasses import asdict as dataclass_asdict
 
+import matplotlib.pyplot as plt
 import numpy as np
+import resource
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-import resource
 
 from dataset.datasets import get_dataset
 from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score
 from generics import ADTDataset
-from model.cnn import CNN
 from model import ModelEmaV2
+from model.cnn import CNN
 from model.cnnA import CNNAttention
 from model.cnnM import CNNMamba
 from model.cnnM2 import CNNMambaFast
@@ -55,15 +55,15 @@ def step(
         no_silence = unfiltered * (lbl_batch != -1)
         # full_context = no_silence[..., 49:]  # Receptive field if causal model is 9 frames
         # full_context = full_context * torch.any(lbl_batch[..., 9:] > 0, dim=-1, keepdim=True)
-        mask = torch.ones_like(no_silence)
-        mask[lbl_batch > 0] = positive_weight
-        no_silence = no_silence * mask
-
-        num_positives = torch.sum(lbl_batch > 0)
+        num_positives = torch.sum(lbl_batch > 0).detach()
         total = torch.prod(torch.tensor(no_silence.shape))
-
         scale_factor = (positive_weight - 1) * num_positives / total + 1
-        no_silence = no_silence / scale_factor
+
+        mask = torch.ones_like(no_silence, requires_grad=False)
+        mask[lbl_batch > 0] = positive_weight
+        mask = mask / scale_factor
+
+        no_silence = no_silence * mask
 
         loss = no_silence.mean()
 
