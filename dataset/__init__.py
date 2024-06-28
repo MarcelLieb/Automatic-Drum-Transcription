@@ -131,20 +131,11 @@ def get_segments(
         n_segments = (
             int(np.ceil((length - segment_length) / (segment_length - overlap))) + 1
         )
-        for j in range(n_segments):
-            start = int(j * (segment_length - overlap) * sample_rate)
-            end = min(
-                int(((j + 1) * (segment_length - overlap) + overlap) * sample_rate),
-                int(length * sample_rate),
-            )
-            if end != int(length * sample_rate):
-                assert (
-                    abs((end - start) - int(segment_length * sample_rate)) <= 1
-                ), f"Segment length not correct\n Expected:{int(segment_length * sample_rate)}, Got: {end - start}"
-            if end - start > 0:
-                segments.append((start, end, i))
-    segments = np.array(segments)
-    segments[:, :2] = segments[:, :2] / sample_rate
+        starts = np.arange(0, n_segments) * (segment_length - overlap)
+        ends = np.minimum(starts + segment_length, length)
+        segment = np.stack((starts, ends, np.zeros_like(starts) + i), axis=1)
+        segments.append(segment)
+    segments = np.concatenate(segments, axis=0)
     return segments
 
 
