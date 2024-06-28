@@ -1,9 +1,8 @@
 import random
 from pathlib import Path
 from typing import Sequence, TypeVar
-import warnings
 
-import librosa
+import sox
 import numpy as np
 import pretty_midi
 import torch
@@ -40,13 +39,11 @@ def load_audio(
         )
         audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
     else:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            audio = torch.tensor(
-                librosa.load(
-                    path, sr=sample_rate, mono=True, offset=start, duration=end - start
-                )[0]
-            )
+        tfm = sox.Transformer()
+        tfm.trim(start, end)
+        tfm.set_output_format(rate=sample_rate, channels=1, encoding="floating-point", file_type=str(path).split(".")[-1])
+        audio = torch.tensor(tfm.build_array(input_filepath=path))
+        audio = audio / torch.iinfo(audio.dtype).max
     if normalize:
         audio = audio / torch.max(torch.abs(audio))
     return audio
