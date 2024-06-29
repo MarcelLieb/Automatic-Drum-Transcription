@@ -50,8 +50,7 @@ def load_audio(
 
 
 def get_length(path: str | Path) -> float:
-    meta_data = torchaudio.info(path, backend="ffmpeg")
-    return meta_data.num_frames / meta_data.sample_rate
+    return sox.file_info.duration(path)
 
 
 def get_drums(midi: pretty_midi.PrettyMIDI, mapping: DrumMapping):
