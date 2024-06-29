@@ -67,9 +67,9 @@ class MambaBlock(nn.Module):
         self.norm = nn.LayerNorm(d_model) if RMSNorm is None else RMSNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model) if RMSNorm is None else RMSNorm(d_model)
         self.mlp = (
-            nn.Identity()
+            None
             if d_intermediate is None
-            else GatedMLP(d_model, hidden_features=d_intermediate, out_features=d_model)
+            else GatedMLP(d_model, hidden_features=None, out_features=d_model)
         )
         self.dropout = nn.Dropout(dropout)
 
@@ -77,9 +77,10 @@ class MambaBlock(nn.Module):
         residual = x
         x = self.mamba(x)
         x = self.norm(x + residual)
-        residual = x
-        x = self.mlp(x)
-        x = self.norm2(x + residual)
+        if self.mlp is not None:
+            residual = x
+            x = self.mlp(x)
+            x = self.norm2(x + residual)
         x = self.dropout(x)
         return x
 
