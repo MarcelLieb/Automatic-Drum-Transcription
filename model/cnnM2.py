@@ -1,14 +1,18 @@
 import torch
+from mamba_ssm import Mamba
 from torch import nn
 from torch.nn import functional as f
 
 from model import ResidualBlock
-from mamba_ssm import Mamba
 
 try:
     from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn, rms_norm_fn
 except ImportError:
-    RMSNorm, layer_norm_fn, rms_norm_fn = None, None, None
+    RMSNorm = None
+
+# RMSNorm doesn't work with 1080Ti
+if torch.cuda.get_device_capability(0)[0] <= 6:
+    RMSNorm = None
 
 
 class GatedMLP(nn.Module):
@@ -30,7 +34,7 @@ class GatedMLP(nn.Module):
             hidden_features if hidden_features is not None else int(8 * in_features / 3)
         )
         hidden_features = (
-            (hidden_features + multiple_of - 1) // multiple_of * multiple_of
+                (hidden_features + multiple_of - 1) // multiple_of * multiple_of
         )
         self.fc1 = nn.Linear(
             in_features, 2 * hidden_features, bias=bias, **factory_kwargs
@@ -48,13 +52,13 @@ class GatedMLP(nn.Module):
 
 class MambaBlock(nn.Module):
     def __init__(
-        self,
-        d_model,
-        d_state,
-        d_conv,
-        expand,
-        d_intermediate=None,
-        dropout=0.1,
+            self,
+            d_model,
+            d_state,
+            d_conv,
+            expand,
+            d_intermediate=None,
+            dropout=0.1,
     ):
         super(MambaBlock, self).__init__()
 
@@ -87,18 +91,18 @@ class MambaBlock(nn.Module):
 
 class CNNMambaFast(nn.Module):
     def __init__(
-        self,
-        n_mels,
-        n_classes,
-        d_state,
-        d_conv,
-        expand,
-        flux,
-        activation,
-        causal,
-        num_channels,
-        n_layers,
-        dropout=0.1,
+            self,
+            n_mels,
+            n_classes,
+            d_state,
+            d_conv,
+            expand,
+            flux,
+            activation,
+            causal,
+            num_channels,
+            n_layers,
+            dropout=0.1,
     ):
         super(CNNMambaFast, self).__init__()
 
