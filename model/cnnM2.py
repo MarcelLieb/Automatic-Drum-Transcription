@@ -15,41 +15,6 @@ if torch.cuda.get_device_capability(0)[0] <= 6:
     RMSNorm = None
 
 
-class GatedMLP(nn.Module):
-    def __init__(
-        self,
-        in_features,
-        hidden_features=None,
-        out_features=None,
-        activation=f.silu,
-        bias=False,
-        multiple_of=128,
-        device=None,
-        dtype=None,
-    ):
-        factory_kwargs = {"device": device, "dtype": dtype}
-        super().__init__()
-        out_features = out_features if out_features is not None else in_features
-        hidden_features = (
-            hidden_features if hidden_features is not None else int(8 * in_features / 3)
-        )
-        hidden_features = (
-                (hidden_features + multiple_of - 1) // multiple_of * multiple_of
-        )
-        self.fc1 = nn.Linear(
-            in_features, 2 * hidden_features, bias=bias, **factory_kwargs
-        )
-        self.activation = activation
-        self.fc2 = nn.Linear(hidden_features, out_features, bias=bias, **factory_kwargs)
-
-    def forward(self, x):
-        y = self.fc1(x)
-        y, gate = y.chunk(2, dim=-1)
-        y = y * self.activation(gate)
-        y = self.fc2(y)
-        return y
-
-
 class MambaBlock(nn.Module):
     def __init__(
             self,
@@ -70,21 +35,12 @@ class MambaBlock(nn.Module):
         )
         self.norm = nn.LayerNorm(d_model) if RMSNorm is None else RMSNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model) if RMSNorm is None else RMSNorm(d_model)
-        self.mlp = (
-            None
-            if d_intermediate is None
-            else GatedMLP(d_model, hidden_features=None, out_features=d_model)
-        )
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         residual = x
         x = self.mamba(x)
         x = self.norm(x + residual)
-        if self.mlp is not None:
-            residual = x
-            x = self.mlp(x)
-            x = self.norm2(x + residual)
         x = self.dropout(x)
         return x
 
