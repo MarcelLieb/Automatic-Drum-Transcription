@@ -3,7 +3,7 @@ from mamba_ssm import Mamba
 from torch import nn
 from torch.nn import functional as f
 
-from model import ResidualBlock
+from model.unet import UNet
 
 try:
     from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn, rms_norm_fn
@@ -66,25 +66,10 @@ class CNNMambaFast(nn.Module):
         self.flux = flux
         self.n_dims = n_mels * (1 + flux)
         self.causal = causal
-        self.conv1 = ResidualBlock(
-            1,
-            num_channels,
-            kernel_size=3,
-            activation=self.activation,
-        )
-        self.pool1 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
-        self.dropout1 = nn.Dropout(dropout)
-        self.conv2 = ResidualBlock(
-            num_channels,
-            num_channels,
-            kernel_size=3,
-            activation=self.activation,
-        )
-        self.pool2 = nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1))
-        self.dropout2 = nn.Dropout(dropout)
+        self.backbone = UNet(num_channels)
         mamba_layers = [
             MambaBlock(
-                d_model=num_channels * (self.n_dims // 4),
+                d_model=(num_channels * self.n_dims) // 2,
                 d_state=d_state,
                 d_conv=d_conv,
                 expand=expand,
@@ -93,7 +78,7 @@ class CNNMambaFast(nn.Module):
             for _ in range(n_layers)
         ]
         self.mamba = nn.Sequential(*mamba_layers)
-        self.fc1 = nn.Linear(num_channels * (self.n_dims // 4), n_classes)
+        self.fc1 = nn.Linear((num_channels * self.n_dims) // 2, n_classes)
 
     def forward(self, x):
         if self.flux:
@@ -101,12 +86,7 @@ class CNNMambaFast(nn.Module):
             diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
             x = torch.hstack((x, diff))
         x = x.unsqueeze(1)
-        x = self.conv1(x)
-        x = self.pool1(x)
-        x = self.dropout1(x)
-        x = self.conv2(x)
-        x = self.pool2(x)
-        x = self.dropout2(x)
+        x = self.backbone(x, return_features=2)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
         x = self.mamba(x)
