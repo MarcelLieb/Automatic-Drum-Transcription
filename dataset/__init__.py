@@ -5,6 +5,7 @@ from typing import Sequence, TypeVar
 import librosa
 import numpy as np
 import pretty_midi
+import sox
 import torch
 import torchaudio
 from torch.utils.data import Subset
@@ -31,16 +32,39 @@ def load_audio(
         normalize: bool,
         start: float = 0,
         end: float = -1,
+        backend: str = "librosa",
 ) -> torch.Tensor:
     if (start, end) == (0, -1):
         audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg")
+        audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
         audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=sample_rate)(
             audio
         )
-        audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
     else:
-        audio = librosa.load(path=path, sr=sample_rate, mono=True, offset=start, duration=end - start)[0]
-        audio = torch.from_numpy(audio)
+        if backend == "librosa":
+            audio = librosa.load(path=path, sr=sample_rate, mono=True, offset=start, duration=end - start)[0]
+            audio = torch.from_numpy(audio)
+        elif backend == "sox":
+            final_duration = end - start
+            if start <= 0.28:
+                offset = 2257
+                end = end + (offset / sample_rate) + 0.1
+            else:
+                offset = 1105
+                end = end + (offset / sample_rate) + 0.1
+            tfm = sox.Transformer()
+            tfm.trim(start, end)
+            tfm.fade(fade_in_len=0, fade_out_len=0)
+            tfm.set_output_format(rate=sample_rate, channels=1)
+            audio = tfm.build_array(input_filepath=path)
+            audio = torch.from_numpy(audio.copy())
+            audio = audio / torch.iinfo(audio.dtype).max
+            audio = audio[offset:offset + int(final_duration * sample_rate)]
+        else:
+            audio, og_sr = torchaudio.load(path, normalize=True, backend="ffmpeg",
+                                           num_frames=int(sample_rate * (end - start)), offset=int(sample_rate * start))
+            audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
+            audio = torchaudio.transforms.Resample(orig_freq=og_sr, new_freq=sample_rate)(audio)
     if normalize:
         audio = audio / torch.max(torch.abs(audio))
     return audio
