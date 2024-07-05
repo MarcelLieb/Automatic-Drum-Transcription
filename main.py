@@ -96,7 +96,7 @@ def step_encoder(
 
     with torch.autocast(device_type=device, dtype=torch.float16):
         prediction = model(audio_batch)
-        loss = criterion(prediction, audio_batch.unsqueeze(0)).mean()
+        loss = criterion(prediction, audio_batch.unsqueeze(1)).mean()
 
     scaler.scale(loss).backward()
     scaler.step(optimizer)
@@ -107,7 +107,7 @@ def step_encoder(
     ):
         scheduler.step()
 
-    return loss.item()
+    return loss.item() if not torch.isnan(loss) else 0.0
 
 
 def train_epoch(
@@ -216,7 +216,7 @@ def evaluate(
             if is_unet:
                 with torch.autocast(device_type=device_str, dtype=torch.float16):
                     prediction = model(audio)
-                    loss = criterion(prediction, audio).mean()
+                    loss = criterion(prediction, audio.unsqueeze(1)).mean()
                     total_loss += loss.item()
                     continue
 
@@ -506,7 +506,7 @@ def main(
             if test_f_score > 0.75:
                 break
         last_improvement += 1
-        if best_score <= f_score:
+        if best_score <= f_score and not is_unet:
             best_score = f_score
             best_model = (
                 ema_model.module if ema_model is not None else model
@@ -526,6 +526,11 @@ def main(
             """
         if val_loss <= best_loss:
             best_loss = val_loss
+            if is_unet:
+                best_model = (
+                    ema_model.module if ema_model is not None else model
+                ).state_dict()
+                last_improvement = 0
         if (
                 training_settings.early_stopping is not None
                 and last_improvement >= training_settings.early_stopping
