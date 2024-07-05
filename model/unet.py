@@ -43,12 +43,12 @@ class UNet(nn.Module):
     def __init__(self, channels: int):
         super(UNet, self).__init__()
 
-        self.down1 = Down(1, channels)
-        self.down2 = Down(channels, channels * 2)
-        self.down3 = Down(channels * 2, channels * 4)
-        self.down4 = Down(channels * 4, channels * 8)
+        self.inc = ResidualBlock1d(1, channels, 3)
 
-        self.middle = ResidualBlock1d(channels * 8, channels * 16, 3)
+        self.down1 = Down(channels, channels * 2)
+        self.down2 = Down(channels * 2, channels * 4)
+        self.down3 = Down(channels * 4, channels * 8)
+        self.down4 = Down(channels * 8, channels * 16)
 
         self.ups = nn.ModuleList()
 
@@ -58,23 +58,18 @@ class UNet(nn.Module):
         self.out = nn.Conv2d(channels, 1, kernel_size=1)
 
     def forward(self, x, return_features: Optional[int] = None):
-        x1 = self.down1(x)
-        x2 = self.down2(x1)
-        x3 = self.down3(x2)
-        x4 = self.down4(x3)
+        x = x.unsqueeze(1)
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x = self.down4(x4)
         skips = [x1, x2, x3, x4]
-
-        x = self.middle(x4)
 
         for i in range(4):
             x = self.ups[i](x, skips[3 - i])
             if return_features == i:
                 return x
-
-        x = self.up1(x, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
 
         x = self.out(x)
         return x

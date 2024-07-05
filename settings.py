@@ -78,7 +78,7 @@ class TrainingSettings:
     min_save_score: float = 0.62
     test_batch_size: int = 1
     train_set: Literal["all", "a2md_train"] = "a2md_train"
-    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast"] = "mamba_fast"
+    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet"] = "unet"
 
 
 @dataclass(frozen=True)
@@ -135,3 +135,8 @@ class CNNMambaSettings:
     flux: bool = False
     activation: nn.Module = nn.SELU()
     n_layers: int = 5
+
+
+@dataclass(frozen=True)
+class UNetSettings:
+    channels: int = 32

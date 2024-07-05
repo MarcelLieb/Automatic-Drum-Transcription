@@ -18,6 +18,7 @@ from model.cnn import CNN
 from model.cnnA import CNNAttention
 from model.cnnM import CNNMamba
 from model.cnnM2 import CNNMambaFast
+from model.unet import UNet
 from settings import (
     TrainingSettings,
     CNNSettings,
@@ -25,19 +26,19 @@ from settings import (
     CNNAttentionSettings,
     DatasetSettings,
     CNNMambaSettings,
-    asdict,
+    asdict, UNetSettings,
 )
 
 
 def step(
-    model: nn.Module,
-    criterion,
-    optimizer: optim.Optimizer,
-    audio_batch: torch.Tensor,
-    lbl_batch: torch.Tensor,
-    scaler: torch.cuda.amp.GradScaler,
-    positive_weight: float,
-    scheduler: optim.lr_scheduler.LRScheduler = None,
+        model: nn.Module,
+        criterion: nn.Module,
+        optimizer: optim.Optimizer,
+        audio_batch: torch.Tensor,
+        lbl_batch: torch.Tensor,
+        scaler: torch.cuda.amp.GradScaler,
+        positive_weight: float,
+        scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     """Performs one update step for the model
 
@@ -72,7 +73,37 @@ def step(
     scaler.update()
 
     if scheduler is not None and not isinstance(
-        scheduler, optim.lr_scheduler.ReduceLROnPlateau
+            scheduler, optim.lr_scheduler.ReduceLROnPlateau
+    ):
+        scheduler.step()
+
+    return loss.item()
+
+
+def step_encoder(
+        model: UNet,
+        criterion,
+        optimizer: optim.Optimizer,
+        audio_batch: torch.Tensor,
+        scaler: torch.cuda.amp.GradScaler,
+        scheduler: optim.lr_scheduler.LRScheduler = None,
+) -> float:
+    model.train()
+    optimizer.zero_grad()
+
+    device = str(audio_batch.device)
+    device = "cuda" if "cuda" in device else "cpu"
+
+    with torch.autocast(device_type=device, dtype=torch.float16):
+        prediction = model(audio_batch)
+        loss = criterion(prediction, audio_batch.unsqueeze(0)).mean()
+
+    scaler.scale(loss).backward()
+    scaler.step(optimizer)
+    scaler.update()
+
+    if scheduler is not None and not isinstance(
+            scheduler, optim.lr_scheduler.ReduceLROnPlateau
     ):
         scheduler.step()
 
@@ -80,29 +111,45 @@ def step(
 
 
 def train_epoch(
-    epoch,
-    dataloader_train,
-    device,
-    ema_model,
-    error,
-    model,
-    optimizer,
-    scaler,
-    scheduler,
-    positive_weight,
-    tensorboard_writer=None,
+        epoch,
+        dataloader_train,
+        device,
+        ema_model,
+        error,
+        model,
+        optimizer,
+        scaler,
+        scheduler,
+        positive_weight,
+        is_unet=False,
+        tensorboard_writer=None,
 ):
     total_loss = 0
     for _, data in tqdm(
-        enumerate(dataloader_train),
-        total=len(dataloader_train),
-        unit="mini-batch",
-        smoothing=0.1,
-        mininterval=1 / 2 * 60 / len(dataloader_train),
-        desc="Training",
+            enumerate(dataloader_train),
+            total=len(dataloader_train),
+            unit="mini-batch",
+            smoothing=0.1,
+            mininterval=1 / 2 * 60 / len(dataloader_train),
+            desc="Training",
     ):
         audio, lbl, _ = data
         audio = audio.to(device)
+        if is_unet:
+            loss = step_encoder(
+                model=model,
+                criterion=error,
+                optimizer=optimizer,
+                audio_batch=audio,
+                scaler=scaler,
+                scheduler=scheduler,
+            )
+
+            if ema_model is not None:
+                ema_model.update(model)
+
+            total_loss += loss
+            continue
         lbl = lbl.to(device)
 
         loss = step(
@@ -125,14 +172,15 @@ def train_epoch(
 
 
 def evaluate(
-    epoch: int,
-    model: torch.nn.Module,
-    dataloader: DataLoader,
-    criterion: torch.nn.Module,
-    device: torch.device,
-    evaluation_settings: EvaluationSettings,
-    tensorboard_writer: SummaryWriter = None,
-    tag: str = "Evaluation",
+        epoch: int,
+        model: torch.nn.Module,
+        dataloader: DataLoader,
+        criterion: torch.nn.Module,
+        device: torch.device,
+        evaluation_settings: EvaluationSettings,
+        tensorboard_writer: SummaryWriter = None,
+        is_unet: bool = False,
+        tag: str = "Evaluation",
 ) -> (float, float):
     """Evaluates the model on the specified dataset
 
@@ -154,16 +202,24 @@ def evaluate(
     groundtruth = []
     with torch.no_grad():
         for data in tqdm(
-            dataloader,
-            total=len(dataloader),
-            unit="mini-batch",
-            smoothing=0.1,
-            mininterval=1 / 2 * 60 / len(dataloader),
-            desc="Evaluation",
+                dataloader,
+                total=len(dataloader),
+                unit="mini-batch",
+                smoothing=0.1,
+                mininterval=1 / 2 * 60 / len(dataloader),
+                desc="Evaluation",
         ):
             audio, lbl, gts = data
             audio = audio.to(device)
             lbl = lbl.to(device)
+
+            if is_unet:
+                with torch.autocast(device_type=device_str, dtype=torch.float16):
+                    prediction = model(audio)
+                    loss = criterion(prediction, audio).mean()
+                    total_loss += loss.item()
+                    continue
+
             with torch.autocast(device_type=device_str, dtype=torch.float16):
                 prediction = model(audio)
                 unfiltered = criterion(prediction, lbl)
@@ -183,6 +239,12 @@ def evaluate(
             loss = unfiltered[lbl != -1].mean()
             total_loss += loss.item()
             torch.cuda.empty_cache()
+
+    if is_unet:
+        if tensorboard_writer is not None:
+            tensorboard_writer.add_scalar(f"Loss/{tag}", total_loss / len(dataloader), global_step=epoch)
+        return total_loss / len(dataloader), 0, 0
+
     precisions, recalls, thresholds, f, f_avg, best_thresholds = calculate_pr(
         predictions,
         groundtruth,
@@ -206,32 +268,32 @@ def evaluate(
         )
 
         colors = (
-            np.array(
-                [
-                    [230, 25, 75],
-                    [60, 180, 75],
-                    [255, 225, 25],
-                    [0, 130, 200],
-                    [245, 130, 48],
-                    [145, 30, 180],
-                    [70, 240, 240],
-                    [240, 50, 230],
-                    [210, 245, 60],
-                    [250, 190, 190],
-                    [0, 128, 128],
-                    [230, 190, 255],
-                    [170, 110, 40],
-                    [255, 250, 200],
-                    [128, 0, 0],
-                    [170, 255, 195],
-                    [128, 128, 0],
-                    [255, 215, 180],
-                    [0, 0, 128],
-                    [128, 128, 128],
-                    [0, 0, 0],
-                ]
-            )
-            / 255
+                np.array(
+                    [
+                        [230, 25, 75],
+                        [60, 180, 75],
+                        [255, 225, 25],
+                        [0, 130, 200],
+                        [245, 130, 48],
+                        [145, 30, 180],
+                        [70, 240, 240],
+                        [240, 50, 230],
+                        [210, 245, 60],
+                        [250, 190, 190],
+                        [0, 128, 128],
+                        [230, 190, 255],
+                        [170, 110, 40],
+                        [255, 250, 200],
+                        [128, 0, 0],
+                        [170, 255, 195],
+                        [128, 128, 0],
+                        [255, 215, 180],
+                        [0, 0, 128],
+                        [128, 128, 128],
+                        [0, 0, 0],
+                    ]
+                )
+                / 255
         )
 
         fig = plt.figure()
@@ -278,9 +340,9 @@ def evaluate(
 
 
 def main(
-    training_settings: TrainingSettings = TrainingSettings(),
-    dataset_settings: DatasetSettings = DatasetSettings(),
-    evaluation_settings: EvaluationSettings = EvaluationSettings(),
+        training_settings: TrainingSettings = TrainingSettings(),
+        dataset_settings: DatasetSettings = DatasetSettings(),
+        evaluation_settings: EvaluationSettings = EvaluationSettings(),
 ):
     n_classes = dataset_settings.annotation_settings.n_classes
     n_mels = dataset_settings.audio_settings.n_mels
@@ -301,9 +363,14 @@ def main(
         case "mamba_fast":
             model_settings = CNNMambaSettings(n_classes=n_classes, n_mels=n_mels)
             model = CNNMambaFast(**dataclass_asdict(model_settings))
+        case "unet":
+            model_settings = UNetSettings()
+            model = UNet(**dataclass_asdict(model_settings))
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
+
+    is_unet = training_settings.model_settings == "unet"
 
     # Multiprocessing headaches
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -371,6 +438,7 @@ def main(
             optimizer,
             scaler,
             scheduler,
+            is_unet=is_unet,
             positive_weight=training_settings.positive_weight,
             tensorboard_writer=writer,
         )
@@ -383,11 +451,12 @@ def main(
             device,
             evaluation_settings,
             tensorboard_writer=writer,
+            is_unet=is_unet,
             tag="Validation",
         )
         torch.cuda.empty_cache()
         if scheduler is not None and isinstance(
-            scheduler, optim.lr_scheduler.ReduceLROnPlateau
+                scheduler, optim.lr_scheduler.ReduceLROnPlateau
         ):
             scheduler.step(f_score)
             if current_lr > optimizer.state_dict()["param_groups"][0]["lr"]:
@@ -405,7 +474,7 @@ def main(
             f"Loss: {train_loss * 100:.4f}\t "
             f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
         )
-        if f_score > evaluation_settings.min_test_score and f_score >= best_score:
+        if f_score > evaluation_settings.min_test_score and f_score >= best_score and not is_unet:
             test_loss, test_f_score, test_avg_f_score = evaluate(
                 epoch,
                 model if ema_model is None else ema_model.module,
@@ -444,8 +513,8 @@ def main(
             ).state_dict()
             last_improvement = 0
         elif (
-            last_improvement >= 5
-            and dataset_settings.annotation_settings.time_shift > 0.0
+                last_improvement >= 5
+                and dataset_settings.annotation_settings.time_shift > 0.0
         ):
             last_improvement = 0
             """
@@ -458,8 +527,8 @@ def main(
         if val_loss <= best_loss:
             best_loss = val_loss
         if (
-            training_settings.early_stopping is not None
-            and last_improvement >= training_settings.early_stopping
+                training_settings.early_stopping is not None
+                and last_improvement >= training_settings.early_stopping
         ):
             break
 
@@ -476,7 +545,7 @@ def main(
     if best_model is not None:
         model.load_state_dict(best_model)
 
-    if best_score > training_settings.min_save_score:
+    if best_score > training_settings.min_save_score or is_unet:
         print("Saving model")
         dic = {
             "model": model.state_dict(),

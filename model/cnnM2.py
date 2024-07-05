@@ -85,7 +85,6 @@ class CNNMambaFast(nn.Module):
             diff = x[..., 1:] - x[..., :-1]
             diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
             x = torch.hstack((x, diff))
-        x = x.unsqueeze(1)
         x = self.backbone(x, return_features=2)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
