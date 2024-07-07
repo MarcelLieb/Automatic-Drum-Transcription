@@ -96,7 +96,7 @@ def step_encoder(
 
     with torch.autocast(device_type=device, dtype=torch.float16):
         prediction = model(audio_batch)
-        loss = criterion(prediction, audio_batch.unsqueeze(1)).mean()
+        loss = criterion(prediction, audio_batch.unsqueeze(1))
 
     scaler.scale(loss).backward()
     scaler.step(optimizer)
@@ -216,7 +216,7 @@ def evaluate(
             if is_unet:
                 with torch.autocast(device_type=device_str, dtype=torch.float16):
                     prediction = model(audio)
-                    loss = criterion(prediction, audio.unsqueeze(1)).mean()
+                    loss = criterion(prediction, audio.unsqueeze(1))
                     total_loss += loss.item()
                     continue
 
@@ -420,7 +420,10 @@ def main(
     # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.2, patience=10)
     current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
     # error = torch.nn.L1Loss(reduction="none")
-    error = torch.nn.BCEWithLogitsLoss(reduction="none")
+    if is_unet:
+        error = torch.nn.MSELoss()
+    else:
+        error = torch.nn.BCEWithLogitsLoss(reduction="none")
     scaler = torch.cuda.amp.GradScaler()
 
     best_loss = float("inf")
