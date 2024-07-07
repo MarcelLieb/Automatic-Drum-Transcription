@@ -40,7 +40,7 @@ class Up(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, channels: int):
+    def __init__(self, channels: int, checkpoint: Optional[str] = None):
         super(UNet, self).__init__()
 
         self.inc = ResidualBlock1d(1, channels, 3)
@@ -56,6 +56,11 @@ class UNet(nn.Module):
             self.ups.append(Up(channels * (16 // 2 ** i), channels * (8 // 2 ** i)))
 
         self.out = nn.Conv2d(channels, 1, kernel_size=1)
+
+        if checkpoint is not None:
+            checkpoint = torch.load(checkpoint)
+            if checkpoint["model_settings"]["channels"] == channels:
+                self.load_state_dict(checkpoint["model"])
 
     def forward(self, x, return_features: Optional[int] = None):
         x = x.unsqueeze(1)
