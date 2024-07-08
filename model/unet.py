@@ -4,8 +4,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from model import ResidualBlock1d
+from model import ResidualBlock1d, Conv1dVNormActivation
 
+
+class DoubleConv(nn.Module):
+    def __init__(self, in_channels, out_channels, activation=nn.SELU()):
+        super(DoubleConv, self).__init__()
+        self.conv = nn.Sequential(
+            Conv1dVNormActivation(in_channels, out_channels, kernel_size=3, activation=activation),
+            Conv1dVNormActivation(out_channels, out_channels, kernel_size=3, activation=activation),
+        )
+
+    def forward(self, x):
+        return self.conv(x)
 
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -13,7 +24,7 @@ class Down(nn.Module):
 
         self.max_pool_conv = nn.Sequential(
             nn.MaxPool2d(kernel_size=(2, 1), stride=(2, 1)),
-            ResidualBlock1d(in_channels, out_channels, kernel_size=3),
+            DoubleConv(in_channels, out_channels),
         )
 
     def forward(self, x):
@@ -25,7 +36,7 @@ class Up(nn.Module):
         super(Up, self).__init__()
 
         self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=(2, 1), stride=(2, 1))
-        self.conv = ResidualBlock1d(in_channels, out_channels, 3)
+        self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
@@ -43,7 +54,7 @@ class UNet(nn.Module):
     def __init__(self, channels: int, checkpoint: Optional[str] = None):
         super(UNet, self).__init__()
 
-        self.inc = ResidualBlock1d(1, channels, 3)
+        self.inc = DoubleConv(1, channels)
 
         self.down1 = Down(channels, channels * 2)
         self.down2 = Down(channels * 2, channels * 4)
