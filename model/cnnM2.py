@@ -3,6 +3,7 @@ from mamba_ssm import Mamba
 from torch import nn
 from torch.nn import functional as f
 
+from model.cnn_feature import CNNFeature
 from model.unet import UNet
 
 try:
@@ -22,7 +23,6 @@ class MambaBlock(nn.Module):
             d_state,
             d_conv,
             expand,
-            d_intermediate=None,
             dropout=0.1,
     ):
         super(MambaBlock, self).__init__()
@@ -64,12 +64,13 @@ class CNNMambaFast(nn.Module):
 
         self.activation = activation
         self.flux = flux
-        self.n_dims = n_mels * (1 + flux)
+        self.n_dims = n_mels * (1 + flux) // 2
         self.causal = causal
-        self.backbone = UNet(num_channels)
+        self.backbone = UNet(num_channels, checkpoint="./models/u-net0217MSE8a2md_no_res.pt")
+        self.backbone = CNNFeature(num_channels, 2, activation, causal)
         mamba_layers = [
             MambaBlock(
-                d_model=(num_channels * self.n_dims) // 2,
+                d_model=num_channels * self.n_dims,
                 d_state=d_state,
                 d_conv=d_conv,
                 expand=expand,
@@ -78,14 +79,14 @@ class CNNMambaFast(nn.Module):
             for _ in range(n_layers)
         ]
         self.mamba = nn.Sequential(*mamba_layers)
-        self.fc1 = nn.Linear((num_channels * self.n_dims) // 2, n_classes)
+        self.fc1 = nn.Linear(num_channels * self.n_dims, n_classes)
 
     def forward(self, x):
         if self.flux:
             diff = x[..., 1:] - x[..., :-1]
             diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
             x = torch.hstack((x, diff))
-        x = self.backbone(x, return_features=2)
+        x = self.backbone(x)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
         x = self.mamba(x)
