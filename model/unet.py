@@ -18,6 +18,7 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(Down, self).__init__()
@@ -83,7 +84,10 @@ class UNet(nn.Module):
         skips = [x1, x2, x3, x4]
 
         for i in range(4):
+            bs, c, h, w = x.size()
+            # print(skips[3 - i].size(), x.size())
             x = self.ups[i](x, skips[3 - i])
+            assert x.size() == (bs, c // 2, h * 2, w), f"{x.size()} != {(bs, c // 2, h * 2, w)}"
             if return_features == i:
                 return x
 
