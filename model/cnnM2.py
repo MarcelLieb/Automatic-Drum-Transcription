@@ -1,3 +1,5 @@
+from typing import Literal
+
 import torch
 from mamba_ssm import Mamba
 from torch import nn
@@ -5,6 +7,7 @@ from torch.nn import functional as f
 
 from model import ResidualBlock
 from model.unet import UNet
+from model.cnn_feature import CNNFeature
 
 try:
     from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn, rms_norm_fn
@@ -34,7 +37,6 @@ class MambaBlock(nn.Module):
             expand=expand,
         )
         self.norm = nn.LayerNorm(d_model) if RMSNorm is None else RMSNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model) if RMSNorm is None else RMSNorm(d_model)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
@@ -58,6 +60,7 @@ class CNNMambaFast(nn.Module):
             causal,
             num_channels,
             n_layers,
+            backbone: Literal["unet", "cnn"],
             return_features=1,
             dropout=0.1,
     ):
@@ -65,14 +68,30 @@ class CNNMambaFast(nn.Module):
 
         self.activation = activation
         self.flux = flux
-        self.n_dims = n_mels * (1 + flux)
+        self.n_dims = (n_mels * (1 + flux)) // 4 * 2
         self.causal = causal
-        self.backbone = UNet(num_channels)
-        self.return_features = return_features
-        self.conv = ResidualBlock(
-            in_channels=num_channels * (8 // 2 ** return_features),
-            out_channels=num_channels * (8 // 2 ** return_features),
-        )
+
+        match backbone:
+            case "cnn":
+                self.backbone = CNNFeature(
+                    num_channels=num_channels,
+                    n_layers=2,
+                    down_sample_factor=2,
+                    channel_multiplication=2,
+                    activation=activation,
+                    causal=causal,
+                )
+            case "unet":
+                self.backbone = nn.Sequential(
+                    UNet(num_channels // 4, return_features=return_features),
+                    ResidualBlock(
+                        in_channels=num_channels * (2 // 2 ** return_features),
+                        out_channels=num_channels * (2 // 2 ** return_features),
+                        kernel_size=3,
+                        causal=causal,
+                    ),
+                )
+        self.return_features = return_features if backbone == "unet" else -1
         mamba_layers = [
             MambaBlock(
                 d_model=(num_channels * self.n_dims),
@@ -91,8 +110,7 @@ class CNNMambaFast(nn.Module):
             diff = x[..., 1:] - x[..., :-1]
             diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
             x = torch.hstack((x, diff))
-        x = self.backbone(x, return_features=self.return_features)
-        x = self.conv(x)
+        x = self.backbone(x)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
         x = self.mamba(x)
