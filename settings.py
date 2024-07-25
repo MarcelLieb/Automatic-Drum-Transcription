@@ -149,6 +149,19 @@ class CNNMambaSettings(ModelSettingsBase):
 
 
 @dataclass(frozen=True)
+class CRNNSettings(ModelSettingsBase):
+    num_channels: int = 32
+    num_layers: int = 2
+    dropout: float = 0.1
+    causal: bool = False
+    flux: bool = True
+    activation: nn.Module = nn.SELU()
+
+    def get_identifier(self):
+        return "crnn"
+
+
+@dataclass(frozen=True)
 class UNetSettings(ModelSettingsBase):
     channels: int = 32
 

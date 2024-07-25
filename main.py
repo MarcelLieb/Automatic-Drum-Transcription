@@ -16,6 +16,7 @@ from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score
 from generics import ADTDataset
 from model import ModelEmaV2
+from model.CRNN import CRNN
 from model.cnn import CNN
 from model.cnnA import CNNAttention
 from model.cnnM import CNNMamba
@@ -28,7 +29,7 @@ from settings import (
     CNNAttentionSettings,
     DatasetSettings,
     CNNMambaSettings,
-    asdict, UNetSettings, ModelSettingsBase,
+    asdict, UNetSettings, ModelSettingsBase, CRNNSettings,
 )
 
 
@@ -373,6 +374,9 @@ def main(
         case "unet":
             model_settings = UNetSettings() if model_settings is None else model_settings
             model = UNet(**dataclass_asdict(model_settings))
+        case "crnn":
+            model_settings = CRNNSettings() if model_settings is None else model_settings
+            model = CRNN(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
