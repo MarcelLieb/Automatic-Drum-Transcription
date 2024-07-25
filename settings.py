@@ -141,6 +141,7 @@ class CNNMambaSettings(ModelSettingsBase):
     dropout: float = 0.1
     causal: bool = True
     flux: bool = False
+    backbone: Literal["unet", "cnn"] = "cnn"
     activation: nn.Module = nn.SELU()
     n_layers: int = 5
 
