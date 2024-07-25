@@ -26,7 +26,7 @@ from settings import (
     CNNAttentionSettings,
     DatasetSettings,
     CNNMambaSettings,
-    asdict, UNetSettings,
+    asdict, UNetSettings, ModelSettingsBase,
 )
 
 
@@ -343,6 +343,7 @@ def main(
         training_settings: TrainingSettings = TrainingSettings(),
         dataset_settings: DatasetSettings = DatasetSettings(),
         evaluation_settings: EvaluationSettings = EvaluationSettings(),
+        model_settings: ModelSettingsBase = None,
 ):
     n_classes = dataset_settings.annotation_settings.n_classes
     n_mels = dataset_settings.audio_settings.n_mels
@@ -350,21 +351,23 @@ def main(
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
 
-    match training_settings.model_settings:
+    architecture = training_settings.model_settings if model_settings is None else model_settings.get_identifier()
+
+    match architecture:
         case "cnn":
-            model_settings = CNNSettings(n_classes=n_classes, n_mels=n_mels)
-            model = CNN(**dataclass_asdict(model_settings))
+            model_settings = CNNSettings() if model_settings is None else model_settings
+            model = CNN(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
         case "cnn_attention":
-            model_settings = CNNAttentionSettings(n_classes=n_classes, n_mels=n_mels)
-            model = CNNAttention(**dataclass_asdict(model_settings))
+            model_settings = CNNAttentionSettings() if model_settings is None else model_settings
+            model = CNNAttention(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
         case "mamba":
-            model_settings = CNNMambaSettings(n_classes=n_classes, n_mels=n_mels)
-            model = CNNMamba(**dataclass_asdict(model_settings))
+            model_settings = CNNMambaSettings() if model_settings is None else model_settings
+            model = CNNMamba(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
         case "mamba_fast":
-            model_settings = CNNMambaSettings(n_classes=n_classes, n_mels=n_mels)
-            model = CNNMambaFast(**dataclass_asdict(model_settings))
+            model_settings = CNNMambaSettings() if model_settings is None else model_settings
+            model = CNNMambaFast(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
         case "unet":
-            model_settings = UNetSettings()
+            model_settings = UNetSettings() if model_settings is None else model_settings
             model = UNet(**dataclass_asdict(model_settings))
         case _:
             raise ValueError("Invalid model setting")

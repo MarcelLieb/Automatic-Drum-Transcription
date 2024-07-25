@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from dataclasses import dataclass, asdict as dataclass_asdict, is_dataclass
 from typing import Literal
 
@@ -30,7 +31,7 @@ class AudioProcessingSettings:
     sample_rate: int = 44100
     hop_size: int = 441
     fft_size: int = 2048
-    n_mels: int = 12 * 7
+    n_mels: int = 96
     center: bool = True
     pad_mode: Literal["constant", "reflect"] = "constant"
     mel_min: float = 20.0
@@ -43,7 +44,7 @@ class AnnotationSettings:
     mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
     pad_annotations: bool = True
     pad_value: float = 0.5
-    time_shift: float = 0.015
+    time_shift: float = 0.025
     beats: bool = False
 
     @property
@@ -68,9 +69,9 @@ class TrainingSettings:
     epochs: int = 20
     batch_size: int = 16
     weight_decay: float = 1e-5
-    positive_weight: float = 4.0
+    positive_weight: float = 1.0
     ema: bool = False
-    scheduler: bool = True
+    scheduler: bool = False
     early_stopping: int | None = None
     dataset_version: Literal["S", "M", "L"] = "L"
     splits: list[float] = (0.85, 0.15, 0.0)
@@ -78,7 +79,14 @@ class TrainingSettings:
     min_save_score: float = 0.62
     test_batch_size: int = 1
     train_set: Literal["all", "a2md_train"] = "a2md_train"
-    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet"] = "unet"
+    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet"] = "mamba_fast"
+
+
+@dataclass(frozen=True)
+class ModelSettingsBase:
+    @abstractmethod
+    def get_identifier(self):
+        pass
 
 
 @dataclass(frozen=True)
@@ -93,23 +101,22 @@ class EvaluationSettings:
 
 
 @dataclass(frozen=True)
-class CNNSettings:
-    n_classes: int
-    n_mels: int
+class CNNSettings(ModelSettingsBase):
     num_channels: int = 16
     num_residual_blocks: int = 9
     dropout: float = 0.1
     causal: bool = True
     flux: bool = True
     activation: nn.Module = nn.SELU()
-    classifier_dim: int = 2**6
+    classifier_dim: int = 2 ** 6
     down_sample_factor: 2 | 3 | 4 = 2
+
+    def get_identifier(self):
+        return "cnn"
 
 
 @dataclass(frozen=True)
-class CNNAttentionSettings:
-    n_classes: int
-    n_mels: int
+class CNNAttentionSettings(ModelSettingsBase):
     num_channels: int = 24
     dropout: float = 0.1
     causal: bool = True
@@ -121,11 +128,12 @@ class CNNAttentionSettings:
     expansion_factor: int = 4
     use_relative_pos: bool = False
 
+    def get_identifier(self):
+        return "cnn_attention"
+
 
 @dataclass(frozen=True)
-class CNNMambaSettings:
-    n_classes: int
-    n_mels: int
+class CNNMambaSettings(ModelSettingsBase):
     num_channels: int = 16
     d_state: int = 64
     d_conv: int = 4
@@ -136,7 +144,13 @@ class CNNMambaSettings:
     activation: nn.Module = nn.SELU()
     n_layers: int = 5
 
+    def get_identifier(self):
+        return "mamba_fast"
+
 
 @dataclass(frozen=True)
-class UNetSettings:
+class UNetSettings(ModelSettingsBase):
     channels: int = 32
+
+    def get_identifier(self):
+        return "unet"
