@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from model import ResidualBlock1d, Conv1dVNormActivation
+from model import Conv1dVNormActivation
 
 
 class DoubleConv(nn.Module):
@@ -52,8 +52,10 @@ class Up(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, channels: int, checkpoint: Optional[str] = None):
+    def __init__(self, channels: int, checkpoint: Optional[str] = None, return_features: Optional[int] = None):
         super(UNet, self).__init__()
+
+        self.return_features = return_features
 
         self.inc = DoubleConv(1, channels)
 
@@ -75,6 +77,8 @@ class UNet(nn.Module):
                 self.load_state_dict(checkpoint["model"])
 
     def forward(self, x, return_features: Optional[int] = None):
+        if return_features is None:
+            return_features = self.return_features
         x = x.unsqueeze(1)
         x1 = self.inc(x)
         x2 = self.down1(x1)
