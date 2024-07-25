@@ -3,6 +3,8 @@ from dataclasses import asdict as dataclass_asdict
 import matplotlib.pyplot as plt
 import numpy as np
 import resource
+
+import optuna
 import torch
 from torch import optim, nn
 from torch.utils.data import DataLoader
@@ -344,7 +346,9 @@ def main(
         dataset_settings: DatasetSettings = DatasetSettings(),
         evaluation_settings: EvaluationSettings = EvaluationSettings(),
         model_settings: ModelSettingsBase = None,
+        trial: optuna.Trial=None,
 ):
+    early_stopping = training_settings.early_stopping if trial is None else None
     n_classes = dataset_settings.annotation_settings.n_classes
     n_mels = dataset_settings.audio_settings.n_mels
 
@@ -408,7 +412,8 @@ def main(
     optimizer = optim.RAdam(
         model.parameters(),
         lr=initial_lr,
-        weight_decay=training_settings.weight_decay,  # decoupled_weight_decay=True,
+        weight_decay=training_settings.weight_decay,
+        decoupled_weight_decay=True,
     )
     scheduler = (
         optim.lr_scheduler.OneCycleLR(
@@ -460,6 +465,8 @@ def main(
             is_unet=is_unet,
             tag="Validation",
         )
+        if trial is not None:
+            trial.report(f_score, epoch)
         torch.cuda.empty_cache()
         if scheduler is not None and isinstance(
                 scheduler, optim.lr_scheduler.ReduceLROnPlateau
@@ -518,18 +525,18 @@ def main(
                 ema_model.module if ema_model is not None else model
             ).state_dict()
             last_improvement = 0
-        elif (
-                last_improvement >= 5
-                and dataset_settings.annotation_settings.time_shift > 0.0
-        ):
-            last_improvement = 0
-            """
-            optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
-            best_score = f_score
-            dataset.adjust_time_shift(max(time_shift - 0.01, 0))
-            time_shift = dataset.time_shift
-            print(f"Adjusting time shift to {time_shift}")
-            """
+        # elif (
+        #         last_improvement >= 5
+        #         and dataset_settings.annotation_settings.time_shift > 0.0
+        # ):
+        #     last_improvement = 0
+        #     """
+        #     optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
+        #     best_score = f_score
+        #     dataset.adjust_time_shift(max(time_shift - 0.01, 0))
+        #     time_shift = dataset.time_shift
+        #     print(f"Adjusting time shift to {time_shift}")
+        #     """
         if val_loss <= best_loss:
             best_loss = val_loss
             if is_unet:
@@ -538,10 +545,12 @@ def main(
                 ).state_dict()
                 last_improvement = 0
         if (
-                training_settings.early_stopping is not None
+                early_stopping is not None
                 and last_improvement >= training_settings.early_stopping
         ):
             break
+        if trial is not None and trial.should_prune():
+            raise optuna.TrialPruned()
 
     hyperparameters = {
         **asdict(training_settings),
@@ -571,7 +580,7 @@ def main(
     writer.flush()
     writer.close()
 
-    return model
+    return model, best_score
 
 
 if __name__ == "__main__":

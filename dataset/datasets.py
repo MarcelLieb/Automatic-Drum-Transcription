@@ -22,7 +22,7 @@ def get_dataset(
     train_split, val_split, test_split = get_a2md_splits(
         training_settings.dataset_version, training_settings.splits, path
     )
-    torch.multiprocessing.set_start_method("spawn")
+    torch.multiprocessing.set_start_method("spawn", force=True)
 
     if training_settings.train_set == "all":
         a2md = A2MD(
