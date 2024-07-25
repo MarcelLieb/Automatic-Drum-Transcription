@@ -13,7 +13,15 @@ class CRNN(nn.Module):
         self.n_dims = n_mels * (1 + flux)
         self.flux = flux
 
-        self.conv = CNNFeature(num_channels, num_layers, 2, 1, activation, causal)
+        self.conv = CNNFeature(
+            num_channels,
+            num_conv_layers,
+            2,
+            1,
+            activation,
+            causal,
+            dropout
+        )
         self.rnn = nn.GRU(
             num_channels * self.n_dims // 4,
             num_channels * self.n_dims // 4,

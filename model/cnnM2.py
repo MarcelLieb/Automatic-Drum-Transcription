@@ -80,6 +80,7 @@ class CNNMambaFast(nn.Module):
                     channel_multiplication=2,
                     activation=activation,
                     causal=causal,
+                    dropout=dropout,
                 )
             case "unet":
                 self.backbone = nn.Sequential(
