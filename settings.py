@@ -152,9 +152,10 @@ class CNNMambaSettings(ModelSettingsBase):
 @dataclass(frozen=True)
 class CRNNSettings(ModelSettingsBase):
     num_channels: int = 32
-    num_layers: int = 2
-    dropout: float = 0.1
-    causal: bool = False
+    num_conv_layers: int = 2
+    num_rnn_layers: int = 3
+    dropout: float = 0.3
+    causal: bool = True
     flux: bool = True
     activation: nn.Module = nn.SELU()
 
