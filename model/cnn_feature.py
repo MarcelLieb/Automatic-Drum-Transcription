@@ -11,10 +11,11 @@ class CNNFeature(nn.Module):
         self.activation = activation
         self.down_sample_factor = down_sample_factor
 
-        self.conv_pools = nn.ModuleList()
+        conv = []
+
         for i in range(n_layers):
             if i == 0:
-                self.conv_pools.append(
+                conv.append(
                     nn.Sequential(
                         ResidualBlock(
                             1,
@@ -32,7 +33,7 @@ class CNNFeature(nn.Module):
                 )
                 continue
 
-            self.conv_pools.append(
+            conv.append(
                 nn.Sequential(
                     ResidualBlock(
                         num_channels * (channel_multiplication ** (i - 1)),
@@ -49,33 +50,12 @@ class CNNFeature(nn.Module):
                 )
             )
 
-        self.resamples = nn.ModuleList()
-        for i in range(n_layers):
-            if i == 0:
-                self.resamples.append(
-                    nn.Conv2d(
-                        1,
-                        num_channels * (channel_multiplication ** i),
-                        kernel_size=1,
-                        stride=1,
-                    )
-                )
-                continue
-            self.resamples.append(
-                nn.Conv2d(
-                    num_channels * (channel_multiplication ** (i - 1)),
-                    num_channels * (channel_multiplication ** i),
-                    kernel_size=1,
-                    stride=1,
-                )
-            )
+        self.conv_pools = nn.Sequential(*conv)
+
 
     def forward(self, x):
         x = x.unsqueeze(1)
-        for conv_pool, resample in zip(self.conv_pools, self.resamples):
-            skip = x
-            x = conv_pool(x)
-            x = x + resample(torch.nn.functional.interpolate(skip, size=x.shape[2:], mode="nearest"))
+        x = self.conv_pools(x)
 
         return x
 
