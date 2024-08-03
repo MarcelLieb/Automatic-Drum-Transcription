@@ -102,8 +102,10 @@ class EvaluationSettings:
 
 @dataclass(frozen=True)
 class CNNSettings(ModelSettingsBase):
-    num_channels: int = 16
-    num_residual_blocks: int = 9
+    num_channels: int = 32
+    num_residual_blocks: int = 7
+    num_feature_layers: int = 2
+    channel_multiplication: int = 2
     dropout: float = 0.1
     causal: bool = True
     flux: bool = True

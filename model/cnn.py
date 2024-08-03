@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 from torch.nn import functional as f
-from model import ResidualBlock, ResidualBlock1d
+from model import ResidualBlock1d
+from model.cnn_feature import CNNFeature
 
 
 class CNN(nn.Module):
@@ -11,6 +12,8 @@ class CNN(nn.Module):
         n_classes,
         num_channels,
         dropout,
+        num_feature_layers,
+        channel_multiplication,
         num_residual_blocks,
         causal,
         flux,
@@ -25,42 +28,29 @@ class CNN(nn.Module):
         self.classifier_dim = classifier_dim
         self.down_sample_factor = down_sample_factor
 
-        self.conv1 = ResidualBlock(
-            1, num_channels, kernel_size=3, causal=causal, activation=self.activation
-        )
-        self.pool1 = nn.MaxPool2d(
-            kernel_size=(down_sample_factor, 1), stride=(down_sample_factor, 1)
-        )
-        self.conv2 = ResidualBlock(
-            num_channels,
-            num_channels * 2,
-            kernel_size=3,
+        self.backbone = CNNFeature(
+            num_channels=num_channels,
+            n_layers=num_feature_layers,
+            down_sample_factor=down_sample_factor,
+            channel_multiplication=channel_multiplication,
+            activation=activation,
             causal=causal,
-            activation=self.activation,
+            dropout=dropout,
         )
-        self.pool2 = nn.MaxPool2d(
-            kernel_size=(down_sample_factor, 1), stride=(down_sample_factor, 1)
-        )
-
-        self.resample = nn.Conv2d(
-            num_channels, num_channels * 2, kernel_size=1, stride=1
-        )
-
-        self.dropout2d = nn.Dropout2d(dropout)
 
         self.residuals = nn.ModuleList()
         for _ in range(num_residual_blocks):
             self.residuals.append(
                 ResidualBlock1d(
-                    num_channels * 2,
-                    num_channels * 2,
+                    num_channels * (channel_multiplication ** (num_feature_layers - 1)),
+                    num_channels * (channel_multiplication ** (num_feature_layers - 1)),
                     kernel_size=3,
                     activation=self.activation,
                 )
             )
 
         self.fc1 = nn.Linear(
-            num_channels * 2 * (self.n_dims // (down_sample_factor**2)), classifier_dim
+            num_channels * (channel_multiplication ** (num_feature_layers - 1)) * (self.n_dims // (down_sample_factor**num_feature_layers)), classifier_dim
         )
         self.dropout = nn.Dropout(dropout)
         self.fc2 = nn.Linear(classifier_dim, n_classes)
@@ -71,19 +61,9 @@ class CNN(nn.Module):
             diff = x[..., 1:] - x[..., :-1]
             diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
             x = torch.hstack((x, diff))
-        # Add channel dimension
-        x = x.unsqueeze(1)
-        x = self.conv1(x)
-        x = self.pool1(x)
-        skip = x
-        x = self.conv2(x)
-        x = self.pool2(x)
-        x = x + self.resample(
-            torch.nn.functional.interpolate(skip, size=x.shape[2:], mode="nearest")
-        )
+        x = self.backbone(x)
         for residual in self.residuals:
             x = residual(x)
-            x = self.dropout2d(x)
         bs, ch, h, w = x.size()
         x = x.reshape(bs, ch * h, w)
         x = x.permute(0, 2, 1)
