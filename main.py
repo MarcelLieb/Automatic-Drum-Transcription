@@ -23,13 +23,11 @@ from model.cnnM import CNNMamba
 from model.cnnM2 import CNNMambaFast
 from model.unet import UNet
 from settings import (
-    TrainingSettings,
     CNNSettings,
     EvaluationSettings,
     CNNAttentionSettings,
-    DatasetSettings,
     CNNMambaSettings,
-    asdict, UNetSettings, ModelSettingsBase, CRNNSettings,
+    asdict, UNetSettings, CRNNSettings, Config,
 )
 
 
@@ -343,13 +341,15 @@ def evaluate(
 
 
 def main(
-        training_settings: TrainingSettings = TrainingSettings(),
-        dataset_settings: DatasetSettings = DatasetSettings(),
-        evaluation_settings: EvaluationSettings = EvaluationSettings(),
-        model_settings: ModelSettingsBase = None,
-        trial: optuna.Trial=None,
+        config: Config = Config(),
+        trial: optuna.Trial = None,
 ):
-    early_stopping = training_settings.early_stopping if trial is None else None
+    training_settings = config.training
+    evaluation_settings = config.evaluation
+    dataset_settings = config.dataset
+    model_settings = config.model
+
+    early_stopping = training_settings.early_stopping  # if trial is None else None
     n_classes = dataset_settings.annotation_settings.n_classes
     n_mels = dataset_settings.audio_settings.n_mels
 
@@ -380,6 +380,7 @@ def main(
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
+    training_settings.model_settings = architecture
 
     is_unet = training_settings.model_settings == "unet"
 
@@ -556,16 +557,6 @@ def main(
         if trial is not None and trial.should_prune():
             raise optuna.TrialPruned()
 
-    hyperparameters = {
-        **asdict(training_settings),
-        **asdict(evaluation_settings),
-        **asdict(dataset_settings.audio_settings),
-        **asdict(dataset_settings.annotation_settings),
-        **asdict(model_settings),
-    }
-    writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
-    print(f"Best F-score: {best_score * 100:.4f}")
-
     if best_model is not None:
         model.load_state_dict(best_model)
 
@@ -580,6 +571,15 @@ def main(
         }
         torch.save(dic, f"./models/trained_model_{best_score * 100:.2f}.pt")
 
+    hyperparameters = {
+        **asdict(training_settings),
+        **asdict(evaluation_settings),
+        **asdict(dataset_settings),
+        **asdict(model_settings),
+    }
+    writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
+    print(f"Best F-score: {best_score * 100:.4f}")
+
     # Make sure everything is written to disk
     writer.flush()
     writer.close()
@@ -588,7 +588,7 @@ def main(
 
 
 if __name__ == "__main__":
-    trained_model = main()
+    trained_model, _ = main()
     trained_model.eval()
     trained_model = trained_model.cpu()
     torch.cuda.empty_cache()

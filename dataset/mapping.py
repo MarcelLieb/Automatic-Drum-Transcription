@@ -94,6 +94,13 @@ class DrumMapping(Enum):
     def prettify(class_desc: tuple[str, ...]):
         return " + ".join(class_desc)
 
+    @staticmethod
+    def from_str(desc: str):
+        for mapping in DrumMapping:
+            if str(mapping).lower().replace("_", " ").capitalize() == desc.lower().replace("_", " ").capitalize():
+                return mapping
+        raise ValueError(f"Invalid mapping description: {desc}")
+
 
 def get_midi_to_class(mapping: tuple[tuple[str, ...], ...]):
     reverse_map = np.zeros(128)
