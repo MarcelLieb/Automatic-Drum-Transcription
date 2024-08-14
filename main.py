@@ -470,8 +470,8 @@ def main(
             is_unet=is_unet,
             tag="Validation",
         )
-        if trial is not None:
-            trial.report(f_score, epoch)
+        # if trial is not None:
+        #     trial.report(f_score, epoch)
         torch.cuda.empty_cache()
         if scheduler is not None and isinstance(
                 scheduler, optim.lr_scheduler.ReduceLROnPlateau
@@ -524,7 +524,7 @@ def main(
             if test_f_score > 0.75:
                 break
         last_improvement += 1
-        if best_score <= f_score and not is_unet:
+        if best_score + 0.0001 < f_score and not is_unet:
             best_score = f_score
             best_model = (
                 ema_model.module if ema_model is not None else model
@@ -554,8 +554,8 @@ def main(
                 and last_improvement >= training_settings.early_stopping
         ):
             break
-        if trial is not None and trial.should_prune():
-            raise optuna.TrialPruned()
+        # if trial is not None and trial.should_prune():
+        #     raise optuna.TrialPruned()
 
     if best_model is not None:
         model.load_state_dict(best_model)
