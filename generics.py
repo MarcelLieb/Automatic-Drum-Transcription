@@ -6,17 +6,17 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
-from dataset import get_labels, load_audio, segment_audio
+from dataset import get_labels, load_audio, segment_audio, get_length
 from settings import DatasetSettings
 
 
 class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
     @abstractmethod
     def __init__(
-        self,
-        settings: DatasetSettings,
-        is_train: bool,
-        use_dataloader: bool = False,
+            self,
+            settings: DatasetSettings,
+            is_train: bool,
+            use_dataloader: bool = False,
     ):
         audio_settings = settings.audio_settings
         annotation_settings = settings.annotation_settings
@@ -105,7 +105,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         else:
             full_audio = self.cache[audio_idx]
             start, end, segment_length = (
-                np.array((start, end, self.segment_length)) * self.sample_rate
+                    np.array((start, end, self.segment_length)) * self.sample_rate
             ).astype(int)
             audio = segment_audio(full_audio, start, end, segment_length)
 
@@ -154,7 +154,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         if self.pad_annotations:
             padded = (
-                self.annotation_padder(labels.unsqueeze(0)).squeeze(0) * self.pad_value
+                    self.annotation_padder(labels.unsqueeze(0)).squeeze(0) * self.pad_value
             )
             labels = torch.maximum(labels, padded)
 
@@ -169,6 +169,24 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
     def adjust_time_shift(self, time_shift: float):
         self.time_shift = time_shift
+
+    def get_sample_distribution(self):
+        """
+        Get the count of positive and negative samples for each class
+        :return: count of positive samples, count of negative samples
+        """
+        label_count = torch.zeros(self.n_classes)
+        total_frames = 0
+        for i in range(len(self.annotations)):
+            iden, drums, beats = self[i]
+            time_stamps = [*beats, *drums] if self.beats else [*drums]
+            path = self.get_full_path(iden)
+            length = int(np.round(get_length(path) * self.sample_rate / self.hop_size))
+            labels = get_labels(time_stamps, self.sample_rate, self.hop_size, length)
+            total_frames += length
+            label_count += labels.sum(dim=1)
+
+        return label_count, total_frames - label_count
 
 
 class ConcatADTDataset(ADTDataset, ABC):
