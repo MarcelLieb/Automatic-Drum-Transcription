@@ -225,6 +225,7 @@ class CRNNSettings(ModelSettingsBase):
     num_rnn_layers: int = 3
     down_sample_factor: int = 2
     channel_multiplication: int = 2
+    rnn_units: int = 60
     classifier_dim: int = 2 ** 6
     dropout: float = 0.3
     causal: bool = True

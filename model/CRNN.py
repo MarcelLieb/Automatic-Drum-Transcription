@@ -7,7 +7,7 @@ from model.cnn_feature import CNNFeature
 
 class CRNN(nn.Module):
     def __init__(self, n_mels, n_classes, num_channels, num_conv_layers, num_rnn_layers, flux, activation, causal,
-                 dropout, down_sample_factor, channel_multiplication, classifier_dim):
+                 dropout, down_sample_factor, channel_multiplication, rnn_units, classifier_dim):
         super(CRNN, self).__init__()
         self.activation = activation
         self.causal = causal
@@ -27,14 +27,14 @@ class CRNN(nn.Module):
         )
         self.rnn = nn.GRU(
             self.n_dims,
-            self.n_dims,
+            rnn_units,
             num_rnn_layers,
             batch_first=True,
             dropout=dropout,
             bidirectional=not causal
         )
         self.fc = nn.Sequential(
-            nn.Linear(self.n_dims * (2 - causal), classifier_dim),
+            nn.Linear(rnn_units, classifier_dim),
             activation,
             nn.Dropout(dropout),
             nn.Linear(classifier_dim, n_classes),
