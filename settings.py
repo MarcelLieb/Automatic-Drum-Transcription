@@ -223,6 +223,9 @@ class CRNNSettings(ModelSettingsBase):
     num_channels: int = 32
     num_conv_layers: int = 2
     num_rnn_layers: int = 3
+    down_sample_factor: int = 2
+    channel_multiplication: int = 2
+    classifier_dim: int = 2 ** 6
     dropout: float = 0.3
     causal: bool = True
     flux: bool = True
