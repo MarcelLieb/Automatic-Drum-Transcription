@@ -5,7 +5,7 @@ from model import ResidualBlock
 
 
 class CNNFeature(nn.Module):
-    def __init__(self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout):
+    def __init__(self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout, in_channels=1):
         super(CNNFeature, self).__init__()
 
         self.activation = activation
@@ -18,7 +18,7 @@ class CNNFeature(nn.Module):
                 conv.append(
                     nn.Sequential(
                         ResidualBlock(
-                            1,
+                            in_channels,
                             num_channels * (channel_multiplication ** i),
                             kernel_size=3,
                             causal=causal,
@@ -54,7 +54,6 @@ class CNNFeature(nn.Module):
 
 
     def forward(self, x):
-        x = x.unsqueeze(1)
         x = self.conv_pools(x)
 
         return x
