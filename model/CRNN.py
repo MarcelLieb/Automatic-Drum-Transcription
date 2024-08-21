@@ -38,7 +38,6 @@ class CRNN(nn.Module):
             activation,
             nn.Dropout(dropout),
             nn.Linear(classifier_dim, n_classes),
-            activation,
         )
 
     def forward(self, x: torch.Tensor):
