@@ -103,6 +103,10 @@ class TrainingSettings(SettingsBase):
     epochs: int = 20
     batch_size: int = 16
     weight_decay: float = 1e-5
+    beta_1: float = 0.9
+    beta_2: float = 0.999
+    epsilon: float = 1e-8
+    decoupled_weight_decay: bool = False
     positive_weight: float = 1.0
     ema: bool = False
     scheduler: bool = False

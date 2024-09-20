@@ -418,7 +418,9 @@ def main(
         model.parameters(),
         lr=initial_lr,
         weight_decay=training_settings.weight_decay,
-        decoupled_weight_decay=True,
+        decoupled_weight_decay=training_settings.decoupled_weight_decay,
+        betas=(training_settings.beta_1, training_settings.beta_2),
+        eps=training_settings.epsilon,
     )
     scheduler = (
         optim.lr_scheduler.OneCycleLR(
