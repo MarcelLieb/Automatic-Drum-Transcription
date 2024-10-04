@@ -65,6 +65,12 @@ def get_splits(
         split = get_splits_data(splits, identifiers)
         for i, s in enumerate(split):
             out[i][folder] = s
+    # Check if the distribution is correct
+    flat_tracks = [track for folder in folders for track in tracks[folder]]
+    for i, s in enumerate(out):
+        total = sum(len(arr) for _, arr in s.items())
+        assert abs(total / len(flat_tracks) - splits[i]) < 2e-2, f"{total / len(flat_tracks)} != {splits[i]}"
+
 
     return out
 

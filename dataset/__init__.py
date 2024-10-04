@@ -232,4 +232,8 @@ def get_splits(splits: list[float], data: list[T]) -> list[list[T]]:
     for i, s in enumerate(split):
         out[i] = [data[j] for j in s.indices]
 
+    assert sum(len(s) for s in out) == len(data)
+    for prob, s in zip(splits, out):
+        assert abs(len(s) / len(data) - prob) < 0.02, f"{len(s) / len(data)} != {prob}"
+
     return out
