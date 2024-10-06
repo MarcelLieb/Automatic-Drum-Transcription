@@ -157,19 +157,27 @@ def get_segments(
 
 
 def segment_audio(
-        audio: torch.Tensor, start: int, end: int, length: int
+        audio: torch.Tensor, start: int, end: int, length: int, pad: bool = True
 ) -> torch.Tensor:
     cut_audio = audio[..., start:end]
-    if cut_audio.shape[-1] < length:
+    if pad:
         if start == 0:
-            cut_audio = torch.cat(
-                (torch.zeros(int(length - cut_audio.shape[-1])), cut_audio)
-            )
+            cut_audio = pad_audio(cut_audio, length, front=True)
         else:
-            cut_audio = torch.cat(
-                (cut_audio, torch.zeros(int(length - cut_audio.shape[-1])))
-            )
-        assert cut_audio.shape[-1] == length, "Audio too short"
+            cut_audio = pad_audio(cut_audio, length, front=False)
+    return cut_audio
+
+
+def pad_audio(audio: torch.Tensor, length: int, front: bool) -> torch.Tensor:
+    if front:
+        cut_audio = torch.cat(
+            (torch.zeros(int(length - audio.shape[-1])), audio)
+        )
+    else:
+        cut_audio = torch.cat(
+            (audio, torch.zeros(int(length - audio.shape[-1])))
+        )
+    assert cut_audio.shape[-1] == length, "Audio too short"
     return cut_audio
 
 
@@ -193,7 +201,7 @@ def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.array:
     return (np.arange(length) * hop_size) / sample_rate
 
 
-def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
+def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[np.array]]]):
     audio, annotation, gts = zip(*batch)
     audio = torch.nn.utils.rnn.pad_sequence(audio, batch_first=True, padding_value=0.0)
     annotation = list(annotation)
@@ -214,7 +222,7 @@ def get_dataloader(dataset, batch_size, num_workers, is_train=False):
         collate_fn=audio_collate,
         drop_last=False,
         pin_memory=True,
-        prefetch_factor=4 if num_workers > 0 else None,
+        prefetch_factor=6 if num_workers > 0 else None,
     )
     return dataloader
 

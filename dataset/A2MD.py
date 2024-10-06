@@ -118,15 +118,15 @@ class A2MD(ADTDataset):
                 elif self.segment_type == "frame":
                     self.segments = get_segments(
                         lengths,
-                        self.segment_length,
-                        self.segment_overlap,
+                        self.frame_length,
+                        self.frame_overlap,
                         self.sample_rate,
                     )
             args = [(path, self.sample_rate, self.normalize) for path in paths]
-            self.cache = pool.starmap(load_audio, args) if is_train else None
+            self.cache = pool.starmap(load_audio, args) if self.is_train else None
 
     def __len__(self):
-        return len(self.segments) if self.is_train else len(self.annotations)
+        return len(self.segments)
 
     @staticmethod
     def _get_full_path(root: str, identification: tuple[str, str]) -> Path:

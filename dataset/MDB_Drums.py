@@ -116,8 +116,8 @@ class MDBDrums(ADTDataset):
             elif self.segment_type == "frame":
                 self.segments = get_segments(
                     lengths,
-                    self.segment_length,
-                    self.segment_overlap,
+                    self.frame_length,
+                    self.frame_overlap,
                     self.sample_rate,
                 )
 

@@ -6,7 +6,7 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
-from dataset import get_labels, load_audio, segment_audio, get_length
+from dataset import get_labels, load_audio, segment_audio, get_length, pad_audio
 from settings import DatasetSettings
 
 
@@ -41,12 +41,15 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.lead_in = settings.label_lead_in
         self.lead_out = settings.label_lead_out
 
-        self.segment_length = (
+        self.frame_length = settings.frame_length
+        self.frame_overlap = settings.frame_overlap
+
+        self._segment_length = (
             self.lead_in + self.lead_out
             if settings.segment_type == "label"
             else settings.frame_length
         )
-        self.segment_overlap = settings.frame_overlap
+        self.segment_overlap = settings.frame_overlap if settings.segment_type == "frame" else 0
 
         self.is_train = is_train
         self.use_dataloader = use_dataloader
@@ -102,35 +105,24 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         if self.cache is None:
             audio = load_audio(path, self.sample_rate, self.normalize, start, end)
+            end = get_length(path) * self.sample_rate if end == -1 else end
+            # Pad audio to segment length
+            audio = pad_audio(audio, int(self._segment_length * self.sample_rate), front=start == 0)
         else:
             full_audio = self.cache[audio_idx]
-            start, end, segment_length = (
-                    np.array((start, end, self.segment_length)) * self.sample_rate
-            ).astype(int)
-            audio = segment_audio(full_audio, start, end, segment_length)
+            end = full_audio.shape[-1] if end == -1 else end
+            if self.segments is not None:
+                start, end, segment_length = (
+                        np.array((start, end, self._segment_length)) * self.sample_rate
+                ).astype(int)
+                audio = segment_audio(full_audio, start, end, segment_length, pad=True)
+            else:
+                audio = full_audio
 
-        if audio.shape[-1] < int(self.segment_length * self.sample_rate) and start == 0:
-            audio = torch.cat(
-                (
-                    torch.zeros(
-                        int(self.segment_length * self.sample_rate) - audio.shape[-1]
-                    ),
-                    audio,
-                )
-            )
-        elif audio.shape[-1] < int(self.segment_length * self.sample_rate):
-            audio = torch.cat(
-                (
-                    audio,
-                    torch.zeros(
-                        int(self.segment_length * self.sample_rate) - audio.shape[-1]
-                    ),
-                )
-            )
 
         # segments get padded at the front if start is 0, therefore the true start may be negative
         start = (
-            (end - start) - int(self.segment_length * self.sample_rate)
+            (end - start) - int(self._segment_length * self.sample_rate)
             if start == 0
             else start
         )
@@ -158,7 +150,9 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             )
             labels = torch.maximum(labels, padded)
 
-        gt_labels = [*beats, *drums]
+        start_sec, end_sec = start / self.sample_rate, end / self.sample_rate
+        gt_labels = [np.array(cls) for cls in [*beats, *drums]]
+        gt_labels = [cls[(cls >= start_sec) & (cls <= end_sec)] - start_sec for cls in gt_labels]
 
         if self.use_dataloader:
             # allows use of torch.nn.utils.rnn.pad_sequence
