@@ -36,7 +36,12 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.n_classes = annotation_settings.n_classes
         self.normalize = audio_settings.normalize
 
+        self.is_train = is_train
+        self.use_dataloader = use_dataloader
+
         self.segment_type = settings.segment_type
+        if not self.is_train:
+            self.segment_type = "frame"
 
         self.lead_in = settings.label_lead_in
         self.lead_out = settings.label_lead_out
@@ -46,13 +51,10 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         self._segment_length = (
             self.lead_in + self.lead_out
-            if settings.segment_type == "label"
+            if self.segment_type == "label"
             else settings.frame_length
         )
-        self.segment_overlap = settings.frame_overlap if settings.segment_type == "frame" else 0
-
-        self.is_train = is_train
-        self.use_dataloader = use_dataloader
+        self.segment_overlap = settings.frame_overlap if self.segment_type == "frame" else 0
 
         self.spectrum = torchaudio.transforms.Spectrogram(
             n_fft=self.fft_size,
@@ -105,16 +107,22 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         if self.cache is None:
             audio = load_audio(path, self.sample_rate, self.normalize, start, end)
-            end = get_length(path) * self.sample_rate if end == -1 else end
+            end = get_length(path) if end == -1 else end
+            start, end, segment_length = (
+                    np.array((start, end, self._segment_length)) * self.sample_rate
+            ).astype(int)
             # Pad audio to segment length
-            audio = pad_audio(audio, int(self._segment_length * self.sample_rate), front=start == 0)
+            if self.segments is not None:
+                audio = pad_audio(audio, segment_length, front=start == 0),
         else:
             full_audio = self.cache[audio_idx]
-            end = full_audio.shape[-1] if end == -1 else end
+            end = full_audio.shape[-1] / self.sample_rate if end == -1 else end
+            start, end, segment_length = (
+                    np.array((start, end, self._segment_length)) * self.sample_rate
+            ).astype(int)
+            if end - start > segment_length + 1:
+                print(start, end, segment_length)
             if self.segments is not None:
-                start, end, segment_length = (
-                        np.array((start, end, self._segment_length)) * self.sample_rate
-                ).astype(int)
                 audio = segment_audio(full_audio, start, end, segment_length, pad=True)
             else:
                 audio = full_audio

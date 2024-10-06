@@ -126,7 +126,7 @@ class A2MD(ADTDataset):
             self.cache = pool.starmap(load_audio, args) if self.is_train else None
 
     def __len__(self):
-        return len(self.segments)
+        return len(self.segments) if self.segments is not None else len(self.annotations)
 
     @staticmethod
     def _get_full_path(root: str, identification: tuple[str, str]) -> Path:

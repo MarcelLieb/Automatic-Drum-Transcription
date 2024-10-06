@@ -65,6 +65,8 @@ def load_audio(
                                            num_frames=int(sample_rate * (end - start)), offset=int(sample_rate * start))
             audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
             audio = torchaudio.transforms.Resample(orig_freq=og_sr, new_freq=sample_rate)(audio)
+        assert audio.shape[-1] == int(
+            sample_rate * (end - start)), f"{audio.shape[-1]} != {int(sample_rate * (end - start))}"
     if normalize:
         audio = audio / torch.max(torch.abs(audio))
     return audio
@@ -123,11 +125,11 @@ def get_label_windows(
         labels = np.concatenate(drum_label)
         if unique:
             labels = np.unique(labels)
-        start = ((labels * sample_rate) - (lead_in * sample_rate)).astype(int)
-        start = np.clip(start, 0, length * sample_rate)
-        end = (labels * sample_rate + lead_out * sample_rate).astype(int)
-        end = np.clip(end, 0, length * sample_rate)
-        out = np.stack((start, end, np.zeros_like(start) + i), axis=1).astype(int)
+        start = (labels - lead_in)
+        start = np.clip(start, 0, length)
+        end = labels + lead_out - 1 / sample_rate
+        end = np.clip(end, 0, length)
+        out = np.stack((start, end, np.zeros_like(start) + i), axis=1)
         segments.append(out)
     return np.concatenate(segments, axis=0)
 

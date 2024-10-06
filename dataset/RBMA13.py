@@ -107,7 +107,7 @@ class RBMA13(ADTDataset):
                 )
 
     def __len__(self):
-        return len(self.annotations)
+        return len(self.segments) if self.segments is not None else len(self.annotations)
 
     def adjust_time_shift(self, time_shift: float):
         self.time_shift = time_shift

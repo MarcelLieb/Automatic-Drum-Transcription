@@ -122,7 +122,7 @@ class MDBDrums(ADTDataset):
                 )
 
     def __len__(self):
-        return len(self.annotations)
+        return len(self.segments) if self.segments is not None else len(self.annotations)
 
     def get_full_path(self, identifier: str) -> Path:
         audio_path = os.path.join(

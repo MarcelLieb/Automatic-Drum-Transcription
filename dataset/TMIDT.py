@@ -120,7 +120,7 @@ class TMIDT(ADTDataset):
                     )
 
     def __len__(self):
-        return len(self.segments) if self.is_train else len(self.annotations)
+        return len(self.segments) if self.segments is not None else len(self.annotations)
 
     @staticmethod
     def _get_full_path(root: str, identification: str) -> Path:
