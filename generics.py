@@ -113,7 +113,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             ).astype(int)
             # Pad audio to segment length
             if self.segments is not None:
-                audio = pad_audio(audio, segment_length, front=start == 0),
+                audio = pad_audio(audio, segment_length, front=start == 0)
         else:
             full_audio = self.cache[audio_idx]
             end = full_audio.shape[-1] / self.sample_rate if end == -1 else end
