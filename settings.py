@@ -116,6 +116,7 @@ class TrainingSettings(SettingsBase):
     num_workers: int = cpu_count()
     min_save_score: float = 0.62
     test_batch_size: int = 1
+    full_length_test: bool = False
     train_set: Literal["all", "a2md_train"] = "a2md_train"
     model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet", "crnn"] = "mamba_fast"
 

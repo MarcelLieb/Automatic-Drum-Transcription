@@ -80,11 +80,12 @@ class A2MD(ADTDataset):
         self,
         path: Path | str,
         settings: DatasetSettings,
+        segment: bool,
         split: dict[str, list[str]] | None = None,
         is_train: bool = False,
         use_dataloader: bool = False,
     ):
-        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader)
+        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
         self.path = path
         self.split = get_tracks(path) if split is None else split
 
@@ -104,7 +105,7 @@ class A2MD(ADTDataset):
             ]
             # use static method to avoid passing self to pool
             paths = pool.starmap(A2MD._get_full_path, args)
-            if is_train:
+            if self.segment:
                 args = [(path,) for path in paths]
                 lengths = pool.starmap(get_length, args)
                 if self.segment_type == "label":

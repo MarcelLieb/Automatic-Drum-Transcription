@@ -31,20 +31,23 @@ def get_dataset(
             path=path,
             use_dataloader=True,
             is_train=True,
+            segment=True,
         )
-        test_rbma = RBMA13(
+        rbma = RBMA13(
             path="./data/rbma_13",
             settings=dataset_settings,
             use_dataloader=True,
             is_train=True,
+            segment=True,
         )
-        test_mdb = MDBDrums(
+        mdb = MDBDrums(
             path="./data/MDB Drums",
             settings=dataset_settings,
             use_dataloader=True,
             is_train=True,
+            segment=True,
         )
-        train = ConcatADTDataset(dataset_settings, [a2md, test_rbma, test_mdb])
+        train = ConcatADTDataset(dataset_settings, [a2md, rbma, mdb])
     else:
         train = A2MD(
             split=train_split,
@@ -52,6 +55,7 @@ def get_dataset(
             path=path,
             use_dataloader=True,
             is_train=True,
+            segment=True,
         )
     val = A2MD(
         split=val_split,
@@ -59,18 +63,21 @@ def get_dataset(
         path=path,
         use_dataloader=True,
         is_train=False,
+        segment=not training_settings.full_length_test,
     )
     test_rbma = RBMA13(
         path="./data/rbma_13",
         settings=dataset_settings,
         use_dataloader=True,
         is_train=False,
+        segment=not training_settings.full_length_test,
     )
     test_mdb = MDBDrums(
         path="./data/MDB Drums",
         settings=dataset_settings,
         use_dataloader=True,
         is_train=False,
+        segment=not training_settings.full_length_test,
     )
 
     torch.multiprocessing.set_start_method("fork", force=True)
@@ -82,19 +89,19 @@ def get_dataset(
     )
     dataloader_val = get_dataloader(
         val,
-        training_settings.test_batch_size,
+        training_settings.test_batch_size if training_settings.full_length_test else training_settings.batch_size,
         training_settings.num_workers,
         is_train=False,
     )
     dataloader_test_rbma = get_dataloader(
         test_rbma,
-        training_settings.test_batch_size,
+        training_settings.test_batch_size if training_settings.full_length_test else training_settings.batch_size,
         training_settings.num_workers,
         is_train=False,
     )
     dataloader_test_mdb = get_dataloader(
         test_mdb,
-        training_settings.test_batch_size,
+        training_settings.test_batch_size if training_settings.full_length_test else training_settings.batch_size,
         training_settings.num_workers,
         is_train=False,
     )

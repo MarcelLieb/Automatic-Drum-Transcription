@@ -78,6 +78,7 @@ class MDBDrums(ADTDataset):
         self,
         path: str | Path,
         settings: DatasetSettings,
+        segment: bool = True,
         split: list[str] | None = None,
         is_train: bool = False,
         use_dataloader: bool = False,
@@ -86,6 +87,7 @@ class MDBDrums(ADTDataset):
             settings,
             is_train=is_train,
             use_dataloader=use_dataloader,
+            segment=segment,
         )
         self.path = path
         self.split = split if split is not None else get_tracks(path)
@@ -101,7 +103,7 @@ class MDBDrums(ADTDataset):
         ]
         self.annotations.sort(key=lambda x: x[0])
 
-        if is_train:
+        if self.segment:
             lengths = [
                 get_length(self.get_full_path(track[0])) for track in self.annotations
             ]

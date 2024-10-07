@@ -84,11 +84,12 @@ class TMIDT(ADTDataset):
         self,
         path: str | Path,
         settings: DatasetSettings,
+        segment: bool = True,
         split: list[str] | None = None,
         is_train: bool = False,
         use_dataloader: bool = False,
     ):
-        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader)
+        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
 
         self.path = path
         self.split = get_tracks(path) if split is None else split
@@ -100,7 +101,7 @@ class TMIDT(ADTDataset):
 
             args = [(self.path, identifier) for identifier in self.split]
             paths = pool.starmap(self._get_full_path, args)
-            if is_train:
+            if self.segment:
                 args = [(path,) for path in paths]
                 lengths = pool.starmap(get_length, args)
                 if self.segment_type == "label":

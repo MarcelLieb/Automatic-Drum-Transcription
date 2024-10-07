@@ -68,11 +68,12 @@ class RBMA13(ADTDataset):
         self,
         path: str | Path,
         settings: DatasetSettings,
+        segment: bool = True,
         splits: list[int] | None = None,
         is_train=False,
         use_dataloader=False,
     ):
-        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader)
+        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
         self.path = path
 
         self.annotations = load_rbma(path)
@@ -86,7 +87,7 @@ class RBMA13(ADTDataset):
         ]
         self.annotations.sort(key=lambda x: int(x[0].split("-")[-1]))
 
-        if is_train:
+        if self.segment:
             lengths = [
                 get_length(self.get_full_path(track[0])) for track in self.annotations
             ]

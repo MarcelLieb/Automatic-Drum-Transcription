@@ -16,6 +16,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             self,
             settings: DatasetSettings,
             is_train: bool,
+            segment: bool,
             use_dataloader: bool = False,
     ):
         audio_settings = settings.audio_settings
@@ -35,6 +36,8 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.beats = annotation_settings.beats
         self.n_classes = annotation_settings.n_classes
         self.normalize = audio_settings.normalize
+
+        self.segment = segment
 
         self.is_train = is_train
         self.use_dataloader = use_dataloader
