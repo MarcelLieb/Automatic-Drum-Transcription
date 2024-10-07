@@ -117,26 +117,29 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             # Pad audio to segment length
             if self.segments is not None:
                 audio = pad_audio(audio, segment_length, front=start == 0)
+                # segments get padded at the front if start is 0, therefore the true start may be negative
+                start = (
+                    (end - start) - int(self._segment_length * self.sample_rate)
+                    if start == 0
+                    else start
+                )
         else:
             full_audio = self.cache[audio_idx]
             end = full_audio.shape[-1] / self.sample_rate if end == -1 else end
             start, end, segment_length = (
                     np.array((start, end, self._segment_length)) * self.sample_rate
             ).astype(int)
-            if end - start > segment_length + 1:
-                print(start, end, segment_length)
             if self.segments is not None:
                 audio = segment_audio(full_audio, start, end, segment_length, pad=True)
+                # segments get padded at the front if start is 0, therefore the true start may be negative
+                start = (
+                    (end - start) - int(self._segment_length * self.sample_rate)
+                    if start == 0
+                    else start
+                )
             else:
                 audio = full_audio
 
-
-        # segments get padded at the front if start is 0, therefore the true start may be negative
-        start = (
-            (end - start) - int(self._segment_length * self.sample_rate)
-            if start == 0
-            else start
-        )
         if not self.center:
             # align frames with the end of the window
             audio = torch.nn.functional.pad(

@@ -171,6 +171,8 @@ def segment_audio(
 
 
 def pad_audio(audio: torch.Tensor, length: int, front: bool) -> torch.Tensor:
+    if audio.shape[-1] >= length:
+        return audio
     if front:
         cut_audio = torch.cat(
             (torch.zeros(int(length - audio.shape[-1])), audio)
