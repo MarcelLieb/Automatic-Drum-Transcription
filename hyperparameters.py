@@ -55,9 +55,68 @@ fast_decent_cnn = {
     'down_sample_factor': 4
 }
 
+best_model = best_crnn = {
+    'activation': 'ELU',
+    'batch_size': 9,
+    'channel_multiplication': 4,
+    'classifier_dim': 408,
+    'dataset_version': 'S',
+    'decoupled_weight_decay': True,
+    'down_sample_factor': 3,
+    'dropout': 0.0,
+    'epochs': 20,
+    'flux': False,
+    'frame_length': 2.0,
+    'frame_overlap': 0.2,
+    'learning_rate': 0.00012,
+    'n_mels': 128,
+    'num_channels': 32,
+    'num_conv_layers': 2,
+    'num_rnn_layers': 5,
+    'num_workers': 16,
+    'pr_points': 1000,
+    'rnn_units': 1337,
+    'weight_decay': 0.0,
+    'F-Score': 0.617189347743988,
+    'dir_name': 'Oct06_11-36-53_marclie-desktop',
+    'beats': False,
+    'causal': True,
+    'center': True,
+    'detect_tolerance': 0.025,
+    'ema': False,
+    'fft_size': 2048,
+    'full_length_test': True,
+    'hop_size': 441,
+    'ignore_beats': True,
+    'label_lead_in': 0.25,
+    'label_lead_out': 0.1,
+    'mapping': 'Three class standard',
+    'mel_max': 20000.0,
+    'mel_min': 20.0,
+    'min_save_score': 0.62,
+    'min_test_score': 0.48,
+    'model_settings': 'crnn',
+    'normalize': False,
+    'onset_cooldown': 0.021,
+    'pad_annotations': True,
+    'pad_mode': 'constant',
+    'pad_value': 0.5,
+    'peak_max_range': 2,
+    'peak_mean_range': 2,
+    'positive_weight': 1.0,
+    'sample_rate': 44100,
+    'scheduler': False,
+    'segment_type': 'frame',
+    'splits': '(0.85, 0.15, 0.0)',
+    'test_batch_size': 1,
+    'time_shift': 0.015,
+    'train_set': 'a2md_train',
+    'use_relative_pos': True
+}
+
 
 def main():
-    config = Config.from_flat_dict(fast_decent_cnn)
+    config = Config.from_flat_dict(best_model)
     train(config)
 
 
