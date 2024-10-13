@@ -124,7 +124,7 @@ class A2MD(ADTDataset):
                         self.sample_rate,
                     )
             args = [(path, self.sample_rate, self.normalize) for path in paths]
-            self.cache = pool.starmap(load_audio, args) if self.is_train else None
+            self.cache = pool.starmap(load_audio, args)
 
     def __len__(self):
         return len(self.segments) if self.segments is not None else len(self.annotations)
