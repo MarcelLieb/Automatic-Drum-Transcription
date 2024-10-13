@@ -87,6 +87,13 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.cache = None
         self.segments = None
 
+    T = TypeVar("T")
+
+    @staticmethod
+    @abstractmethod
+    def get_splits(splits: list[float], data: list[T], ):
+        pass
+
     @abstractmethod
     def get_full_path(self, identification: Any):
         pass
@@ -186,7 +193,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         label_count = torch.zeros(self.n_classes)
         total_frames = 0
         for i in range(len(self.annotations)):
-            iden, drums, beats = self[i]
+            iden, drums, beats = self.annotations[i]
             time_stamps = [*beats, *drums] if self.beats else [*drums]
             path = self.get_full_path(iden)
             length = int(np.round(get_length(path) * self.sample_rate / self.hop_size))
