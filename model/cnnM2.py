@@ -68,7 +68,7 @@ class CNNMambaFast(nn.Module):
 
         self.activation = activation
         self.flux = flux
-        self.n_dims = (n_mels * (1 + flux)) // 4 * 2
+        self.n_dims = n_mels // 4 * 2
         self.causal = causal
 
         match backbone:
@@ -81,6 +81,7 @@ class CNNMambaFast(nn.Module):
                     activation=activation,
                     causal=causal,
                     dropout=dropout,
+                    in_channels=1 + flux,
                 )
             case "unet":
                 self.backbone = nn.Sequential(
@@ -107,10 +108,11 @@ class CNNMambaFast(nn.Module):
         self.fc1 = nn.Linear(num_channels * self.n_dims, n_classes)
 
     def forward(self, x):
+        x = x.unsqueeze(1)
         if self.flux:
             diff = x[..., 1:] - x[..., :-1]
             diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
-            x = torch.hstack((x, diff))
+            x = torch.concatenate((x, diff), dim=1)
         x = self.backbone(x)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
