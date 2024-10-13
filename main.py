@@ -440,7 +440,23 @@ def main(
     if is_unet:
         error = torch.nn.MSELoss()
     else:
-        error = torch.nn.BCEWithLogitsLoss(reduction="none")
+        if dataset_settings.annotation_settings.n_classes == 3:
+            # Weights from Vogl
+            weight = torch.tensor([1, 4, 1.5])
+            weight = torch.tensor([1.0780001453213364, 1.3531086684241876, 1.144276962353584])
+        elif dataset_settings.annotation_settings.n_classes == 4:
+            # truncated weights from ADTOF
+            weight = torch.tensor([1.0780001453213364, 1.3531086684241876, 3.413723052423422, 1.144276962353584])
+        elif dataset_settings.annotation_settings.n_classes == 5:
+            # weights from ADTOF https://github.com/MZehren/ADTOF/blob/master/adtof/config.py
+            weight = torch.tensor([1.0780001453213364, 1.3531086684241876, 3.413723052423422, 1.144276962353584, 1.76755104053326])
+        else:
+            weight = None
+        num_pos, num_neg = loader_train.dataset.get_sample_distribution()
+        weight = num_neg / num_pos / 20
+        weight = None
+        weight = weight.unsqueeze(-1).to(device) if weight is not None else None
+        error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
     scaler = torch.cuda.amp.GradScaler()
 
     best_loss = float("inf")
