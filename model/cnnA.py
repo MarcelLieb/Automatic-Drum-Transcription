@@ -47,27 +47,23 @@ class CNNAttention(nn.Module):
         self.dropout2 = nn.Dropout(dropout)
 
         self.pos_enc = PositionalEncoding(num_channels * (self.n_dims // 4), dropout)
-        self.mask = nn.Transformer.generate_square_subsequent_mask(
-            context_size, device=torch.device("cuda")
-        )
 
         self.use_relative_pos = use_relative_pos
 
-        attention_blocks = []
+        self.attention_blocks = nn.ModuleList()
         for _ in range(num_attention_blocks):
-            attention_blocks.append(
+            self.attention_blocks.append(
                 AttentionBlock(
                     num_channels * (self.n_dims // 4),
                     num_heads,
-                    self.mask,
                     self.causal,
                     self.activation,
                     dropout,
+                    is_causal=self.causal,
                     expansion_factor=expansion_factor,
-                    use_relative_pe=use_relative_pos and not causal,
+                    use_relative_pe=use_relative_pos,
                 )
             )
-        self.attention_blocks = nn.Sequential(*attention_blocks)
 
         self.fc1 = nn.Linear(num_channels * (self.n_dims // 4), n_classes)
 
@@ -87,7 +83,8 @@ class CNNAttention(nn.Module):
         x = x.permute(0, 2, 1)
         if not self.use_relative_pos:
             x = self.pos_enc(x)
-        x = self.attention_blocks(x)
+        for attention_block in self.attention_blocks:
+            x = attention_block(x)
         x = self.fc1(x)
         x = x.permute(0, 2, 1)
         x = self.activation(x)

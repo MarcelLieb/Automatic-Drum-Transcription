@@ -32,44 +32,31 @@ class PositionalEncoding(nn.Module):
 class AttentionBlock(nn.Module):
     def __init__(
         self,
-        d_model,
-        n_heads,
-        attention_mask,
-        causal,
-        activation,
+        d_model: int,
+        n_heads: int,
+        causal: bool,
+        activation: nn.Module,
         dropout=0.1,
         expansion_factor: int = 4,
         use_relative_pe=True,
+        is_causal=True,
+        L=2400,
     ):
         super(AttentionBlock, self).__init__()
-        self.projection = not use_relative_pe
-        self.use_relative_pe = use_relative_pe and not causal
-        self.multihead = (
-            nn.MultiheadAttention(
-                embed_dim=d_model, num_heads=n_heads, dropout=dropout, batch_first=True
-            )
-            if not self.use_relative_pe
-            else MultiHeadSelfAttention(
-                L=39_000, d_model=d_model, n_head=n_heads, use_relative_pe=True
-            )
+        self.multihead =  MultiHeadSelfAttention(
+            L=L, d_model=d_model, n_head=n_heads, use_relative_pe=use_relative_pe, is_causal=is_causal, dropout=dropout
         )
         self.activation = activation
         self.causal = causal
-        self.mask = attention_mask
         self.dense1 = nn.Linear(d_model, d_model * expansion_factor)
         self.dense2 = nn.Linear(d_model * expansion_factor, d_model)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x, attn_mask=None):
         skip = x
-        if self.use_relative_pe:
-            x = self.multihead(x)
-        else:
-            x, _ = self.multihead(
-                x, x, x, attn_mask=self.mask, need_weights=False, is_causal=self.causal
-            )
+        x = self.multihead(x, attn_mask=attn_mask)
         x = x + skip
         x = self.norm1(x)
         skip = x
@@ -83,7 +70,7 @@ class AttentionBlock(nn.Module):
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, L, d_model, n_head, use_relative_pe=True):
+    def __init__(self, L, d_model, n_head, use_relative_pe=True, is_causal=True, dropout=0.1):
         super(MultiHeadSelfAttention, self).__init__()
         self.W_qkv = nn.Linear(d_model, d_model * 3)
         self.W_o = nn.Linear(d_model, d_model)
@@ -92,6 +79,9 @@ class MultiHeadSelfAttention(nn.Module):
         self.init_weights()
         self.use_relative_pe = use_relative_pe
         self.L = L
+        self.is_causal = is_causal
+        self.dropout = nn.Dropout(dropout)
+        self.dropout_p = dropout
 
         if use_relative_pe:
             self.position_bias = nn.Parameter(torch.zeros(2 * L - 1, n_head))
@@ -105,7 +95,7 @@ class MultiHeadSelfAttention(nn.Module):
         nn.init.xavier_uniform_(self.W_o.weight)
         nn.init.zeros_(self.W_o.bias)
 
-    def forward(self, x):
+    def forward(self, x, attn_mask=None):
         # x_input : [B, L, d_model]
         B, L, d_model = x.shape
         d_head = self.d_model // self.n_head
@@ -115,10 +105,10 @@ class MultiHeadSelfAttention(nn.Module):
         qkv = qkv.permute(0, 2, 1, 3)  # [B, n_head, L, d_head*3]
         q, k, v = qkv.chunk(3, dim=-1)  # Each tensor : [B, n_head, L, d_head]
 
-        # Compute the attention scores from q and k, and combine the values in v
-        dot_products = torch.matmul(q, k.transpose(-2, -1))  # [B, n_head, L, L]
-
         if self.use_relative_pe:
+            # Compute the attention scores from q and k, and combine the values in v
+            dot_products = torch.matmul(q, k.transpose(-2, -1))  # [B, n_head, L, L]
+
             b_pos = self.position_bias[self.rel_pos_idx.view(-1)]  # [L*L, n_head]
             b_pos = b_pos.view(self.L, self.L, self.n_head)
             b_pos = b_pos[:L, :L, :]  # [L, L, n_head]
@@ -129,11 +119,23 @@ class MultiHeadSelfAttention(nn.Module):
 
             dot_products = dot_products + b_pos
 
-        attention = f.softmax(
-            dot_products / math.sqrt(d_head),  # d_head = d_k in the paper
-            dim=-1,
-        )  # [B, n_head, L, L]
-        att_vals = torch.matmul(attention, v)  # [B, n_head, L, d_head]
+            values = dot_products / math.sqrt(d_head)
+            attn_bias = torch.zeros(L, L, dtype=x.dtype, device=x.device)
+            attn_mask = None
+            if self.is_causal:
+                assert attn_mask is None
+                temp_mask = torch.ones(L, L, dtype=torch.bool, device=x.device).tril(diagonal=0)
+                attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
+                attn_bias.to(x.dtype)
+            values += attn_bias
+            attention = f.softmax(
+                values,  # d_head = d_k in the paper
+                dim=-1,
+            )  # [B, n_head, L, L]
+            att_vals = torch.matmul(attention, v)  # [B, n_head, L, d_head]
+        else:
+            att_vals = f.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=self.dropout_p if self.training else 0.0, is_causal=self.is_causal)
+
         att_vals = att_vals.permute(0, 2, 1, 3)  # [B, L, n_head, d_head]
         att_vals = att_vals.reshape(B, L, self.d_model)  # [B, L, n_head, d_model]
 
