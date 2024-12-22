@@ -3,9 +3,11 @@
 // Add parallel processing library
 //: [dependencies]
 //: rayon = "1.10.0"
+//: kdam = { version = "0.6.2", features = ["rayon"] }
 
 use pyo3::prelude::*;
 use rayon::prelude::*;
+use kdam::{TqdmParallelIterator, TqdmIterator};
 
 #[pyfunction]
 fn calculate_pr(
@@ -49,7 +51,7 @@ fn calculate_pr(
                 let mut thresholds = Vec::with_capacity(values.len());
 
                 let mut peaks_by_song = split_songs(&values, labels.len());
-                'calculation: for (i, pred) in values.into_iter().enumerate() {
+                'calculation: for (i, pred) in values.into_iter().tqdm().enumerate() {
                     let [time, score, song] = pred;
                     let song = song as usize;
 
@@ -113,8 +115,10 @@ fn calculate_pr(
                 debug_assert!(n_chunks * chunk_length >= values.len());
                 debug_assert!(n_chunks * (chunk_length - 1) < values.len());
 
-                let iter: Vec<_> = (1..=n_chunks)
+                let indexes: Vec<usize> = (1..=n_chunks).collect();
+                let iter: Vec<_> = indexes
                     .into_par_iter()
+                    .tqdm()
                     .map(|i| {
                         let onsets = &values[..(i * chunk_length).min(values.len())];
 
