@@ -236,7 +236,10 @@ def evaluate(
                 evaluation_settings.peak_max_range,
             )
             # Shift back onsets
-            peaks = [[peak - time_shift for peak in cls] for cls in peaks]
+            for cls in peaks:
+                for peak in cls:
+                    peak[0] -= time_shift
+            # peaks = [[peak - time_shift for peak in cls] for cls in peaks]
             predictions.extend(peaks)
             groundtruth.extend(gts)
             loss = unfiltered[lbl != -1].mean()
