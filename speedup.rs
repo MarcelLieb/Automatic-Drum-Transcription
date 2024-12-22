@@ -189,10 +189,13 @@ fn calculate_pr(
                     iter.windows(2).all(|w| w[0].7 < w[1].7),
                     "Chunk sizes are not monotonically increasing"
                 );
+                /*
+                Recall doesn't have to increase with more onsets as peak picking might move the onset outside the detection window
                 debug_assert!(
                     recalls.windows(2).all(|w| w[0] <= w[1]),
                     "Recall is not monotonically increasing"
                 );
+                */
 
                 let thresholds = iter.iter().cloned().map(|o| o.6).collect::<Vec<_>>();
                 let (max_tp, max_fp, max_fn, threshold, _) = iter
@@ -244,7 +247,7 @@ fn _combine_onsets(onsets: &[f32], cool_down: f32, combine_strategy: &str) -> Ve
     let mut final_onsets = vec![*onsets.first().unwrap()];
 
     for onset_time in &onsets[1..] {
-        let prev_time = *final_onsets.first().unwrap();
+        let prev_time = *final_onsets.last().unwrap();
         if onset_time - prev_time > cool_down {
             final_onsets.push(*onset_time);
         } else {
