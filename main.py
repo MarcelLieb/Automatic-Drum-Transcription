@@ -462,6 +462,8 @@ def main(
         error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
     scaler = torch.cuda.amp.GradScaler()
 
+    losses = []
+    scores = []
     best_loss = float("inf")
     best_score = 0
     last_improvement = 0
@@ -493,6 +495,8 @@ def main(
             is_unet=is_unet,
             tag="Validation",
         )
+        losses.append(val_loss)
+        scores.append(f_score)
         # if trial is not None:
         #     trial.report(f_score, epoch)
         torch.cuda.empty_cache()
@@ -572,10 +576,14 @@ def main(
                     ema_model.module if ema_model is not None else model
                 ).state_dict()
                 last_improvement = 0
+        recent_scores = np.array(scores[-3:])
+        stuck = (np.abs(recent_scores - recent_scores.mean()) < 1e-4).all() and len(recent_scores) >= 3
         if (
                 early_stopping is not None
-                and last_improvement >= training_settings.early_stopping
+                and last_improvement >= training_settings.early_stopping or stuck
         ):
+            if stuck:
+                print("Detected stuck training")
             break
         # if trial is not None and trial.should_prune():
         #     raise optuna.TrialPruned()
