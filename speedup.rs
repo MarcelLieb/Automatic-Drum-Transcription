@@ -273,9 +273,9 @@ fn _evaluate_detections(
     labels: &[f32],
     detect_window: f32,
 ) -> (usize, usize, usize) {
-    let mut labels = Vec::from(labels);
     let mut tp = 0;
     let mut fp = 0;
+    let mut r#fn = 0;
     // Assume onsets are sorted ascending
     debug_assert!(
         onsets.windows(2).all(|w| w[0] < w[1]),
@@ -285,24 +285,34 @@ fn _evaluate_detections(
         labels.windows(2).all(|w| w[0] < w[1]),
         "Label times are not strictly monotonically increasing"
     );
-    for (i, onset_time) in onsets.iter().enumerate().rev() {
-        if labels.is_empty() {
-            fp += i + 1;
-            break;
-        }
 
-        let (index, dist) = find_closest_onset(*onset_time, &labels).unwrap();
+    let mut onset_index = 0;
+    let mut label_index = 0;
 
-        if dist < detect_window + 10.0 * f32::EPSILON {
+    while onset_index < onsets.len() && label_index < labels.len() {
+        let o = onsets[onset_index];
+        let l = labels[label_index];
+
+        if (o - l).abs() < detect_window {
             tp += 1;
-            labels.remove(index);
-        } else {
+            onset_index += 1;
+            label_index += 1;
+        } else if o < l {
             fp += 1;
+            onset_index += 1;
+        } else if l < o {
+            r#fn += 1;
+            label_index += 1;
+        } else {
+            unreachable!()
         }
     }
 
+    fp += onsets.len() - onset_index;
+    r#fn += labels.len() - label_index;
+
     // Return tp, fp, fn
-    (tp, fp, labels.len())
+    (tp, fp, r#fn)
 }
 
 #[pyfunction]
