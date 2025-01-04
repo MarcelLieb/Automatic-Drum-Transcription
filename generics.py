@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import torch
