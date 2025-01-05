@@ -360,9 +360,13 @@ fn find_closest_onset(onset: f32, labels: &[f32]) -> Option<(usize, f32)> {
 
 #[inline(always)]
 fn _calculate_prf(tp: usize, fp: usize, r#fn: usize) -> (f32, f32, f32) {
-    let precision = tp as f32 / (tp + fp) as f32;
-    let recall = tp as f32 / (tp + r#fn) as f32;
-    let f_measure = (2 * tp) as f32 / (2 * tp + fp + r#fn) as f32;
+    let precision = if tp + fp == 0 { 0.0 } else { tp as f32 / (tp + fp) as f32 };
+    let recall = if tp + r#fn == 0 { 0.0 } else { tp as f32 / (tp + r#fn) as f32 };
+    let f_measure = if tp + fp + r#fn == 0 {
+        0.0
+    } else {
+        2.0 * tp as f32 / (2 * tp + fp + r#fn) as f32
+    };
     (precision, recall, f_measure)
 }
 

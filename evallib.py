@@ -109,4 +109,6 @@ def calculate_pr(
 
 
 def calculate_f_score(precision: torch.Tensor, recall: torch.Tensor) -> torch.Tensor:
-    return 2 * (precision * recall) / (precision + recall)
+    f_score = 2 * (precision * recall) / (precision + recall)
+    f_score[precision + recall == 0] = 0
+    return f_score
