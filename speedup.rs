@@ -109,18 +109,15 @@ fn calculate_pr(
                     pn, precisions, recalls, threshold, max_tp, max_fp, max_fn, thresholds,
                 )
             } else {
-                let chunk_length = (values.len() as f32 / points.unwrap() as f32).round() as usize;
-                let n_chunks = if chunk_length == 0 { 1 } else { values.len().div_ceil(chunk_length) };
+                let points = points.unwrap();
+                let thresholds =(1..=points).map(|i| 1.0 - i as f32 / points as f32).collect::<Vec<f32>>();
 
-                debug_assert!(n_chunks * chunk_length >= values.len());
-                debug_assert!(n_chunks * (chunk_length - 1) < values.len());
-
-                let indexes: Vec<usize> = (1..=n_chunks).collect();
-                let iter: Vec<_> = indexes
+                let iter: Vec<_> = thresholds
                     .into_par_iter()
                     .tqdm()
-                    .map(|i| {
-                        let onsets = &values[..(i * chunk_length).min(values.len())];
+                    .map(|thresh| {
+                        let split_index = values.partition_point(|a| a[1] > thresh);
+                        let onsets = &values[..split_index];
 
                         let peaks_by_songs = split_songs(&onsets, labels.len());
                         let onsets_by_song: Vec<Vec<f32>> = peaks_by_songs
@@ -165,7 +162,7 @@ fn calculate_pr(
                                 score,
                                 n_unfiltered,
                                 n_filtered,
-                                (i * chunk_length).min(values.len()),
+                                thresh,
                             );
                         }
                     })
@@ -180,7 +177,6 @@ fn calculate_pr(
                 let precisions = iter.iter().cloned().map(|o| o.3).collect::<Vec<_>>();
                 let recalls = iter.iter().cloned().map(|o| o.4).collect::<Vec<_>>();
 
-                debug_assert_eq!(iter.len(), n_chunks);
                 #[cfg(debug_assertions)]
                 recalls.windows(2).enumerate().for_each(|(i, w)| {
                     if w[0] > w[1] {
