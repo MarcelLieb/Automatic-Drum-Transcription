@@ -143,13 +143,21 @@ fn calculate_pr(
                         debug_assert_ne!((n_tp, n_fp, n_fn), (0, 0, 0));
 
                         let (p, r, f) = _calculate_prf(n_tp, n_fp, n_fn);
-                        let score = onsets.last().unwrap_or(&[0.0_f32, 0., 0.])[1];
+
+                        // println!("Threshold {thresh}: {} {} {}", n_tp, n_fp, n_fn);
 
                         #[cfg(not(debug_assertions))]
-                        return (n_tp, n_fp, n_fn, p, r, f, score);
+                        return (n_tp, n_fp, n_fn, p, r, f, thresh);
 
                         #[cfg(debug_assertions)]
                         {
+                            let total_peaks = peaks_by_songs.iter().map(|v| v.len()).sum::<usize>();
+                            let total_picked = onsets_by_song.iter().map(|v| v.len()).sum::<usize>();
+                            println!(
+                                "Threshold {thresh}, Total peaks: {}, Total picked: {}",
+                                total_peaks, total_picked
+                            );
+                            let score = onsets.last().unwrap_or(&[0.0_f32, 0., 0.])[1];
                             let n_unfiltered = onsets.len();
                             let n_filtered: usize = onsets_by_song.iter().map(|v| v.len()).sum();
                             return (
@@ -159,10 +167,10 @@ fn calculate_pr(
                                 p,
                                 r,
                                 f,
-                                score,
+                                thresh,
                                 n_unfiltered,
                                 n_filtered,
-                                thresh,
+                                score,
                             );
                         }
                     })
@@ -177,12 +185,14 @@ fn calculate_pr(
                 let precisions = iter.iter().cloned().map(|o| o.3).collect::<Vec<_>>();
                 let recalls = iter.iter().cloned().map(|o| o.4).collect::<Vec<_>>();
 
+                /*
                 #[cfg(debug_assertions)]
                 recalls.windows(2).enumerate().for_each(|(i, w)| {
                     if w[0] > w[1] {
                         println!("{:?}\n{:?}\n", iter[i], iter[i + 1])
                     }
                 });
+                */
 
                 #[cfg(debug_assertions)]
                 debug_assert!(
@@ -267,6 +277,11 @@ fn _combine_onsets(onsets: &[f32], cool_down: f32, combine_strategy: &str) -> Ve
             }
         }
     }
+
+    debug_assert!(
+        final_onsets.windows(2).all(|w| w[0] < w[1]),
+        "Onset times are not strictly monotonically increasing"
+    );
 
     final_onsets
 }
@@ -383,6 +398,7 @@ fn split_songs(peaks: &[[f32; 3]], song_count: usize) -> Vec<Vec<[f32; 2]>> {
             values
         })
         .collect();
+    debug_assert!(out.iter().all(|v| v.windows(2).all(|w| w[0][0] < w[1][0])));
     debug_assert_eq!(peaks.len(), out.iter().map(|v| v.len()).sum::<usize>());
     out
 }
