@@ -99,6 +99,8 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: DrumMapping):
     drum_classes = []
     for i in range(n_classes):
         drum_classes.append(notes[midi_to_class[notes[:, 0].astype(int)] == i, 1])
+        # two different instruments playing at the same time may get the same class
+        drum_classes[i] = np.unique(drum_classes[i])
 
     return drum_classes
 
