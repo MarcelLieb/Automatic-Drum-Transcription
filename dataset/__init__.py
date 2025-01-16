@@ -73,6 +73,8 @@ def load_audio(
 
 
 def get_length(path: str | Path) -> float:
+    path = str(path)
+    assert path.endswith(".wav") or path.endswith(".mp3"), f"{path} is not a valid audio file"
     return librosa.get_duration(path=path)
 
 
@@ -231,6 +233,16 @@ def get_dataloader(dataset, batch_size, num_workers, is_train=False):
         prefetch_factor=6 if num_workers > 0 else None,
     )
     return dataloader
+
+
+def convert_to_wav(path: str | Path):
+    path = Path(path)
+    if path.suffix == ".wav":
+        return
+    audio = load_audio(path, 44100, False)
+    if len(audio.shape) == 1:
+        audio = audio.unsqueeze(0)
+    torchaudio.save(path.with_suffix(".wav"), audio, 44100, channels_first=True)
 
 
 T = TypeVar("T")

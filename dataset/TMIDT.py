@@ -11,7 +11,7 @@ from dataset import (
     get_midi_to_class,
     get_length,
     get_label_windows,
-    get_segments,
+    get_segments, convert_to_wav,
 )
 from generics import ADTDataset
 from settings import DatasetSettings
@@ -41,7 +41,7 @@ drum_map = {int(key): value for key, value in drum_map.items()}
 
 
 def get_annotations(
-    path: Path | str, identifier: str, mapping: DrumMapping
+        path: Path | str, identifier: str, mapping: DrumMapping
 ) -> tuple[str, list[np.array], list[np.array]]:
     file_path = os.path.join(path, "annotations", "drums_l", f"{identifier}.txt")
 
@@ -59,7 +59,6 @@ def get_annotations(
 
         drums = [drums[drums[:, 1] == i][:, 0] for i in range(len(mapping))]
     else:
-        print(f"Empty drums for {identifier}")
         drums = [np.array([]) for _ in range(len(mapping))]
 
     beats = np.loadtxt(
@@ -68,26 +67,40 @@ def get_annotations(
     )
     beats = [beats[beats[:, 1] == 1][:, 0], beats[:, 0]]
 
-    return identifier, beats, drums
+    return identifier, drums, beats
 
 
 def get_tracks(path: str | Path) -> list[str]:
-    return [
+    ids = [
         ".".join(file.split(".")[:-1])
-        for file in os.listdir(os.path.join(path, "mp3"))
-        if file.endswith(".mp3")
+        for file in os.listdir(os.path.join(path, "annotations", "drums_l"))
+        if file.endswith(".txt")
     ]
+    ids = [iden for iden in ids if os.stat(os.path.join(path, "annotations", "drums_l", iden + ".txt")).st_size > 0]
+    out = []
+    for iden in ids:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                get_length(os.path.join(path, "mp3", f"{iden}.mp3"))
+            out.append(iden)
+        except Exception as e:
+            continue
+    if not all(os.path.exists(os.path.join(path, "mp3", f"{iden}.wav")) for iden in out):
+        with torch.multiprocessing.Pool(torch.multiprocessing.cpu_count()) as pool:
+            pool.map(convert_to_wav, [os.path.join(path, "mp3", f"{iden}.mp3") for iden in out])
+    return out
 
 
 class TMIDT(ADTDataset):
     def __init__(
-        self,
-        path: str | Path,
-        settings: DatasetSettings,
-        segment: bool = True,
-        split: list[str] | None = None,
-        is_train: bool = False,
-        use_dataloader: bool = False,
+            self,
+            path: str | Path,
+            settings: DatasetSettings,
+            segment: bool = True,
+            split: list[str] | None = None,
+            is_train: bool = False,
+            use_dataloader: bool = False,
     ):
         super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
 
@@ -99,7 +112,11 @@ class TMIDT(ADTDataset):
             self.annotations = pool.starmap(get_annotations, args)
             self.annotations.sort(key=lambda x: int(x[0].split("_")[0]))
 
-            args = [(self.path, identifier) for identifier in self.split]
+            self.annotations = [
+                (iden, drums, beats) for iden, drums, beats in self.annotations if any(len(d) > 0 for d in drums)
+            ]
+
+            args = [(self.path, iden) for (iden, *_) in self.annotations]
             paths = pool.starmap(self._get_full_path, args)
             if self.segment:
                 args = [(path,) for path in paths]
@@ -125,7 +142,7 @@ class TMIDT(ADTDataset):
 
     @staticmethod
     def _get_full_path(root: str, identification: str) -> Path:
-        audio_path = os.path.join(root, "mp3", f"{identification}.mp3")
+        audio_path = os.path.join(root, "mp3", f"{identification}.wav")
         return Path(audio_path)
 
     def get_full_path(self, identification: Any):
@@ -133,8 +150,10 @@ class TMIDT(ADTDataset):
 
 
 if __name__ == "__main__":
+    torch.multiprocessing.set_start_method("spawn", force=True)
     a = get_annotations(
         Path("../data/midi"), "35_ABBA_-_SOS_accomp", DrumMapping.THREE_CLASS_STANDARD
     )
     d = TMIDT(Path("../data/midi"), DatasetSettings())
-    _a = d[0]
+    b = d[0]
+    print(b)
