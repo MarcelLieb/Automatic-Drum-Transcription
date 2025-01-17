@@ -5,13 +5,14 @@ from dataset import get_dataloader
 from dataset.RBMA13 import RBMA13
 from dataset.MDB_Drums import MDBDrums
 from dataset.A2MD import A2MD, get_splits as get_a2md_splits
+from dataset.TMIDT import TMIDT
 from generics import ConcatADTDataset
 from settings import TrainingSettings, DatasetSettings
 
 
 def get_dataset(
-    training_settings: TrainingSettings,
-    dataset_settings: DatasetSettings,
+        training_settings: TrainingSettings,
+        dataset_settings: DatasetSettings,
 ) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
@@ -24,39 +25,58 @@ def get_dataset(
     )
     torch.multiprocessing.set_start_method("spawn", force=True)
 
-    if training_settings.train_set == "all":
-        a2md = A2MD(
-            split=None,
-            settings=dataset_settings,
-            path=path,
-            use_dataloader=True,
-            is_train=True,
-            segment=True,
-        )
-        rbma = RBMA13(
-            path="./data/rbma_13",
-            settings=dataset_settings,
-            use_dataloader=True,
-            is_train=True,
-            segment=True,
-        )
-        mdb = MDBDrums(
-            path="./data/MDB Drums",
-            settings=dataset_settings,
-            use_dataloader=True,
-            is_train=True,
-            segment=True,
-        )
-        train = ConcatADTDataset(dataset_settings, [a2md, rbma, mdb])
-    else:
-        train = A2MD(
-            split=train_split,
-            settings=dataset_settings,
-            path=path,
-            use_dataloader=True,
-            is_train=True,
-            segment=True,
-        )
+    match training_settings.train_set:
+        case "a2md":
+            train = A2MD(
+                split=train_split,
+                settings=dataset_settings,
+                path=path,
+                use_dataloader=True,
+                is_train=True,
+                segment=True,
+            )
+        case "tmidt" | "midi":
+            train = TMIDT(
+                path="./data/midi",
+                settings=dataset_settings,
+                use_dataloader=True,
+                is_train=True,
+                segment=True,
+            )
+        case "all":
+            a2md = A2MD(
+                split=None,
+                settings=dataset_settings,
+                path=path,
+                use_dataloader=True,
+                is_train=True,
+                segment=True,
+            )
+            rbma = RBMA13(
+                path="./data/rbma_13",
+                settings=dataset_settings,
+                use_dataloader=True,
+                is_train=True,
+                segment=True,
+            )
+            mdb = MDBDrums(
+                path="./data/MDB Drums",
+                settings=dataset_settings,
+                use_dataloader=True,
+                is_train=True,
+                segment=True,
+            )
+            train = ConcatADTDataset(dataset_settings, [a2md, rbma, mdb])
+        case _:
+            train = A2MD(
+                split=train_split,
+                settings=dataset_settings,
+                path=path,
+                use_dataloader=True,
+                is_train=True,
+                segment=True,
+            )
+
     val = A2MD(
         split=val_split,
         settings=dataset_settings,
