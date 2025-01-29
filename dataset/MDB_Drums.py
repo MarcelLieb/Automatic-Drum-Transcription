@@ -90,6 +90,7 @@ class MDBDrums(ADTDataset):
             segment=segment,
         )
         self.path = path
+        self.full = split is None
         self.split = split if split is not None else get_tracks(path)
 
         self.annotations = {}
@@ -131,6 +132,12 @@ class MDBDrums(ADTDataset):
             self.path, "audio", "full_mix", f"MusicDelta_{identifier}_MIX.wav"
         )
         return Path(audio_path)
+
+    def get_identifier(self) -> str:
+        if self.full:
+            return "MDB_full"
+        else:
+            return "MDB_split"
 
 
 if __name__ == "__main__":

@@ -399,7 +399,7 @@ def main(
     print(dataset_settings)
     print(model_settings)
 
-    loader_train, loader_val, loader_test_rbma, loader_test_mdb = get_dataset(
+    loader_train, loader_val, test_sets = get_dataset(
         training_settings, dataset_settings=dataset_settings
     )
 
@@ -520,36 +520,24 @@ def main(
             f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
         )
         if f_score > evaluation_settings.min_test_score and f_score >= best_score and not is_unet:
-            test_loss, test_f_score, test_avg_f_score = evaluate(
-                epoch,
-                model if ema_model is None else ema_model.module,
-                loader_test_rbma,
-                error,
-                device,
-                evaluation_settings,
-                tensorboard_writer=writer,
-                tag="Test/RBMA",
-            )
-            torch.cuda.empty_cache()
-            print(
-                f"RBMA: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
-            )
-            test_loss, test_f_score, test_avg_f_score = evaluate(
-                epoch,
-                model if ema_model is None else ema_model.module,
-                loader_test_mdb,
-                error,
-                device,
-                evaluation_settings,
-                tensorboard_writer=writer,
-                tag="Test/MDB",
-            )
-            torch.cuda.empty_cache()
-            print(
-                f"MDB: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
-            )
-            if test_f_score > 0.75:
-                break
+            for test_loader in test_sets:
+                identifier = test_loader.dataset.get_identifier()
+                test_loss, test_f_score, test_avg_f_score = evaluate(
+                    epoch,
+                    model if ema_model is None else ema_model.module,
+                    test_loader,
+                    error,
+                    device,
+                    evaluation_settings,
+                    tensorboard_writer=writer,
+                    tag="Test/RBMA",
+                )
+                torch.cuda.empty_cache()
+                print(
+                    f"{identifier}: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
+                )
+                if test_f_score > 0.75:
+                    break
         last_improvement += 1
         if best_score + 0.0001 < f_score and not is_unet:
             best_score = f_score

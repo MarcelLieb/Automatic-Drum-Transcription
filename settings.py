@@ -117,7 +117,9 @@ class TrainingSettings(SettingsBase):
     min_save_score: float = 0.62
     test_batch_size: int = 1
     full_length_test: bool = False
-    train_set: Literal["all", "a2md_train"] = "a2md_train"
+    train_set: Literal["all", "a2md_train", "midi"] = "a2md_train"
+    eval_set: str = "A2MD"
+    test_sets: tuple[str] = ("RBMA", "MDB")
     model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet", "crnn"] = "mamba_fast"
 
     def get_model_settings_class(self):
@@ -140,6 +142,8 @@ class TrainingSettings(SettingsBase):
         class_attributes = [key for key in keys if key in dic]
         if "splits" in class_attributes:
             dic["splits"] = make_tuple(dic["splits"])
+        if "test_sets" in class_attributes:
+            dic["test_sets"] = make_tuple(dic["test_sets"])
         attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
         return cls(**attributes)
 

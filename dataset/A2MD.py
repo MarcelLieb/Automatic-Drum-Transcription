@@ -71,7 +71,6 @@ def get_splits(
         total = sum(len(arr) for _, arr in s.items())
         assert abs(total / len(flat_tracks) - splits[i]) < 2e-2, f"{total / len(flat_tracks)} != {splits[i]}"
 
-
     return out
 
 
@@ -88,6 +87,7 @@ class A2MD(ADTDataset):
         super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
         self.path = path
         self.split = get_tracks(path) if split is None else split
+        self.full = split is None
 
         args = []
         for i, (folder, identifiers) in enumerate(self.split.items()):
@@ -139,3 +139,9 @@ class A2MD(ADTDataset):
 
     def get_full_path(self, identification: tuple[str, str]) -> Path:
         return self._get_full_path(self.path, identification)
+
+    def get_identifier(self) -> str:
+        if self.full:
+            return "A2MD_full"
+        else:
+            return "A2MD_split"

@@ -99,6 +99,10 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         pass
 
     @abstractmethod
+    def get_identifier(self) -> str:
+        pass
+
+    @abstractmethod
     def __len__(self):
         pass
 

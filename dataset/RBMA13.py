@@ -76,6 +76,7 @@ class RBMA13(ADTDataset):
         super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
         self.path = path
 
+        self.full = splits is None
         self.annotations = load_rbma(path)
         if splits is None:
             splits = get_tracks(path)
@@ -116,6 +117,12 @@ class RBMA13(ADTDataset):
     def get_full_path(self, track: str) -> Path:
         audio_path = os.path.join(self.path, "audio", f"{track}.mp3")
         return Path(audio_path)
+
+    def get_identifier(self) -> str:
+        if self.full:
+            return "RBMA_full"
+        else:
+            return "RBMA_split"
 
 
 def main():

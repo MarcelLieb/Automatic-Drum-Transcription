@@ -1,7 +1,7 @@
 import os.path
 import warnings
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -41,7 +41,7 @@ drum_map = {int(key): value for key, value in drum_map.items()}
 
 
 def get_annotations(
-        path: Path | str, identifier: str, mapping: DrumMapping
+    path: Path | str, identifier: str, mapping: DrumMapping
 ) -> tuple[str, list[np.array], list[np.array]]:
     file_path = os.path.join(path, "annotations", "drums_l", f"{identifier}.txt")
 
@@ -70,13 +70,19 @@ def get_annotations(
     return identifier, drums, beats
 
 
-def get_tracks(path: str | Path) -> list[str]:
+def get_tracks(path: str | Path, instruments: Literal["all", "solo", "accomp"] = "all") -> list[str]:
     ids = [
         ".".join(file.split(".")[:-1])
         for file in os.listdir(os.path.join(path, "annotations", "drums_l"))
         if file.endswith(".txt")
     ]
     ids = [iden for iden in ids if os.stat(os.path.join(path, "annotations", "drums_l", iden + ".txt")).st_size > 0]
+    if instruments == "all":
+        pass
+    elif instruments == "solo":
+        ids = [iden for iden in ids if "accomp" not in iden]
+    elif instruments == "accomp":
+        ids = [iden for iden in ids if "accomp" in iden]
     out = []
     for iden in ids:
         try:
@@ -94,18 +100,21 @@ def get_tracks(path: str | Path) -> list[str]:
 
 class TMIDT(ADTDataset):
     def __init__(
-            self,
-            path: str | Path,
-            settings: DatasetSettings,
-            segment: bool = True,
-            split: list[str] | None = None,
-            is_train: bool = False,
-            use_dataloader: bool = False,
+        self,
+        path: str | Path,
+        settings: DatasetSettings,
+        segment: bool = True,
+        split: list[str] | None = None,
+        is_train: bool = False,
+        use_dataloader: bool = False,
+        instruments: Literal["all", "solo", "accomp"] = "all"
     ):
         super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
 
         self.path = path
-        self.split = get_tracks(path) if split is None else split
+        self.instruments = instruments
+        self.full = split is None
+        self.split = get_tracks(path, instruments=instruments) if split is None else split
 
         with torch.multiprocessing.Pool(torch.multiprocessing.cpu_count()) as pool:
             args = [(path, identifier, self.mapping) for identifier in self.split]
@@ -147,6 +156,9 @@ class TMIDT(ADTDataset):
 
     def get_full_path(self, identification: Any):
         return self._get_full_path(self.path, identification)
+
+    def get_identifier(self) -> str:
+        return "TMIDT" + f"_{self.instruments}" if self.instruments != "all" else "" + "_split" if not self.full else ""
 
 
 if __name__ == "__main__":
