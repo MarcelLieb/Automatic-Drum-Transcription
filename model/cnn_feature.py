@@ -5,7 +5,8 @@ from model import ResidualBlock
 
 
 class CNNFeature(nn.Module):
-    def __init__(self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout, in_channels=1):
+    def __init__(self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout,
+                 in_channels=1):
         super(CNNFeature, self).__init__()
 
         self.activation = activation
@@ -50,11 +51,9 @@ class CNNFeature(nn.Module):
                 )
             )
 
-        self.conv_pools = nn.Sequential(*conv)
-
+        self.conv_pools = nn.Sequential(*conv) if n_layers > 0 else nn.Identity()
 
     def forward(self, x):
         x = self.conv_pools(x)
 
         return x
-

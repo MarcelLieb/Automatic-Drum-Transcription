@@ -12,7 +12,7 @@ class CRNN(nn.Module):
         self.activation = activation
         self.causal = causal
         self.n_dims = (n_mels // (down_sample_factor ** num_conv_layers)) * num_channels * (
-                channel_multiplication ** (num_conv_layers - 1))
+                channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
         self.flux = flux
 
         self.conv = CNNFeature(
