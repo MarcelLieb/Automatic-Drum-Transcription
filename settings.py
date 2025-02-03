@@ -49,6 +49,7 @@ class AudioProcessingSettings(SettingsBase):
     pad_mode: Literal["constant", "reflect"] = "constant"
     mel_min: float = 20.0
     mel_max: float = 20000.0
+    power: Literal[1, 2] = 1
     normalize: bool = False
 
 

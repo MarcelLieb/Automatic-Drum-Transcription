@@ -13,11 +13,11 @@ from settings import DatasetSettings
 class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
     @abstractmethod
     def __init__(
-            self,
-            settings: DatasetSettings,
-            is_train: bool,
-            segment: bool,
-            use_dataloader: bool = False,
+        self,
+        settings: DatasetSettings,
+        is_train: bool,
+        segment: bool,
+        use_dataloader: bool = False,
     ):
         audio_settings = settings.audio_settings
         annotation_settings = settings.annotation_settings
@@ -36,6 +36,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.beats = annotation_settings.beats
         self.n_classes = annotation_settings.n_classes
         self.normalize = audio_settings.normalize
+        self.power = audio_settings.power
 
         self.segment = segment
 
@@ -63,7 +64,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             n_fft=self.fft_size,
             hop_length=self.hop_size,
             win_length=self.fft_size // 2,
-            power=2,
+            power=self.power,
             center=self.center,
             pad_mode=self.pad_mode,
             normalized=True,
@@ -76,6 +77,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             f_min=audio_settings.mel_min,
             f_max=audio_settings.mel_max,
             n_stft=self.fft_size // 2 + 1,
+            mel_scale="htk",
         )
 
         self.annotations: list[tuple[Any, list[np.array], list[np.array]]] | None = None
@@ -123,7 +125,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             audio = load_audio(path, self.sample_rate, self.normalize, start, end)
             end = get_length(path) if end == -1 else end
             start, end, segment_length = (
-                    np.array((start, end, self._segment_length)) * self.sample_rate
+                np.array((start, end, self._segment_length)) * self.sample_rate
             ).astype(int)
             # Pad audio to segment length
             if self.segments is not None:
@@ -138,7 +140,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             full_audio = self.cache[audio_idx]
             end = full_audio.shape[-1] / self.sample_rate if end == -1 else end
             start, end, segment_length = (
-                    np.array((start, end, self._segment_length)) * self.sample_rate
+                np.array((start, end, self._segment_length)) * self.sample_rate
             ).astype(int)
             if self.segments is not None:
                 audio = segment_audio(full_audio, start, end, segment_length, pad=True)
@@ -171,7 +173,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         if self.pad_annotations:
             padded = (
-                    self.annotation_padder(labels.unsqueeze(0)).squeeze(0) * self.pad_value
+                self.annotation_padder(labels.unsqueeze(0)).squeeze(0) * self.pad_value
             )
             labels = torch.maximum(labels, padded)
 
