@@ -349,6 +349,7 @@ def main(
         config: Config = Config(),
         trial: optuna.Trial = None,
 ):
+    torch.manual_seed(42)
     training_settings = config.training
     evaluation_settings = config.evaluation
     dataset_settings = config.dataset
