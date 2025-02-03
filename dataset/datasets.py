@@ -6,7 +6,7 @@ from dataset.RBMA13 import RBMA13
 from dataset.MDB_Drums import MDBDrums
 from dataset.A2MD import A2MD, get_splits as get_a2md_splits
 from dataset.TMIDT import TMIDT
-from generics import ConcatADTDataset
+from dataset.generics import ConcatADTDataset
 from settings import TrainingSettings, DatasetSettings
 
 

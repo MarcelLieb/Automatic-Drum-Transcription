@@ -13,7 +13,7 @@ from dataset import (
     get_label_windows,
     get_segments, convert_to_wav,
 )
-from generics import ADTDataset
+from dataset.generics import ADTDataset
 from settings import DatasetSettings
 
 drum_map = {

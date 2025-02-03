@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 from dataset import get_label_windows, get_length, get_segments
-from generics import ADTDataset
+from dataset.generics import ADTDataset
 from settings import DatasetSettings
 
 rbma_13_path = "./data/rbma_13/"

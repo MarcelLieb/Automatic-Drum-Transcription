@@ -13,7 +13,7 @@ from dataset import (
     get_splits as get_splits_data,
 )
 from dataset.mapping import DrumMapping
-from generics import ADTDataset
+from dataset.generics import ADTDataset
 from settings import DatasetSettings
 
 A2MD_PATH = "./data/a2md_public/"

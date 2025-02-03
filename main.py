@@ -16,7 +16,7 @@ from tqdm import tqdm
 from dataset.datasets import get_dataset
 from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score
-from generics import ADTDataset
+from dataset.generics import ADTDataset
 from model import ModelEmaV2
 from model.CRNN import CRNN
 from model.cnn import CNN

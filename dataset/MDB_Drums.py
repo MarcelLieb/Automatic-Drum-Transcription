@@ -5,7 +5,7 @@ import numpy as np
 import polars as pl
 
 from dataset import get_length, get_label_windows, get_segments
-from generics import ADTDataset
+from dataset.generics import ADTDataset
 from dataset.mapping import DrumMapping, get_name_to_class_number
 from settings import DatasetSettings
 

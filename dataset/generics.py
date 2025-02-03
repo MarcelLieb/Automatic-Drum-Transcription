@@ -63,7 +63,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.spectrum = torchaudio.transforms.Spectrogram(
             n_fft=self.fft_size,
             hop_length=self.hop_size,
-            win_length=self.fft_size // 2,
+            win_length=self.fft_size,
             power=self.power,
             center=self.center,
             pad_mode=self.pad_mode,
