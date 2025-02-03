@@ -530,7 +530,7 @@ def main(
                     device,
                     evaluation_settings,
                     tensorboard_writer=writer,
-                    tag="Test/RBMA",
+                    tag=f"Test/{identifier}",
                 )
                 torch.cuda.empty_cache()
                 print(
