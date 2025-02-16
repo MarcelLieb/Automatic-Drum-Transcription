@@ -533,6 +533,10 @@ def main(
                     tensorboard_writer=writer,
                     tag=f"Test/{identifier}",
                 )
+                prev_f = trial.user_attrs.get(f"{identifier}_f_score", 0)
+                if test_f_score > prev_f:
+                    trial.set_user_attr(f"{identifier}_f_score_sum", test_f_score)
+                    trial.set_user_attr(f"{identifier}_f_score_avg", test_avg_f_score)
                 torch.cuda.empty_cache()
                 print(
                     f"{identifier}: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
