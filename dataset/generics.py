@@ -160,8 +160,8 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             )
 
         spectrum = self.spectrum(audio)
-        spectrum = torch.log1p(spectrum)
         mel = self.filter_bank(spectrum)
+        mel = torch.log1p(mel)
 
         time_offset = start / self.sample_rate
 
