@@ -29,7 +29,7 @@ class CNNFeature(nn.Module):
                             kernel_size=(down_sample_factor, 1),
                             stride=(down_sample_factor, 1),
                         ),
-                        nn.Dropout(dropout),
+                        nn.Dropout2d(dropout),
                     )
                 )
                 continue
@@ -47,7 +47,7 @@ class CNNFeature(nn.Module):
                         kernel_size=(down_sample_factor, 1),
                         stride=(down_sample_factor, 1),
                     ),
-                    nn.Dropout(dropout),
+                    nn.Dropout2d(dropout),
                 )
             )
 
