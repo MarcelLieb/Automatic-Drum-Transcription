@@ -5,12 +5,12 @@ import pretty_midi
 import torch
 
 from dataset import (
-    load_audio,
+    # load_audio,
     get_label_windows,
     get_drums,
     get_length,
     get_segments,
-    get_splits as get_splits_data,
+    get_splits as get_splits_data, convert_to_wav,
 )
 from dataset.mapping import DrumMapping
 from dataset.generics import ADTDataset
@@ -46,6 +46,14 @@ def get_tracks(path: str) -> dict[str, list[str]]:
                 identifier = "_".join(file.split(".")[0].split("_")[2:4])
                 out[folder].append(identifier)
     return out
+
+
+def convert_to_wav_dataset(root: str):
+    tracks = get_tracks(root)
+    for folder, identifiers in tracks.items():
+        print(f"Converting {folder}")
+        for identifier in identifiers:
+            convert_to_wav(A2MD._get_full_path(root, (folder, identifier)))
 
 
 def get_splits(
@@ -123,8 +131,8 @@ class A2MD(ADTDataset):
                         self.frame_overlap,
                         self.sample_rate,
                     )
-            args = [(path, self.sample_rate, self.normalize) for path in paths]
-            self.cache = pool.starmap(load_audio, args)
+            # args = [(path, self.sample_rate, self.normalize) for path in paths]
+            # self.cache = pool.starmap(load_audio, args)
 
     def __len__(self):
         return len(self.segments) if self.segments is not None else len(self.annotations)
@@ -132,9 +140,14 @@ class A2MD(ADTDataset):
     @staticmethod
     def _get_full_path(root: str, identification: tuple[str, str]) -> Path:
         folder, identifier = identification
-        audio_path = os.path.join(
-            root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3"
-        )
+        if os.path.exists(os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav")):
+            audio_path = os.path.join(
+                root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav"
+            )
+        else:
+            audio_path = os.path.join(
+                root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3"
+            )
         return Path(audio_path)
 
     def get_full_path(self, identification: tuple[str, str]) -> Path:
@@ -145,3 +158,7 @@ class A2MD(ADTDataset):
             return "A2MD_full"
         else:
             return "A2MD_split"
+
+if __name__ == "__main__":
+    convert_to_wav_dataset("../data/a2md_public/")
+    print("Done")
