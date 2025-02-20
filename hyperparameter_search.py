@@ -94,7 +94,8 @@ def attention_objective(trial: optuna.Trial):
     )
     evaluate_settings = EvaluationSettings(pr_points=100, min_test_score=0.45)
 
-    test_model = CNNAttention(**asdict(model_settings), n_classes=dataset_settings.annotation_settings.n_classes, n_mels=n_mels)
+    test_model = CNNAttention(**asdict(model_settings), n_classes=dataset_settings.annotation_settings.n_classes,
+                              n_mels=n_mels)
     input_shape = (1, n_mels, 100)  # 100 frames per second is frame rate
 
     with torch.inference_mode():
@@ -227,6 +228,100 @@ def mamba_objective(trial: optuna.Trial):
     return score, flops
 
 
+def crnn_objective(trial: optuna.Trial):
+    lr = trial.suggest_float("lr", 4e-5, 6e-2, log=True)
+    weight_decay = trial.suggest_float("weight_decay", 1e-10, 5e-3, log=True)
+    beta_1 = trial.suggest_float("beta_1", 0.3, 1)
+    beta_2 = trial.suggest_float("beta_2", 0.3, 1)
+    epsilon = trial.suggest_float("epsilon", 1e-10, 1e-6, log=True)
+    decoupled_weight_decay = trial.suggest_categorical("decoupled_weight_decay", [True, False])
+    batch_size = trial.suggest_int("batch_size", 4, 64, log=True)
+    frame_length = trial.suggest_float("segment_length", 1.0, 8.0, step=0.1)
+    frame_overlap = trial.suggest_float("segment_overlap", 0.1, 1.0, step=0.1)
+    n_mels = trial.suggest_categorical("n_mels", [64, 84, 96, 128])
+    flux = trial.suggest_categorical("flux", [True, False])
+    num_channels = trial.suggest_int("num_channels", 16, 64)
+    num_rnn_layers = trial.suggest_int("num_rnn_layers", 1, 8)
+    hidden_units = trial.suggest_int("hidden_units", 16, 2 ** 11, log=True)
+    down_sample_factor = trial.suggest_int("down_sample_factor", 1, 4)
+    max_layers = min(int(np.emath.logn(down_sample_factor, n_mels)) if down_sample_factor > 1 else 4, 4)
+    num_conv_layers = trial.suggest_int("num_conv_layer", 0, max_layers)
+    if num_conv_layers == 1:
+        channel_multiplication = trial.suggest_int("channel_multiplication", 1, 1)
+    else:
+        channel_multiplication = trial.suggest_int("channel_multiplication", 1, 4)
+    dropout = trial.suggest_float("dropout", 0.3, 0.9, step=0.05)
+    classifier_dim = trial.suggest_int("classifier_dim", 2 ** 4, 2 ** 11, log=True)
+    activation = trial.suggest_categorical("activation", ["selu", "relu", "elu", "silu"])
+
+    match activation:
+        case "selu":
+            activation = nn.SELU()
+        case "relu":
+            activation = nn.ReLU()
+        case "elu":
+            activation = nn.ELU()
+        case "silu":
+            activation = nn.SiLU()
+
+    train_settings = TrainingSettings(
+        epochs=30,
+        learning_rate=lr,
+        scheduler=False,
+        batch_size=batch_size,
+        weight_decay=weight_decay,
+        beta_1=beta_1,
+        beta_2=beta_2,
+        epsilon=epsilon,
+        decoupled_weight_decay=decoupled_weight_decay,
+        dataset_version="M",
+        early_stopping=7,
+        full_length_test=True,
+        train_set="a2md_train",
+    )
+    dataset_settings = DatasetSettings(
+        frame_length=frame_length,
+        frame_overlap=frame_overlap,
+        audio_settings=AudioProcessingSettings(n_mels=n_mels, fft_size=1024),
+        annotation_settings=AnnotationSettings(time_shift=0.015),
+    )
+    model_settings = CRNNSettings(
+        num_channels=num_channels,
+        num_conv_layers=num_conv_layers,
+        num_rnn_layers=num_rnn_layers,
+        rnn_units=hidden_units,
+        channel_multiplication=channel_multiplication,
+        dropout=dropout,
+        causal=True,
+        flux=flux,
+        classifier_dim=classifier_dim,
+        down_sample_factor=down_sample_factor,
+        activation=activation,
+    )
+    evaluate_settings = EvaluationSettings(pr_points=400, min_test_score=0.48)
+
+    test_model = CRNN(**asdict(model_settings), n_classes=dataset_settings.annotation_settings.n_classes, n_mels=n_mels)
+    input_shape = (1, n_mels, 100)  # 100 frames per second is frame rate
+
+    flops, macs, params = calculate_flops(model=test_model, input_shape=input_shape, output_as_string=False,
+                                          print_results=False)
+    trial.set_user_attr("flops", flops)
+    trial.set_user_attr("macs", macs)
+    trial.set_user_attr("params", params)
+
+    del test_model
+
+    # train model
+    model, score = train_model(
+        Config(training=train_settings, dataset=dataset_settings, model=model_settings, evaluation=evaluate_settings),
+        trial=trial)
+    del model
+
+    torch.cuda.empty_cache()
+
+    return score, flops
+
+
 def attention():
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
     study_name = "cnn_attention"
@@ -240,7 +335,8 @@ def attention():
         pruner=optuna.pruners.HyperbandPruner(),
     )
 
-    study.optimize(mamba_objective, n_trials=100, catch=(torch.cuda.OutOfMemoryError, RuntimeError), gc_after_trial=True)
+    study.optimize(mamba_objective, n_trials=100, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
+                   gc_after_trial=True)
 
 
 def mamba():
@@ -256,7 +352,47 @@ def mamba():
         pruner=optuna.pruners.HyperbandPruner(),
     )
 
-    study.optimize(mamba_objective, n_trials=100, catch=(torch.cuda.OutOfMemoryError, RuntimeError), gc_after_trial=True)
+    study.optimize(mamba_objective, n_trials=100, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
+                   gc_after_trial=True)
+
+
+def crnn():
+    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    storage_name = "sqlite:///hyperparameters.db"
+
+    study = optuna.create_study(
+        directions=["maximize", "minimize"],
+        study_name="CRNN fixes",
+        storage=storage_name,
+        load_if_exists=True,
+        sampler=optuna.samplers.TPESampler(multivariate=True),
+        pruner=optuna.pruners.HyperbandPruner(),
+    )
+
+    study.enqueue_trial({
+        "activation": "selu",
+        "batch_size": 7,
+        "beta_1": 0.8465832330435744,
+        "beta_2": 0.9080326213407318,
+        "channel_multiplication": 4,
+        "classifier_dim": 460,
+        "decoupled_weight_decay": True,
+        "down_sample_factor": 2,
+        "dropout": 0.5,
+        "epsilon": 1.889851774947018e-08,
+        "flux": True,
+        "hidden_units": 1090,
+        "lr": 9.9e-5,
+        "n_mels": 84,
+        "num_channels": 25,
+        "num_conv_layer": 2,
+        "num_rnn_layers": 4,
+        "segment_length": 2.2,
+        "segment_overlap": 0.2,
+        "weight_decay": 2.0891162774860116e-05,
+    }, skip_if_exists=True)
+
+    study.optimize(crnn_objective, n_trials=50, catch=(torch.cuda.OutOfMemoryError, RuntimeError), gc_after_trial=True)
 
 
 if __name__ == '__main__':
