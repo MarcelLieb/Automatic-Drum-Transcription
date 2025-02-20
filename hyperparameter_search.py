@@ -343,10 +343,16 @@ def mamba():
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
     study_name = "mamba"
     storage_name = "sqlite:///local.db"
+    storage = optuna.storages.RDBStorage(
+        url=storage_name,
+        engine_kwargs={"pool_pre_ping": True, "pool_recycle": 3600, "pool_timeout": 3600},
+        heart_beat_interval=60,
+        grace_period=3600,
+    )
     study = optuna.create_study(
         directions=["maximize", "minimize"],
         study_name=study_name,
-        storage=storage_name,
+        storage=storage,
         load_if_exists=True,
         sampler=optuna.samplers.TPESampler(multivariate=True),
         pruner=optuna.pruners.HyperbandPruner(),
