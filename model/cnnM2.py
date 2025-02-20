@@ -42,42 +42,48 @@ class MambaBlock(nn.Module):
     def forward(self, x):
         residual = x
         x = self.mamba(x)
+        x = self.dropout(x)  # Dropout may lead to nan values
         x = self.norm(x + residual)
-        x = self.dropout(x)
         return x
 
 
 class CNNMambaFast(nn.Module):
     def __init__(
-            self,
-            n_mels,
-            n_classes,
-            d_state,
-            d_conv,
-            expand,
-            flux,
-            activation,
-            causal,
-            num_channels,
-            n_layers,
-            backbone: Literal["unet", "cnn"],
-            return_features=1,
-            dropout=0.1,
+        self,
+        n_mels,
+        n_classes,
+        d_state,
+        d_conv,
+        expand,
+        flux,
+        activation,
+        causal,
+        num_channels,
+        n_layers,
+        backbone: Literal["unet", "cnn"],
+        return_features=1,
+        dropout=0.1,
+        down_sample_factor: int = 3,
+        num_conv_layers: int = 2,
+        channel_multiplication: int = 2,
+        classifier_dim: int = 128,
+        hidden_units: int = 512,
     ):
         super(CNNMambaFast, self).__init__()
 
         self.activation = activation
         self.flux = flux
-        self.n_dims = n_mels // 4 * 2
+        self.n_dims = (n_mels // (down_sample_factor ** num_conv_layers)) * num_channels * (
+                channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
         self.causal = causal
 
         match backbone:
             case "cnn":
                 self.backbone = CNNFeature(
                     num_channels=num_channels,
-                    n_layers=2,
-                    down_sample_factor=2,
-                    channel_multiplication=2,
+                    n_layers=num_conv_layers,
+                    down_sample_factor=down_sample_factor,
+                    channel_multiplication=channel_multiplication,
                     activation=activation,
                     causal=causal,
                     dropout=dropout,
@@ -94,9 +100,10 @@ class CNNMambaFast(nn.Module):
                     ),
                 )
         self.return_features = return_features if backbone == "unet" else -1
+        self.proj = nn.Linear(self.n_dims, hidden_units)
         mamba_layers = [
             MambaBlock(
-                d_model=(num_channels * self.n_dims),
+                d_model=hidden_units,
                 d_state=d_state,
                 d_conv=d_conv,
                 expand=expand,
@@ -105,7 +112,9 @@ class CNNMambaFast(nn.Module):
             for _ in range(n_layers)
         ]
         self.mamba = nn.Sequential(*mamba_layers)
-        self.fc1 = nn.Linear(num_channels * self.n_dims, n_classes)
+        self.fc1 = nn.Linear(hidden_units, classifier_dim)
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(classifier_dim, n_classes)
 
     def forward(self, x):
         x = x.unsqueeze(1)
@@ -116,8 +125,11 @@ class CNNMambaFast(nn.Module):
         x = self.backbone(x)
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
+        x = self.proj(x)
         x = self.mamba(x)
         x = self.fc1(x)
-        x = x.permute(0, 2, 1)
         x = self.activation(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        x = x.permute(0, 2, 1)
         return x
