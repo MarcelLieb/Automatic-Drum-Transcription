@@ -85,7 +85,7 @@ def step(
     ):
         scheduler.step()
 
-    return loss.item()
+    return loss.item() if not torch.isnan(loss) else 0.0
 
 
 def step_encoder(
@@ -208,7 +208,7 @@ def evaluate(
     )
     predictions = []
     groundtruth = []
-    with torch.no_grad():
+    with torch.inference_mode():
         for data in tqdm(
                 dataloader,
                 total=len(dataloader),
@@ -466,7 +466,7 @@ def main(
         weight = None
         weight = weight.unsqueeze(-1).to(device) if weight is not None else None
         error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.amp.GradScaler(device=device)
 
     losses = []
     scores = []
@@ -538,10 +538,11 @@ def main(
                     tensorboard_writer=writer,
                     tag=f"Test/{identifier}",
                 )
-                prev_f = trial.user_attrs.get(f"{identifier}_f_score", 0)
-                if test_f_score > prev_f:
-                    trial.set_user_attr(f"{identifier}_f_score_sum", test_f_score)
-                    trial.set_user_attr(f"{identifier}_f_score_avg", test_avg_f_score)
+                if trial is not None:
+                    prev_f = trial.user_attrs.get(f"{identifier}_f_score", 0)
+                    if test_f_score > prev_f:
+                        trial.set_user_attr(f"{identifier}_f_score_sum", test_f_score)
+                        trial.set_user_attr(f"{identifier}_f_score_avg", test_avg_f_score)
                 torch.cuda.empty_cache()
                 print(
                     f"{identifier}: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
@@ -575,7 +576,7 @@ def main(
                 ).state_dict()
                 last_improvement = 0
         recent_scores = np.array(scores[-3:])
-        stuck = (np.abs(recent_scores - recent_scores.mean()) < 1e-4).all() and len(recent_scores) >= 3
+        stuck = ((np.abs(recent_scores - recent_scores.mean()) < 1e-4).all() and len(recent_scores) >= 3) or np.isnan(val_loss)
         if (
                 early_stopping is not None
                 and last_improvement >= training_settings.early_stopping or stuck
