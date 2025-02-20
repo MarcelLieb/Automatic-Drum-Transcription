@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from dataset import get_label_windows, get_length, get_segments
+from dataset import get_label_windows, get_length, get_segments, convert_to_wav
 from dataset.generics import ADTDataset
 from settings import DatasetSettings
 
@@ -63,6 +63,12 @@ def get_tracks(path: str) -> list[int]:
     ]
 
 
+def convert_to_wav_dataset(root: str):
+    tracks = load_rbma(root)
+    for track, _ in tracks.items():
+        convert_to_wav(os.path.join(root, "audio", f"{track}.mp3"))
+
+
 class RBMA13(ADTDataset):
     def __init__(
         self,
@@ -115,8 +121,11 @@ class RBMA13(ADTDataset):
         self.time_shift = time_shift
 
     def get_full_path(self, track: str) -> Path:
-        audio_path = os.path.join(self.path, "audio", f"{track}.mp3")
-        return Path(audio_path)
+        audio_path = os.path.join(self.path, "audio", f"{track}")
+        if os.path.exists(audio_path + ".wav"):
+            return Path(audio_path + ".wav")
+        else:
+            return Path(audio_path + ".mp3")
 
     def get_identifier(self) -> str:
         if self.full:
@@ -126,38 +135,7 @@ class RBMA13(ADTDataset):
 
 
 def main():
-    settings = DatasetSettings()
-    dataset = RBMA13(
-        "../data/rbma_13/",
-        settings,
-    )
-    averages = torch.zeros((4, 82))
-    total_pos = torch.zeros(4)
-    for i in range(len(dataset)):
-        mel, labels, gt = dataset[i]
-        spec_diff = mel[..., 1:] - mel[..., :-1]
-        spec_diff = torch.clamp(spec_diff, min=0.0)
-        spec_diff = torch.cat(
-            (torch.zeros_like(spec_diff[..., -1:]), spec_diff), dim=-1
-        )
-        labels = labels.permute(1, 0)
-        mask = labels == 1
-        for j in range(4):
-            positives = spec_diff[:, mask[j, :]].mean(dim=-1)
-            positives = positives / torch.linalg.norm(
-                positives, ord=1, dim=-1, keepdim=True
-            )
-            negatives = spec_diff[:, ~mask[j, :]].mean(dim=-1)
-            negatives = negatives / torch.linalg.norm(
-                negatives, ord=1, dim=-1, keepdim=True
-            )
-            total_pos[j] += torch.any(mask[j, :])
-            if torch.any(mask[j, :]):
-                total = positives - negatives
-                averages[j, :] += total
-
-    averages /= total_pos.unsqueeze(-1)
-    print(averages)
+    convert_to_wav_dataset("../data/rbma_13")
 
 
 if __name__ == "__main__":
