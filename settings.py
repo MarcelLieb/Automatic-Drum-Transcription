@@ -206,6 +206,9 @@ class CNNAttentionSettings(ModelSettingsBase):
     context_size: int = 200
     expansion_factor: int = 4
     use_relative_pos: bool = False
+    down_sample_factor: int = 3
+    num_conv_layers: int = 2
+    channel_multiplication: int = 2
 
     def get_identifier(self):
         return "cnn_attention"
@@ -223,6 +226,11 @@ class CNNMambaSettings(ModelSettingsBase):
     backbone: Literal["unet", "cnn"] = "cnn"
     activation: nn.Module = nn.SELU()
     n_layers: int = 5
+    down_sample_factor: int = 3
+    num_conv_layers: int = 2
+    channel_multiplication: int = 2
+    classifier_dim: int = 1024
+    hidden_units: int = 512
 
     def get_identifier(self):
         return "mamba_fast"
