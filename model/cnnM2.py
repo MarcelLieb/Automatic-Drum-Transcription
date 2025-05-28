@@ -19,6 +19,28 @@ if torch.cuda.get_device_capability(0)[0] <= 6:
     RMSNorm = None
 
 
+class DenseEncoder(nn.Module):
+    def __init__(self, n_mels, num_channels, activation, dropout, flux):
+        super(DenseEncoder, self).__init__()
+        self.activation = activation
+        self.n_dims = n_mels * (1 + flux)
+        self.fc1 = nn.Linear(self.n_dims, num_channels)
+        self.fc2 = nn.Linear(num_channels, self.n_dims)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor):
+        x = x.reshape(x.size(0), -1, x.size(3))
+        x = x.permute(0, 2, 1)
+        x = self.fc1(x)
+        x = self.activation(x)
+        x = self.fc2(x)
+        x = self.dropout(x)
+        # invert the permutation
+        x = x.permute(0, 2, 1)
+        x = x.reshape(x.size(0), 1, x.size(1), x.size(2))
+        return x
+
+
 class MambaBlock(nn.Module):
     def __init__(
             self,
@@ -99,6 +121,8 @@ class CNNMambaFast(nn.Module):
                         causal=causal,
                     ),
                 )
+            case "dense":
+                self.backbone = DenseEncoder(n_mels, num_channels, activation, dropout, flux)
         self.return_features = return_features if backbone == "unet" else -1
         self.proj = nn.Linear(self.n_dims, hidden_units)
         mamba_layers = [
