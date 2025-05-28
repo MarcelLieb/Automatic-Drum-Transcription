@@ -541,6 +541,7 @@ def main(
                 ema_model.module if ema_model is not None else model
             ).state_dict()
             last_improvement = 0
+        print(last_improvement)
         if f_score > evaluation_settings.min_test_score and last_improvement == 0 and not is_unet:
             for test_loader in test_sets:
                 identifier = test_loader.dataset.get_identifier()

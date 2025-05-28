@@ -1,10 +1,12 @@
 import logging
 import sys
 from dataclasses import asdict
+from typing import Any
 
 import numpy as np
 import optuna
 from calflops import calculate_flops
+import torch
 from torch import nn
 
 from model.CRNN import CRNN
@@ -13,7 +15,7 @@ from model.cnnM2 import CNNMambaFast
 from settings import DatasetSettings, TrainingSettings, CNNMambaSettings, EvaluationSettings, AudioProcessingSettings, \
     CRNNSettings, AnnotationSettings, Config, CNNAttentionSettings
 from main import main as train_model
-import torch
+from hyperparameters import final_experiment_params
 
 
 def attention_objective(trial: optuna.Trial):
@@ -175,11 +177,12 @@ def mamba_objective(trial: optuna.Trial):
         dataset_version="M",
         early_stopping=7,
         full_length_test=False,
+        ema=True,
     )
     dataset_settings = DatasetSettings(
         frame_length=frame_length,
         frame_overlap=frame_overlap,
-        audio_settings=AudioProcessingSettings(n_mels=n_mels),
+        audio_settings=AudioProcessingSettings(n_mels=n_mels, fft_size=1024),
         annotation_settings=AnnotationSettings(time_shift=0.015),
     )
 
@@ -322,6 +325,136 @@ def crnn_objective(trial: optuna.Trial):
     return score, flops
 
 
+def loss_objective(trial: optuna.Trial):
+    lr = trial.suggest_float("lr", 1e-5, 6e-3, log=True)
+    weight_decay = trial.suggest_float("weight_decay", 1e-10, 5e-3, log=True)
+    beta_1 = 0.9
+    beta_2 = 0.999
+    # epsilon = trial.suggest_float("epsilon", 1e-10, 1e-6, log=True)
+    decoupled_weight_decay = trial.suggest_categorical("decoupled_weight_decay", [True, False])
+    batch_size = trial.suggest_int("batch_size", 4, 64, log=True)
+    frame_length = trial.suggest_float("segment_length", 1.0, 10.0, step=0.1)
+    frame_overlap = trial.suggest_float("segment_overlap", 0.1, min(frame_length - 0.1, 2), step=0.1)
+    n_mels = trial.suggest_categorical("n_mels", [64, 84, 96, 128])
+    flux = trial.suggest_categorical("flux", [True, False])
+    n_layers = trial.suggest_int("n_layers", 1, 20)
+    expand = trial.suggest_int("expansion_factor", 1, 4)
+    down_sample_factor = trial.suggest_int("down_sample_factor", 1, 4)
+    max_layers = min(int(np.emath.logn(down_sample_factor, n_mels)) if down_sample_factor > 1 else 4, 4)
+    num_conv_layers = trial.suggest_int("num_conv_layer", 0, max_layers)
+    if num_conv_layers > 0:
+        if num_conv_layers == 1:
+            channel_multiplication = trial.suggest_int("channel_multiplication", 1, 1)
+        else:
+            channel_multiplication = trial.suggest_int("channel_multiplication", 1, 4)
+        # num_channels = trial.suggest_int("num_channels", 16, 64)
+        num_channels = trial.suggest_categorical("num_channels", [16, 24, 32, 48])
+    else:
+        num_channels = 1
+        channel_multiplication = 1
+
+    hidden_units = trial.suggest_int("hidden_units", 2 ** 4, 2 ** 7, log=True)
+    d_state = trial.suggest_categorical("d_state", [16, 32, 64, 128])
+    dropout = trial.suggest_float("dropout", 0.1, 0.7, step=0.05)
+    classifier_dim = trial.suggest_int("classifier_dim", 2 ** 4, 2 ** 8, log=True)
+    activation = trial.suggest_categorical("activation", ["selu", "relu", "elu", "silu"])
+
+    match activation:
+        case "selu":
+            activation = nn.SELU()
+        case "relu":
+            activation = nn.ReLU()
+        case "elu":
+            activation = nn.ELU()
+        case "silu":
+            activation = nn.SiLU()
+
+    train_settings = TrainingSettings(
+        epochs=30,
+        learning_rate=lr,
+        scheduler=False,
+        batch_size=batch_size,
+        weight_decay=weight_decay,
+        beta_1=beta_1,
+        beta_2=beta_2,
+        # epsilon=epsilon,
+        decoupled_weight_decay=decoupled_weight_decay,
+        dataset_version="S",
+        early_stopping=3,
+        full_length_test=False,
+        ema=True,
+    )
+    dataset_settings = DatasetSettings(
+        frame_length=frame_length,
+        frame_overlap=frame_overlap,
+        audio_settings=AudioProcessingSettings(n_mels=n_mels, fft_size=1024),
+        annotation_settings=AnnotationSettings(time_shift=0.015),
+    )
+
+    model_settings = CNNMambaSettings(
+        d_state=d_state,
+        d_conv=4,
+        expand=expand,
+        flux=flux,
+        activation=activation,
+        causal=True,
+        num_channels=num_channels,
+        n_layers=n_layers,
+        backbone="cnn",
+        dropout=dropout,
+        down_sample_factor=down_sample_factor,
+        num_conv_layers=num_conv_layers,
+        channel_multiplication=channel_multiplication,
+        classifier_dim=classifier_dim,
+        hidden_units=hidden_units,
+    )
+
+    evaluate_settings = EvaluationSettings(pr_points=100, min_test_score=0.45)
+
+    test_model = CNNMambaFast(**asdict(model_settings), n_classes=dataset_settings.annotation_settings.n_classes,
+                              n_mels=n_mels)
+    test_model = test_model.to("cuda")
+    input_shape = (1, n_mels, 100)  # 100 frames per second is frame rate
+
+    with torch.inference_mode():
+        flops, macs, params = calculate_flops(model=test_model, input_shape=input_shape, output_as_string=False,
+                                              print_results=False)
+    trial.set_user_attr("flops", flops)
+    trial.set_user_attr("macs", macs)
+    trial.set_user_attr("params", params)
+
+    del test_model
+
+    # train model
+    model, score = train_model(
+        Config(training=train_settings, dataset=dataset_settings, model=model_settings, evaluation=evaluate_settings),
+        trial=trial, metric_to_track="Loss/Validation")
+    del model
+
+    torch.cuda.empty_cache()
+
+    return score, flops
+
+
+def final_configs_objective(trial: optuna.Trial):
+    configs = final_experiment_params.keys()
+    selected_config = trial.suggest_categorical("config", configs)
+
+    seed = trial.number
+    trial.set_user_attr("seed", seed)
+
+    params: dict[str, Any] = final_experiment_params[selected_config]
+    config = Config.from_flat_dict(params.copy())
+
+    model, score = train_model(config=config, trial=trial, metric_to_track="F-Score/Validation", seed=seed)
+
+    del model
+
+    torch.cuda.empty_cache()
+
+    return score
+
+
 def attention():
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
     study_name = "cnn_attention"
@@ -342,11 +475,11 @@ def attention():
 def mamba():
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
     study_name = "mamba"
-    storage_name = "sqlite:///local.db"
+    storage_name = ""
     storage = optuna.storages.RDBStorage(
         url=storage_name,
         engine_kwargs={"pool_pre_ping": True, "pool_recycle": 3600, "pool_timeout": 3600},
-        heart_beat_interval=60,
+        heartbeat_interval=60,
         grace_period=3600,
     )
     study = optuna.create_study(
@@ -354,9 +487,82 @@ def mamba():
         study_name=study_name,
         storage=storage,
         load_if_exists=True,
-        sampler=optuna.samplers.TPESampler(multivariate=True),
+        sampler=optuna.samplers.TPESampler(multivariate=True, group=True, constant_liar=True),
         pruner=optuna.pruners.HyperbandPruner(),
     )
+
+    study.enqueue_trial({
+        "activation": "selu",
+        "batch_size": 25,
+        "beta_1": 0.9128946577712855,
+        "beta_2": 0.9662584822267997,
+        "channel_multiplication": 4,
+        "classifier_dim": 128,
+        "d_state": 64,
+        "decoupled_weight_decay": True,
+        "down_sample_factor": 3,
+        "dropout": 0.15,
+        "expansion_factor": 2,
+        "flux": True,
+        "hidden_units": 768,
+        "lr": 2e-4,
+        "n_layers": 12,
+        "n_mels": 64,
+        "num_channels": 48,
+        "num_conv_layer": 2,
+        "segment_length": 5.0,
+        "segment_overlap": 2.0,
+        "weight_decay": 8.0e-5,
+    }, skip_if_exists=True)
+
+    study.enqueue_trial({
+        "activation": "relu",
+        "batch_size": 32,
+        "beta_1": 0.92,
+        "beta_2": 0.98,
+        "channel_multiplication": 2,
+        "classifier_dim": 1024,
+        "d_state": 64,
+        "decoupled_weight_decay": True,
+        "down_sample_factor": 3,
+        "dropout": 0.2,
+        "expansion_factor": 2,
+        "flux": True,
+        "hidden_units": 128,
+        "lr": 2e-4,
+        "n_layers": 6,
+        "n_mels": 84,
+        "num_channels": 48,
+        "num_conv_layer": 4,
+        "segment_length": 5.0,
+        "segment_overlap": 2.0,
+        "weight_decay": 4.0e-5,
+    }, skip_if_exists=True)
+
+    study.enqueue_trial({
+        "activation": "relu",
+        "batch_size": 32,
+        "beta_1": 0.92,
+        "beta_2": 0.98,
+        "channel_multiplication": 1,
+        "classifier_dim": 2048,
+        "d_state": 64,
+        "decoupled_weight_decay": True,
+        "down_sample_factor": 3,
+        "dropout": 0.5,
+        "expansion_factor": 4,
+        "flux": True,
+        "hidden_units": 128,
+        "lr": 2e-4,
+        "n_layers": 10,
+        "n_mels": 84,
+        "num_conv_layer": 0,
+        "segment_length": 5.0,
+        "segment_overlap": 2.0,
+        "weight_decay": 4.0e-5,
+    }, skip_if_exists=True)
+
+    # study.enqueue_trial(params=study.trials[-2].params)
 
     study.optimize(mamba_objective, n_trials=100, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
                    gc_after_trial=True)
@@ -401,5 +607,58 @@ def crnn():
     study.optimize(crnn_objective, n_trials=50, catch=(torch.cuda.OutOfMemoryError, RuntimeError), gc_after_trial=True)
 
 
+def loss():
+    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    study_name = "loss_mamba"
+    storage_name = ""
+    storage = optuna.storages.RDBStorage(
+        url=storage_name,
+        engine_kwargs={"pool_pre_ping": True, "pool_recycle": 3600, "pool_timeout": 3600},
+        heartbeat_interval=60,
+        grace_period=3600,
+    )
+    study = optuna.create_study(
+        directions=["maximize", "minimize"],
+        study_name=study_name,
+        storage=storage,
+        load_if_exists=True,
+        sampler=optuna.samplers.TPESampler(multivariate=True, group=True, constant_liar=True, n_startup_trials=20),
+        pruner=optuna.pruners.HyperbandPruner(),
+    )
+
+    study.optimize(loss_objective, n_trials=200, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
+                   gc_after_trial=True)
+
+
+def final_configs():
+    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    study_name = "final_configs"
+    storage_name = ""
+    storage = optuna.storages.RDBStorage(
+        url=storage_name,
+        engine_kwargs={"pool_pre_ping": True, "pool_recycle": 3600, "pool_timeout": 3600},
+        heartbeat_interval=60,
+        grace_period=3600,
+    )
+    study = optuna.create_study(
+        direction="maximize",
+        study_name=study_name,
+        storage=storage,
+        load_if_exists=True,
+        sampler=optuna.samplers.RandomSampler(),
+        pruner=None
+    )
+
+    repetitions_to_add = 0
+    for i in range(repetitions_to_add):
+        for config in final_experiment_params.keys():
+            study.enqueue_trial({
+                "config": config
+            }, skip_if_exists=False, user_attrs={"number": i})
+
+
+    # study.optimize(loss_objective, n_trials=200, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
+    #                gc_after_trial=True)
+
 if __name__ == '__main__':
-    mamba()
+    final_configs()
