@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torchaudio
 from torch.utils.data import Dataset
+import audiomentations as A
 
 from dataset import get_labels, load_audio, segment_audio, get_length, pad_audio
 from settings import DatasetSettings
@@ -78,6 +79,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             f_max=audio_settings.mel_max,
             n_stft=self.fft_size // 2 + 1,
             mel_scale="htk",
+            # norm="slaney",
         )
 
         self.annotations: list[tuple[Any, list[np.array], list[np.array]]] | None = None
@@ -158,6 +160,21 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             audio = torch.nn.functional.pad(
                 audio, (self.fft_size - self.hop_size, 0), mode=self.pad_mode
             )
+
+        # if self.is_train:
+        #     augment = A.Compose([
+        #         # A.Gain(min_gain_db=-3, max_gain_db=3, p=0.5),
+        #         # A.AddGaussianSNR(p=0.3, min_snr_db=10, max_snr_db=30),
+        #         A.PitchShift(min_semitones=-3, max_semitones=3, p=0.7),
+        #         A.OneOf([
+        #             A.BandPassFilter(min_center_freq=200, max_center_freq=200, p=0.5),
+        #             A.LowPassFilter(min_cutoff_freq=400, max_cutoff_freq=2000, p=0.5),
+        #             A.HighPassFilter(min_cutoff_freq=200, max_cutoff_freq=500, p=0.5),
+        #         ]),
+        #     ])
+        #     audio = audio.numpy()
+        #     audio = augment(audio, sample_rate=self.sample_rate)
+        #     audio = torch.from_numpy(audio)
 
         spectrum = self.spectrum(audio)
         mel = self.filter_bank(spectrum)
