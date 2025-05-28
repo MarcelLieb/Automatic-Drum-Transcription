@@ -24,7 +24,7 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
         self.activation = activation
         self.flux = flux
-        self.n_dims = n_mels * (1 + flux)
+        self.n_dims = n_mels
         self.classifier_dim = classifier_dim
         self.down_sample_factor = down_sample_factor
 
@@ -36,6 +36,7 @@ class CNN(nn.Module):
             activation=activation,
             causal=causal,
             dropout=dropout,
+            in_channels=1 + flux,
         )
 
         self.residuals = nn.ModuleList()
@@ -56,11 +57,12 @@ class CNN(nn.Module):
         self.fc2 = nn.Linear(classifier_dim, n_classes)
         self.num_channels = num_channels
 
-    def forward(self, x) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.unsqueeze(1)
         if self.flux:
             diff = x[..., 1:] - x[..., :-1]
             diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
-            x = torch.hstack((x, diff))
+            x = torch.concatenate((x, diff), dim=1)
         x = self.backbone(x)
         for residual in self.residuals:
             x = residual(x)
