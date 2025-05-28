@@ -42,7 +42,7 @@ def test_mean_max(mean_range=2, max_range=2):
 
 
 def compare_evallib():
-    test_data = torch.load("../predictions/predictions_Validation_4.pt")
+    test_data = torch.load("../predictions/predictions_Validation_4.pt", weights_only=False)
     predictions = test_data["prediction"]
     audio_paths = test_data["paths"]
     audio_paths = [str(path) for path in audio_paths]

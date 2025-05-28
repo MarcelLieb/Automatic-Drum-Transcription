@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as f
 
 from model import ResidualBlock
-from .mamba.mamba import MambaConfig, Mamba
+from model.mamba.mamba import MambaConfig, Mamba
 
 
 class CNNMamba(nn.Module):

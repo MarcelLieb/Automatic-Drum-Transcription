@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from dataclasses import dataclass, asdict as dataclass_asdict, is_dataclass
+from dataclasses import dataclass, asdict as dataclass_asdict, is_dataclass, field
 from typing import Literal
 from overrides import override
 from ast import literal_eval as make_tuple
@@ -33,6 +33,7 @@ def asdict(settings):
 class SettingsBase(ABC):
     @classmethod
     def from_flat_dict(cls, dic):
+        dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
@@ -68,6 +69,7 @@ class AnnotationSettings(SettingsBase):
     @classmethod
     @override
     def from_flat_dict(cls, dic):
+        dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         if "mapping" in class_attributes:
@@ -78,8 +80,8 @@ class AnnotationSettings(SettingsBase):
 
 @dataclass
 class DatasetSettings(SettingsBase):
-    audio_settings: AudioProcessingSettings = AudioProcessingSettings()
-    annotation_settings: AnnotationSettings = AnnotationSettings()
+    audio_settings: AudioProcessingSettings = field(default_factory=AudioProcessingSettings)
+    annotation_settings: AnnotationSettings = field(default_factory=AnnotationSettings)
     segment_type: Literal["frame", "label"] | None = "frame"
     frame_length: float = 8.0
     frame_overlap: float = 0.1
@@ -89,6 +91,7 @@ class DatasetSettings(SettingsBase):
     @classmethod
     @override
     def from_flat_dict(cls, dic):
+        dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         class_attributes += ["audio_settings", "annotation_settings"]
@@ -139,6 +142,7 @@ class TrainingSettings(SettingsBase):
     @classmethod
     @override
     def from_flat_dict(cls, dic):
+        dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         if "splits" in class_attributes:
@@ -169,6 +173,7 @@ class ModelSettingsBase(SettingsBase):
     @classmethod
     @override
     def from_flat_dict(cls, dic):
+        dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         if "activation" in class_attributes:
@@ -264,14 +269,15 @@ class UNetSettings(ModelSettingsBase):
 
 @dataclass
 class Config(SettingsBase):
-    dataset: DatasetSettings = DatasetSettings()
-    training: TrainingSettings = TrainingSettings()
-    evaluation: EvaluationSettings = EvaluationSettings()
+    dataset: DatasetSettings = field(default_factory=DatasetSettings)
+    training: TrainingSettings = field(default_factory=TrainingSettings)
+    evaluation: EvaluationSettings = field(default_factory=EvaluationSettings)
     model: ModelSettingsBase | None = None
 
     @classmethod
     @override
     def from_flat_dict(cls, dic):
+        dic = {key: item for key, item in dic.items()} # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         class_attributes += ["dataset", "training", "model", "evaluation"]

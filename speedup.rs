@@ -17,6 +17,11 @@ fn calculate_pr(
     cool_down: f32,
     points: Option<usize>,
 ) -> (Vec<(Vec<f32>, Vec<f32>, Vec<f32>)>, Vec<f32>, f32, f32) {
+
+    let _ = rayon::ThreadPoolBuilder::new()
+        .num_threads(std::thread::available_parallelism().unwrap().get() - 1)
+        .build_global();
+
     let mut out = Vec::new();
 
     predictions
@@ -151,12 +156,14 @@ fn calculate_pr(
 
                         #[cfg(debug_assertions)]
                         {
+                            /*
                             let total_peaks = peaks_by_songs.iter().map(|v| v.len()).sum::<usize>();
                             let total_picked = onsets_by_song.iter().map(|v| v.len()).sum::<usize>();
                             println!(
                                 "Threshold {thresh}, Total peaks: {}, Total picked: {}",
                                 total_peaks, total_picked
                             );
+                            */
                             let score = onsets.last().unwrap_or(&[0.0_f32, 0., 0.])[1];
                             let n_unfiltered = onsets.len();
                             let n_filtered: usize = onsets_by_song.iter().map(|v| v.len()).sum();
@@ -254,7 +261,8 @@ fn _combine_onsets(onsets: &[f32], cool_down: f32, combine_strategy: &str) -> Ve
     if onsets.is_empty() {
         return Vec::new();
     }
-    let mut final_onsets = vec![*onsets.first().unwrap()];
+    let mut final_onsets = Vec::with_capacity(onsets.len());
+    final_onsets.push(*onsets.first().unwrap());
 
     for onset_time in &onsets[1..] {
         let prev_time = *final_onsets.last().unwrap();
