@@ -353,8 +353,11 @@ def evaluate(
 def main(
         config: Config = Config(),
         trial: optuna.Trial = None,
+        metric_to_track = "F-Score/Validation",
+        seed=42,
 ):
-    torch.manual_seed(42)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
     training_settings = config.training
     evaluation_settings = config.evaluation
     dataset_settings = config.dataset
@@ -468,10 +471,16 @@ def main(
         error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
     scaler = torch.amp.GradScaler(device=device)
 
-    losses = []
-    scores = []
-    best_loss = float("inf")
-    best_score = 0
+    metrics = {
+        "Loss/Train": [],
+        "Loss/Validation": [],
+        "F-Score/Validation": [],
+    }
+    directions = {
+        "Loss/Train": -1,
+        "Loss/Validation": -1,
+        "F-Score/Validation": 1,
+    }
     last_improvement = 0
     print("Starting Training")
     for epoch in range(training_settings.epochs):
@@ -501,8 +510,9 @@ def main(
             is_unet=is_unet,
             tag="Validation",
         )
-        losses.append(val_loss)
-        scores.append(f_score)
+        metrics["Loss/Train"].append(train_loss)
+        metrics["Loss/Validation"].append(val_loss)
+        metrics["F-Score/Validation"].append((f_score, avg_f_score))
         # if trial is not None:
         #     trial.report(f_score, epoch)
         torch.cuda.empty_cache()
@@ -525,7 +535,13 @@ def main(
             f"Loss: {train_loss * 100:.4f}\t "
             f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
         )
-        if f_score > evaluation_settings.min_test_score and f_score >= best_score and not is_unet:
+        last_improvement += 1
+        if epoch == 0 or np.all(np.max(np.array(metrics[metric_to_track][:-1]) * directions[metric_to_track], axis=0) < np.array(metrics[metric_to_track][-1]) * directions[metric_to_track]):
+            best_model = (
+                ema_model.module if ema_model is not None else model
+            ).state_dict()
+            last_improvement = 0
+        if f_score > evaluation_settings.min_test_score and last_improvement == 0 and not is_unet:
             for test_loader in test_sets:
                 identifier = test_loader.dataset.get_identifier()
                 test_loss, test_f_score, test_avg_f_score = evaluate(
@@ -539,23 +555,14 @@ def main(
                     tag=f"Test/{identifier}",
                 )
                 if trial is not None:
-                    prev_f = trial.user_attrs.get(f"{identifier}_f_score", 0)
-                    if test_f_score > prev_f:
-                        trial.set_user_attr(f"{identifier}_f_score_sum", test_f_score)
-                        trial.set_user_attr(f"{identifier}_f_score_avg", test_avg_f_score)
+                    trial.set_user_attr(f"{identifier}_f_score_sum", test_f_score)
+                    trial.set_user_attr(f"{identifier}_f_score_avg", test_avg_f_score)
                 torch.cuda.empty_cache()
                 print(
                     f"{identifier}: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
                 )
                 if test_f_score > 0.75:
                     break
-        last_improvement += 1
-        if best_score + 0.0001 < f_score and not is_unet:
-            best_score = f_score
-            best_model = (
-                ema_model.module if ema_model is not None else model
-            ).state_dict()
-            last_improvement = 0
         # elif (
         #         last_improvement >= 5
         #         and dataset_settings.annotation_settings.time_shift > 0.0
@@ -568,15 +575,8 @@ def main(
         #     time_shift = dataset.time_shift
         #     print(f"Adjusting time shift to {time_shift}")
         #     """
-        if val_loss <= best_loss:
-            best_loss = val_loss
-            if is_unet:
-                best_model = (
-                    ema_model.module if ema_model is not None else model
-                ).state_dict()
-                last_improvement = 0
-        recent_scores = np.array(scores[-3:])
-        stuck = ((np.abs(recent_scores - recent_scores.mean()) < 1e-4).all() and len(recent_scores) >= 3) or np.isnan(val_loss)
+        recent_scores = np.array(metrics["F-Score/Validation"][-3:])
+        stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-4).all() and len(recent_scores) >= 3) or np.isnan(val_loss)
         if (
                 early_stopping is not None
                 and last_improvement >= training_settings.early_stopping or stuck
@@ -590,7 +590,7 @@ def main(
     if best_model is not None:
         model.load_state_dict(best_model)
 
-    if best_score > training_settings.min_save_score or is_unet:
+    if last_improvement == 0 and metrics["F-Score/Validation"][-1][0] > training_settings.min_save_score or is_unet:
         print("Saving model")
         dic = {
             "model": model.state_dict(),
@@ -606,7 +606,9 @@ def main(
         **asdict(evaluation_settings),
         **asdict(dataset_settings),
         **asdict(model_settings),
+        "seed": seed,
     }
+    best_score = np.max(metrics["F-Score/Validation"], axis=0)[0]
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
 
