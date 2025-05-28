@@ -275,8 +275,22 @@ def evaluate(
         tensorboard_writer.add_scalar(f"F-Score/Sum/{tag}", f, global_step=epoch)
         tensorboard_writer.add_scalar(f"F-Score/Avg/{tag}", f_avg, global_step=epoch)
         tensorboard_writer.add_tensor(
-            f"{tag}/Thresholds", best_thresholds, global_step=epoch
+            f"{tag}/Best_Thresholds", best_thresholds, global_step=epoch
         )
+        # FixMe This might break with different settings
+        tensorboard_writer.add_tensor(
+            f"{tag}/Precisions", torch.stack(precisions), global_step=epoch
+        )
+        tensorboard_writer.add_tensor(
+            f"{tag}/Recalls", torch.stack(recalls), global_step=epoch
+        )
+        tensorboard_writer.add_tensor(
+            f"{tag}/F_scores", torch.stack(f_scores), global_step=epoch
+        )
+        tensorboard_writer.add_tensor(
+            f"{tag}/Thresholds", torch.stack(thresholds), global_step=epoch
+        )
+
 
         colors = (
                 np.array(
@@ -413,7 +427,7 @@ def main(
     )
 
     ema_model = (
-        ModelEmaV2(model, decay=0.999, device=device) if training_settings.ema else None
+        ModelEmaV2(model, decay=0.998, device=device) if training_settings.ema else None
     )
     best_model = None
 
@@ -600,7 +614,8 @@ def main(
             "training_settings": asdict(training_settings),
             "evaluation_settings": asdict(evaluation_settings),
         }
-        torch.save(dic, f"./models/trained_model_{best_score * 100:.2f}.pt")
+        dir_name = writer.get_logdir().split("/")[-1]
+        torch.save(dic, f"./models/{dir_name}_{architecture}_{metrics['F-Score/Validation'][-1][0] * 100:.2f}.pt")
 
     hyperparameters = {
         **asdict(training_settings),
