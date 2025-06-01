@@ -605,7 +605,7 @@ def main(
     if best_model is not None:
         model.load_state_dict(best_model)
 
-    if last_improvement == 0 and metrics["F-Score/Validation"][-1][0] > training_settings.min_save_score or is_unet:
+    if max(metrics["F-Score/Validation"])[0] > training_settings.min_save_score or is_unet:
         print("Saving model")
         dic = {
             "model": model.state_dict(),
