@@ -109,7 +109,7 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: DrumMapping):
 
 def get_label_windows(
         lengths: list[float],
-        drum_labels: list[list[np.array]],
+        drum_labels: list[list[np.ndarray]],
         lead_in: float,
         lead_out: float,
         sample_rate: int,
@@ -209,7 +209,7 @@ def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.array:
     return (np.arange(length) * hop_size) / sample_rate
 
 
-def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[np.array]]]):
+def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[np.ndarray]]]):
     audio, annotation, gts = zip(*batch)
     audio = torch.nn.utils.rnn.pad_sequence(audio, batch_first=True, padding_value=0.0)
     annotation = list(annotation)

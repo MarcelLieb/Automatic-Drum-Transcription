@@ -140,6 +140,7 @@ def train_epoch(
             smoothing=0.1,
             mininterval=1 / 2 * 60 / len(dataloader_train),
             desc="Training",
+            dynamic_ncols=True,
     ):
         audio, lbl, _ = data
         audio = audio.to(device)
@@ -216,6 +217,7 @@ def evaluate(
                 smoothing=0.1,
                 mininterval=1 / 2 * 60 / len(dataloader),
                 desc="Evaluation",
+                dynamic_ncols=True,
         ):
             audio, lbl, gts = data
             audio = audio.to(device)

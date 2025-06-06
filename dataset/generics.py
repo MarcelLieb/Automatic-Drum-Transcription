@@ -82,7 +82,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             # norm="slaney",
         )
 
-        self.annotations: list[tuple[Any, list[np.array], list[np.array]]] | None = None
+        self.annotations: list[tuple[Any, list[np.ndarray], list[np.ndarray]]] | None = None
 
         self.annotation_padder = (
             torch.nn.MaxPool1d(3, stride=1, padding=1) if self.pad_annotations else None

@@ -47,13 +47,13 @@ def peak_pick_max_mean(
             # assume positive thresholds only
             out[i].append(
                 torch.stack((time, difference[i, j]))[
-                :,
-                torch.logical_and(
+                    :,
                     torch.logical_and(
-                        difference[i, j] >= 0.0, data[i, j] >= maximum[i, j]
+                        torch.logical_and(
+                            difference[i, j] >= 0.0, data[i, j] >= maximum[i, j]
+                        ),
+                        data[i, j] >= 0.0,
                     ),
-                    data[i, j] >= 0.0,
-                ),
                 ]
             )
     return out
