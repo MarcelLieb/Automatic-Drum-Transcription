@@ -5,17 +5,17 @@ from typing import Any
 
 import numpy as np
 import optuna
-from calflops import calculate_flops
 import torch
+from calflops import calculate_flops
 from torch import nn
 
+from hyperparameters import final_experiment_params
+from main import main as train_model
 from model.CRNN import CRNN
 from model.cnnA import CNNAttention
 from model.cnnM2 import CNNMambaFast
 from settings import DatasetSettings, TrainingSettings, CNNMambaSettings, EvaluationSettings, AudioProcessingSettings, \
     CRNNSettings, AnnotationSettings, Config, CNNAttentionSettings
-from main import main as train_model
-from hyperparameters import final_experiment_params
 
 
 def attention_objective(trial: optuna.Trial):
@@ -656,9 +656,9 @@ def final_configs():
                 "config": config
             }, skip_if_exists=False, user_attrs={"number": i})
 
-
     # study.optimize(loss_objective, n_trials=200, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
     #                gc_after_trial=True)
+
 
 if __name__ == '__main__':
     final_configs()

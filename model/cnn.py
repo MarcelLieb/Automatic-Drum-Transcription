@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as f
+
 from model import ResidualBlock1d
 from model.cnn_feature import CNNFeature
 
@@ -19,7 +20,7 @@ class CNN(nn.Module):
         flux,
         down_sample_factor: int,
         activation=nn.SELU(),
-        classifier_dim=2**6,
+        classifier_dim=2 ** 6,
     ):
         super(CNN, self).__init__()
         self.activation = activation
@@ -51,7 +52,8 @@ class CNN(nn.Module):
             )
 
         self.fc1 = nn.Linear(
-            num_channels * (channel_multiplication ** (num_feature_layers - 1)) * (self.n_dims // (down_sample_factor**num_feature_layers)), classifier_dim
+            num_channels * (channel_multiplication ** (num_feature_layers - 1)) * (
+                self.n_dims // (down_sample_factor ** num_feature_layers)), classifier_dim
         )
         self.dropout = nn.Dropout(dropout)
         self.fc2 = nn.Linear(classifier_dim, n_classes)

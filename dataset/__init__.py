@@ -27,12 +27,12 @@ class Gain(torch.nn.Module):
 
 
 def load_audio(
-        path: str | Path,
-        sample_rate: int,
-        normalize: bool,
-        start: float = 0,
-        end: float = -1,
-        backend: str = "librosa",
+    path: str | Path,
+    sample_rate: int,
+    normalize: bool,
+    start: float = 0,
+    end: float = -1,
+    backend: str = "librosa",
 ) -> torch.Tensor:
     if (start, end) == (0, -1):
         audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg")
@@ -108,12 +108,12 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: DrumMapping):
 
 
 def get_label_windows(
-        lengths: list[float],
-        drum_labels: list[list[np.ndarray]],
-        lead_in: float,
-        lead_out: float,
-        sample_rate: int,
-        unique: bool = False,
+    lengths: list[float],
+    drum_labels: list[list[np.ndarray]],
+    lead_in: float,
+    lead_out: float,
+    sample_rate: int,
+    unique: bool = False,
 ) -> np.array:
     """
     :param lengths: List of lengths of the audio files in seconds
@@ -139,7 +139,7 @@ def get_label_windows(
 
 
 def get_segments(
-        lengths: list[float], segment_length: float, overlap: float, sample_rate: int
+    lengths: list[float], segment_length: float, overlap: float, sample_rate: int
 ) -> np.array:
     """
     Computes overlapping segments for a list of audio files
@@ -152,7 +152,7 @@ def get_segments(
     segments = []
     for i, length in enumerate(lengths):
         n_segments = (
-                int(np.ceil((length - segment_length) / (segment_length - overlap))) + 1
+            int(np.ceil((length - segment_length) / (segment_length - overlap))) + 1
         )
         starts = np.arange(0, n_segments) * (segment_length - overlap)
         ends = np.minimum(starts + segment_length, length)
@@ -163,7 +163,7 @@ def get_segments(
 
 
 def segment_audio(
-        audio: torch.Tensor, start: int, end: int, length: int, pad: bool = True
+    audio: torch.Tensor, start: int, end: int, length: int, pad: bool = True
 ) -> torch.Tensor:
     cut_audio = audio[..., start:end]
     if pad:
@@ -190,7 +190,7 @@ def pad_audio(audio: torch.Tensor, length: int, front: bool) -> torch.Tensor:
 
 
 def get_labels(
-        onset_times: Sequence[np.ndarray], sample_rate: float, hop_size: int, length: int
+    onset_times: Sequence[np.ndarray], sample_rate: float, hop_size: int, length: int
 ) -> torch.Tensor:
     labels = torch.zeros(len(onset_times), length)
     for i, cls in enumerate(onset_times):

@@ -43,7 +43,7 @@ class AttentionBlock(nn.Module):
         L=2400,
     ):
         super(AttentionBlock, self).__init__()
-        self.multihead =  MultiHeadSelfAttention(
+        self.multihead = MultiHeadSelfAttention(
             L=L, d_model=d_model, n_head=n_heads, use_relative_pe=use_relative_pe, is_causal=is_causal, dropout=dropout
         )
         self.activation = activation
@@ -134,7 +134,9 @@ class MultiHeadSelfAttention(nn.Module):
             )  # [B, n_head, L, L]
             att_vals = torch.matmul(attention, v)  # [B, n_head, L, d_head]
         else:
-            att_vals = f.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, dropout_p=self.dropout_p if self.training else 0.0, is_causal=self.is_causal)
+            att_vals = f.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask,
+                                                      dropout_p=self.dropout_p if self.training else 0.0,
+                                                      is_causal=self.is_causal)
 
         att_vals = att_vals.permute(0, 2, 1, 3)  # [B, L, n_head, d_head]
         att_vals = att_vals.reshape(B, L, self.d_model)  # [B, L, n_head, d_model]

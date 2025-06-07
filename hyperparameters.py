@@ -114,7 +114,6 @@ best_model = best_crnn = {
     'use_relative_pos': True
 }
 
-
 mamba_fast = {
     'activation': 'SELU',
     'backbone': 'cnn',

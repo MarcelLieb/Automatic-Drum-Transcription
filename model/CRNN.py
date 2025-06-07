@@ -6,13 +6,15 @@ from model.cnn_feature import CNNFeature
 
 
 class CRNN(nn.Module):
-    def __init__(self, n_mels, n_classes, num_channels, num_conv_layers, num_rnn_layers, flux, activation, causal,
-                 dropout, down_sample_factor, channel_multiplication, rnn_units, classifier_dim):
+    def __init__(
+        self, n_mels, n_classes, num_channels, num_conv_layers, num_rnn_layers, flux, activation, causal,
+        dropout, down_sample_factor, channel_multiplication, rnn_units, classifier_dim
+    ):
         super(CRNN, self).__init__()
         self.activation = activation
         self.causal = causal
         self.n_dims = (n_mels // (down_sample_factor ** num_conv_layers)) * num_channels * (
-                channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
+            channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
         self.flux = flux
 
         self.conv = CNNFeature(

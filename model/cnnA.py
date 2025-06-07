@@ -2,7 +2,6 @@ import torch
 from torch import nn
 from torch.nn import functional as f
 
-
 from model import PositionalEncoding, AttentionBlock
 from model.cnn_feature import CNNFeature
 
@@ -30,7 +29,7 @@ class CNNAttention(nn.Module):
         self.activation = activation
         self.flux = flux
         self.n_dims = (n_mels // (down_sample_factor ** num_conv_layers)) * num_channels * (
-                channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
+            channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
         self.causal = causal
         self.backbone = CNNFeature(
             num_channels,

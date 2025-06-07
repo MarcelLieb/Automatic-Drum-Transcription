@@ -159,6 +159,7 @@ class A2MD(ADTDataset):
         else:
             return "A2MD_split"
 
+
 if __name__ == "__main__":
     convert_to_wav_dataset("../data/a2md_public/")
     print("Done")

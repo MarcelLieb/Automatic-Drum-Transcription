@@ -6,8 +6,8 @@ from torch import nn
 from torch.nn import functional as f
 
 from model import ResidualBlock
-from model.unet import UNet
 from model.cnn_feature import CNNFeature
+from model.unet import UNet
 
 try:
     from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn, rms_norm_fn
@@ -43,12 +43,12 @@ class DenseEncoder(nn.Module):
 
 class MambaBlock(nn.Module):
     def __init__(
-            self,
-            d_model,
-            d_state,
-            d_conv,
-            expand,
-            dropout=0.1,
+        self,
+        d_model,
+        d_state,
+        d_conv,
+        expand,
+        dropout=0.1,
     ):
         super(MambaBlock, self).__init__()
 
@@ -96,7 +96,7 @@ class CNNMambaFast(nn.Module):
         self.activation = activation
         self.flux = flux
         self.n_dims = (n_mels // (down_sample_factor ** num_conv_layers)) * num_channels * (
-                channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
+            channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
         self.causal = causal
 
         match backbone:

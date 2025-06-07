@@ -5,8 +5,10 @@ from model import ResidualBlock
 
 
 class CNNFeature(nn.Module):
-    def __init__(self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout,
-                 in_channels=1):
+    def __init__(
+        self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout,
+        in_channels=1
+    ):
         super(CNNFeature, self).__init__()
 
         self.activation = activation

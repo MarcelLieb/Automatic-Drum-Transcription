@@ -3,9 +3,8 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-import torch
-
 import rustimport.import_hook
+import torch
 
 from dataset import get_time_index
 
@@ -18,12 +17,12 @@ from speedup import calculate_pr as rust_calculate_pr, combine_onsets as rust_co
 
 
 def peak_pick_max_mean(
-        data: torch.tensor,
-        sample_rate: int,
-        hop_size: int,
-        fft_size: int,
-        mean_range: int = 2,
-        max_range: int = 2,
+    data: torch.tensor,
+    sample_rate: int,
+    hop_size: int,
+    fft_size: int,
+    mean_range: int = 2,
+    max_range: int = 2,
 ):
     mean_filter = torch.nn.AvgPool1d(kernel_size=mean_range + 1, stride=1, padding=0)
     padded = torch.nn.functional.pad(data, (mean_range, 0), mode="constant", value=0.0)
@@ -47,25 +46,25 @@ def peak_pick_max_mean(
             # assume positive thresholds only
             out[i].append(
                 torch.stack((time, difference[i, j]))[
-                    :,
+                :,
+                torch.logical_and(
                     torch.logical_and(
-                        torch.logical_and(
-                            difference[i, j] >= 0.0, data[i, j] >= maximum[i, j]
-                        ),
-                        data[i, j] >= 0.0,
+                        difference[i, j] >= 0.0, data[i, j] >= maximum[i, j]
                     ),
+                    data[i, j] >= 0.0,
+                ),
                 ]
             )
     return out
 
 
 def calculate_pr(
-        peaks: list[list[torch.Tensor]],
-        groundtruth: list[list[torch.Tensor]],
-        ignore_beats: bool = False,
-        detection_window: float = 0.05,
-        onset_cooldown: float = 0.02,
-        pr_points: int | None = 1000,
+    peaks: list[list[torch.Tensor]],
+    groundtruth: list[list[torch.Tensor]],
+    ignore_beats: bool = False,
+    detection_window: float = 0.05,
+    onset_cooldown: float = 0.02,
+    pr_points: int | None = 1000,
 ) -> tuple[
     list[torch.Tensor],
     list[torch.Tensor],

@@ -34,14 +34,14 @@ from settings import (
 
 
 def step(
-        model: nn.Module,
-        criterion: nn.Module,
-        optimizer: optim.Optimizer,
-        audio_batch: torch.Tensor,
-        lbl_batch: torch.Tensor,
-        scaler: torch.cuda.amp.GradScaler,
-        positive_weight: float,
-        scheduler: optim.lr_scheduler.LRScheduler = None,
+    model: nn.Module,
+    criterion: nn.Module,
+    optimizer: optim.Optimizer,
+    audio_batch: torch.Tensor,
+    lbl_batch: torch.Tensor,
+    scaler: torch.cuda.amp.GradScaler,
+    positive_weight: float,
+    scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     """Performs one update step for the model
 
@@ -81,7 +81,7 @@ def step(
     scaler.update()
 
     if scheduler is not None and not isinstance(
-            scheduler, optim.lr_scheduler.ReduceLROnPlateau
+        scheduler, optim.lr_scheduler.ReduceLROnPlateau
     ):
         scheduler.step()
 
@@ -89,12 +89,12 @@ def step(
 
 
 def step_encoder(
-        model: UNet,
-        criterion,
-        optimizer: optim.Optimizer,
-        audio_batch: torch.Tensor,
-        scaler: torch.cuda.amp.GradScaler,
-        scheduler: optim.lr_scheduler.LRScheduler = None,
+    model: UNet,
+    criterion,
+    optimizer: optim.Optimizer,
+    audio_batch: torch.Tensor,
+    scaler: torch.cuda.amp.GradScaler,
+    scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     model.train()
     optimizer.zero_grad()
@@ -111,7 +111,7 @@ def step_encoder(
     scaler.update()
 
     if scheduler is not None and not isinstance(
-            scheduler, optim.lr_scheduler.ReduceLROnPlateau
+        scheduler, optim.lr_scheduler.ReduceLROnPlateau
     ):
         scheduler.step()
 
@@ -119,28 +119,28 @@ def step_encoder(
 
 
 def train_epoch(
-        epoch,
-        dataloader_train,
-        device,
-        ema_model,
-        error,
-        model,
-        optimizer,
-        scaler,
-        scheduler,
-        positive_weight,
-        is_unet=False,
-        tensorboard_writer=None,
+    epoch,
+    dataloader_train,
+    device,
+    ema_model,
+    error,
+    model,
+    optimizer,
+    scaler,
+    scheduler,
+    positive_weight,
+    is_unet=False,
+    tensorboard_writer=None,
 ):
     total_loss = 0
     for _, data in tqdm(
-            enumerate(dataloader_train),
-            total=len(dataloader_train),
-            unit="mini-batch",
-            smoothing=0.1,
-            mininterval=1 / 2 * 60 / len(dataloader_train),
-            desc="Training",
-            dynamic_ncols=True,
+        enumerate(dataloader_train),
+        total=len(dataloader_train),
+        unit="mini-batch",
+        smoothing=0.1,
+        mininterval=1 / 2 * 60 / len(dataloader_train),
+        desc="Training",
+        dynamic_ncols=True,
     ):
         audio, lbl, _ = data
         audio = audio.to(device)
@@ -181,15 +181,15 @@ def train_epoch(
 
 
 def evaluate(
-        epoch: int,
-        model: torch.nn.Module,
-        dataloader: DataLoader,
-        criterion: torch.nn.Module,
-        device: torch.device,
-        evaluation_settings: EvaluationSettings,
-        tensorboard_writer: SummaryWriter = None,
-        is_unet: bool = False,
-        tag: str = "Evaluation",
+    epoch: int,
+    model: torch.nn.Module,
+    dataloader: DataLoader,
+    criterion: torch.nn.Module,
+    device: torch.device,
+    evaluation_settings: EvaluationSettings,
+    tensorboard_writer: SummaryWriter = None,
+    is_unet: bool = False,
+    tag: str = "Evaluation",
 ) -> (float, float):
     """Evaluates the model on the specified dataset
 
@@ -211,13 +211,13 @@ def evaluate(
     groundtruth = []
     with torch.inference_mode():
         for data in tqdm(
-                dataloader,
-                total=len(dataloader),
-                unit="mini-batch",
-                smoothing=0.1,
-                mininterval=1 / 2 * 60 / len(dataloader),
-                desc="Evaluation",
-                dynamic_ncols=True,
+            dataloader,
+            total=len(dataloader),
+            unit="mini-batch",
+            smoothing=0.1,
+            mininterval=1 / 2 * 60 / len(dataloader),
+            desc="Evaluation",
+            dynamic_ncols=True,
         ):
             audio, lbl, gts = data
             audio = audio.to(device)
@@ -293,34 +293,33 @@ def evaluate(
             f"{tag}/Thresholds", torch.stack(thresholds), global_step=epoch
         )
 
-
         colors = (
-                np.array(
-                    [
-                        [230, 25, 75],
-                        [60, 180, 75],
-                        [255, 225, 25],
-                        [0, 130, 200],
-                        [245, 130, 48],
-                        [145, 30, 180],
-                        [70, 240, 240],
-                        [240, 50, 230],
-                        [210, 245, 60],
-                        [250, 190, 190],
-                        [0, 128, 128],
-                        [230, 190, 255],
-                        [170, 110, 40],
-                        [255, 250, 200],
-                        [128, 0, 0],
-                        [170, 255, 195],
-                        [128, 128, 0],
-                        [255, 215, 180],
-                        [0, 0, 128],
-                        [128, 128, 128],
-                        [0, 0, 0],
-                    ]
-                )
-                / 255
+            np.array(
+                [
+                    [230, 25, 75],
+                    [60, 180, 75],
+                    [255, 225, 25],
+                    [0, 130, 200],
+                    [245, 130, 48],
+                    [145, 30, 180],
+                    [70, 240, 240],
+                    [240, 50, 230],
+                    [210, 245, 60],
+                    [250, 190, 190],
+                    [0, 128, 128],
+                    [230, 190, 255],
+                    [170, 110, 40],
+                    [255, 250, 200],
+                    [128, 0, 0],
+                    [170, 255, 195],
+                    [128, 128, 0],
+                    [255, 215, 180],
+                    [0, 0, 128],
+                    [128, 128, 128],
+                    [0, 0, 0],
+                ]
+            )
+            / 255
         )
 
         fig = plt.figure()
@@ -367,10 +366,10 @@ def evaluate(
 
 
 def main(
-        config: Config = Config(),
-        trial: optuna.Trial = None,
-        metric_to_track = "F-Score/Validation",
-        seed=42,
+    config: Config = Config(),
+    trial: optuna.Trial = None,
+    metric_to_track="F-Score/Validation",
+    seed=42,
 ):
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -533,7 +532,7 @@ def main(
         #     trial.report(f_score, epoch)
         torch.cuda.empty_cache()
         if scheduler is not None and isinstance(
-                scheduler, optim.lr_scheduler.ReduceLROnPlateau
+            scheduler, optim.lr_scheduler.ReduceLROnPlateau
         ):
             scheduler.step(f_score)
             if current_lr > optimizer.state_dict()["param_groups"][0]["lr"]:
@@ -552,7 +551,9 @@ def main(
             f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
         )
         last_improvement += 1
-        if epoch == 0 or np.all(np.max(np.array(metrics[metric_to_track][:-1]) * directions[metric_to_track], axis=0) < np.array(metrics[metric_to_track][-1]) * directions[metric_to_track]):
+        if epoch == 0 or np.all(
+            np.max(np.array(metrics[metric_to_track][:-1]) * directions[metric_to_track], axis=0) < np.array(
+                metrics[metric_to_track][-1]) * directions[metric_to_track]):
             best_model = (
                 ema_model.module if ema_model is not None else model
             ).state_dict()
@@ -593,10 +594,11 @@ def main(
         #     print(f"Adjusting time shift to {time_shift}")
         #     """
         recent_scores = np.array(metrics["F-Score/Validation"][-3:])
-        stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-4).all() and len(recent_scores) >= 3) or np.isnan(val_loss)
+        stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-4).all() and len(
+            recent_scores) >= 3) or np.isnan(val_loss)
         if (
-                early_stopping is not None
-                and last_improvement >= training_settings.early_stopping or stuck
+            early_stopping is not None
+            and last_improvement >= training_settings.early_stopping or stuck
         ):
             if stuck:
                 print("Detected stuck training")

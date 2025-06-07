@@ -277,7 +277,7 @@ class Config(SettingsBase):
     @classmethod
     @override
     def from_flat_dict(cls, dic):
-        dic = {key: item for key, item in dic.items()} # make copy
+        dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         class_attributes += ["dataset", "training", "model", "evaluation"]
