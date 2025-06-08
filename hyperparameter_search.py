@@ -455,6 +455,26 @@ def final_configs_objective(trial: optuna.Trial):
     return score
 
 
+def time_shift_objective(trial: optuna.Trial):
+    configs = final_experiment_params.keys()
+    selected_config = trial.suggest_categorical("config", configs)
+
+    seed = trial.number if "seed" not in trial.user_attrs else trial.user_attrs["seed"]
+    trial.set_user_attr("seed", seed)
+
+    params: dict[str, Any] = final_experiment_params[selected_config]
+    params["time_shift"] = trial.suggest_categorical("time_shift", [0.005, 0.035])
+    config = Config.from_flat_dict(params.copy())
+
+    model, score = train_model(config=config, trial=trial, metric_to_track="F-Score/Validation", seed=seed)
+
+    del model
+
+    torch.cuda.empty_cache()
+
+    return score
+
+
 def attention():
     optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
     study_name = "cnn_attention"
@@ -656,9 +676,47 @@ def final_configs():
                 "config": config
             }, skip_if_exists=False, user_attrs={"number": i})
 
-    # study.optimize(loss_objective, n_trials=200, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
+    # study.optimize(final_configs_objective, n_trials=5, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
     #                gc_after_trial=True)
 
 
+
+def time_shift():
+    optuna.logging.get_logger("optuna").addHandler(logging.StreamHandler(sys.stdout))
+    study_name = "time_shift"
+    storage_name = ""
+    storage = optuna.storages.RDBStorage(
+        url=storage_name,
+        engine_kwargs={"pool_pre_ping": True, "pool_recycle": 3600, "pool_timeout": 3600},
+        heartbeat_interval=60,
+        grace_period=3600,
+    )
+    study: optuna.Study = optuna.create_study(
+        direction="maximize",
+        study_name=study_name,
+        storage=storage,
+        load_if_exists=True,
+        sampler=optuna.samplers.RandomSampler(),
+        pruner=None
+    )
+
+    configs = ["Mamba best", "Attention no conv", "Mamba no conv", "CRNN best", "CRNN no conv"]
+    shifts = [0.005, 0.035]
+
+    repetitions_to_add = 0
+    for i in range(repetitions_to_add):
+        for shift in shifts:
+            for config in configs:
+                study.enqueue_trial({
+                    "config": config,
+                    "time_shift": shift
+                }, skip_if_exists=False, user_attrs={"number": i})
+
+    # for trial in study.get_trials(deepcopy=True, states=[optuna.trial.TrialState.FAIL]):
+    #     study.enqueue_trial(params=trial.params, user_attrs=trial.user_attrs)
+
+    study.optimize(time_shift_objective, n_trials=30, catch=(torch.cuda.OutOfMemoryError, RuntimeError),
+                   gc_after_trial=True)
+
 if __name__ == '__main__':
-    final_configs()
+    time_shift()
