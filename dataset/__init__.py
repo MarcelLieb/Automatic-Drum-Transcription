@@ -11,7 +11,7 @@ import torchaudio
 from torch.utils.data import Subset
 from torchaudio.transforms import Vol
 
-from dataset.mapping import DrumMapping, get_midi_to_class
+from dataset.mapping import DrumMapping
 
 
 class Gain(torch.nn.Module):
@@ -91,7 +91,7 @@ def get_drums(midi: pretty_midi.PrettyMIDI, mapping: DrumMapping):
     )
     notes = np.array(sorted(notes, key=lambda x: x[1]))
     n_classes = len(mapping)
-    midi_to_class = get_midi_to_class(mapping.value)
+    midi_to_class = mapping.get_midi_to_class()
     if len(notes) == 0:
         return None
     if len(notes.shape) == 1:

@@ -8,7 +8,6 @@ import torch
 
 from dataset import (
     DrumMapping,
-    get_midi_to_class,
     get_length,
     get_label_windows,
     get_segments, convert_to_wav,
@@ -54,7 +53,7 @@ def get_annotations(
     if len(drums.shape) == 2:
         drums[:, 1] = np.vectorize(drum_map.get)(drums[:, 1].astype(int))
 
-        midi_to_class = get_midi_to_class(mapping.value)
+        midi_to_class = mapping.get_midi_to_class()
         drums[:, 1] = midi_to_class[drums[:, 1].astype(int)]
 
         drums = [drums[drums[:, 1] == i][:, 0] for i in range(len(mapping))]
