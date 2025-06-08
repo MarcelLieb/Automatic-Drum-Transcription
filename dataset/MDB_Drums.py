@@ -6,7 +6,7 @@ import polars as pl
 
 from dataset import get_length, get_label_windows, get_segments
 from dataset.generics import ADTDataset
-from dataset.mapping import DrumMapping, get_name_to_class_number
+from dataset.mapping import DrumMapping
 from settings import DatasetSettings
 
 label_translator = {
@@ -22,7 +22,7 @@ label_translator = {
     "PHH": "PHH",
     "LFT": "LT",
     "HFT": "LT",
-    "MHT": "MT",
+    "MHT": "HT",
     "HIT": "HT",
     "RDC": "RD",
     "RDB": "RB",
@@ -33,9 +33,40 @@ label_translator = {
     "TMB": "TB",
 }
 
+# from http://ifs.tuwien.ac.at/~vogl/dafx2018/mappings.py
+mdb_drum_map = {
+    'KD': 35,
+    'SD': 38,
+    'SDB': 38,
+    'SDD': 38,
+    'SDF': 38,
+    'SDG': 38,
+    'SDNS': 38,
+    'CHH': 42,
+    'OHH': 46,
+    'PHH': 44,
+    'HIT': 50,
+    'MHT': 48,
+    'HFT': 43,
+    'LFT': 41,
+    'RDC': 51,
+    'RDB': 53,
+    'CRC': 49,
+    'CHC': 52,
+    'SPC': 55,
+    'SST': 37,
+    'TMB': 54,
+}
+
+for key, value in label_translator.items():
+    assert key in mdb_drum_map, f"{key}"
+    assert value == \
+           DrumMapping.EIGHTEEN_CLASS.value[0][DrumMapping.EIGHTEEN_CLASS.get_midi_to_class()[mdb_drum_map[key]]][
+               0]
+
 
 def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
-    labels = pl.read_csv(
+    labels = pl.scan_csv(
         os.path.join(
             root, "annotations", "subclass", f"MusicDelta_{name}_subclass.txt"
         ),
@@ -44,14 +75,18 @@ def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
         new_columns=["time", "class"],
     )
     labels = labels.select(pl.all().cast(pl.Utf8).str.strip_chars(" "))
-    name_to_class = get_name_to_class_number(mapping)
+
+    midi_to_class = mapping.get_midi_to_class()
+    midi_to_class = {i: value for i, value in enumerate(midi_to_class)}
     labels = (
-        labels.select(
+        labels
+        .select(
             pl.col("time").cast(pl.Float32),
-            pl.col("class").replace(label_translator).replace(name_to_class),
+            pl.col("class").replace_strict(mdb_drum_map, return_dtype=pl.Int8).replace_strict(midi_to_class),
         )
-        .filter(pl.col("class").cast(pl.Int32, strict=False).is_not_null())
+        .filter(pl.col("class") >= 0)
         .cast(pl.Float32)
+        .collect()
         .to_numpy()
     )
     beats = np.loadtxt(
