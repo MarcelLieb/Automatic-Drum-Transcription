@@ -87,10 +87,10 @@ class DrumMapping(Enum):
         return len(self.value[0])
 
     def __getitem__(self, item):
-        return self.value[item][0]
+        return self.value[0][item]
 
     def get_name(self, item):
-        return self.value[item][1]
+        return self.value[1][item]
 
     def __str__(self):
         return self.name.lower().replace("_", " ").capitalize()
@@ -105,7 +105,6 @@ class DrumMapping(Enum):
     @staticmethod
     def from_str(desc: str):
         for mapping in DrumMapping:
-            mapping = mapping[0]
             if str(mapping).lower().replace("_", " ").capitalize() == desc.lower().replace("_", " ").capitalize():
                 return mapping
         raise ValueError(f"Invalid mapping description: {desc}")
