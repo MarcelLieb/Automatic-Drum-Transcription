@@ -182,9 +182,9 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         time_offset = start / self.sample_rate
 
-        drums = [drum + self.time_shift for drum in drums]
+        shift_drums = [drum + self.time_shift for drum in drums]
 
-        time_stamps = [*beats, *drums] if self.beats else [*drums]
+        time_stamps = [*beats, *shift_drums] if self.beats else [*shift_drums]
         time_stamps = [cls[cls >= time_offset] - time_offset for cls in time_stamps]
         labels = get_labels(time_stamps, self.sample_rate, self.hop_size, mel.shape[-1])
 
