@@ -616,7 +616,7 @@ final_experiment_params = {
     'Mamba best': {
         'activation': 'ReLU',
         'backbone': 'cnn',
-        'batch_size': 34,
+        'batch_size': 16,
         'beats': False,
         'beta_1': 0.874396896983057,
         'beta_2': 0.8996510808804896,
