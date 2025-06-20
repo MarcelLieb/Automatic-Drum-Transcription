@@ -303,7 +303,8 @@ final_experiment_params = {
         'time_shift': 0.015,
         'train_set': 'a2md_train',
         'use_relative_pos': False,
-        'weight_decay': 1.7037329843265721e-10},
+        'weight_decay': 1.7037329843265721e-10
+    },
     'Attention faster': {
         'activation': 'SiLU',
         'batch_size': 6,
@@ -365,7 +366,8 @@ final_experiment_params = {
         'time_shift': 0.015,
         'train_set': 'a2md_train',
         'use_relative_pos': False,
-        'weight_decay': 1.862817349403482e-08},
+        'weight_decay': 1.862817349403482e-08
+    },
     'Attention no conv': {
         'activation': 'SELU',
         'batch_size': 7,
@@ -427,7 +429,8 @@ final_experiment_params = {
         'time_shift': 0.015,
         'train_set': 'a2md_train',
         'use_relative_pos': True,
-        'weight_decay': 5.078243440707077e-10},
+        'weight_decay': 5.078243440707077e-10
+    },
     'CRNN best': {
         'activation': 'SELU',
         'batch_size': 7,
@@ -487,7 +490,8 @@ final_experiment_params = {
         'test_sets': "('RBMA', 'MDB')",
         'time_shift': 0.015,
         'train_set': 'a2md_train',
-        'weight_decay': 2.0891162774860116e-05},
+        'weight_decay': 2.0891162774860116e-05
+    },
     'CRNN small': {
         'activation': 'SELU',
         'batch_size': 10,
@@ -546,7 +550,8 @@ final_experiment_params = {
         'test_sets': "('RBMA', 'MDB')",
         'time_shift': 0.015,
         'train_set': 'a2md_train',
-        'weight_decay': 1.9723653909356436e-05},
+        'weight_decay': 1.9723653909356436e-05
+    },
     'CRNN no conv': {
         'activation': 'ELU',
         'batch_size': 21,
@@ -606,7 +611,8 @@ final_experiment_params = {
         'test_sets': "('RBMA', 'MDB')",
         'time_shift': 0.015,
         'train_set': 'a2md_train',
-        'weight_decay': 7.688941212161995e-09},
+        'weight_decay': 7.688941212161995e-09
+    },
     'Mamba best': {
         'activation': 'ReLU',
         'backbone': 'cnn',
@@ -670,7 +676,8 @@ final_experiment_params = {
         'test_sets': "('RBMA', 'MDB')",
         'time_shift': 0.015,
         'train_set': 'a2md_train',
-        'weight_decay': 6.880469759057856e-06},
+        'weight_decay': 6.880469759057856e-06
+    },
     'Mamba fast': {
         'activation': 'SELU',
         'backbone': 'cnn',
@@ -734,7 +741,8 @@ final_experiment_params = {
         'test_sets': "('RBMA', 'MDB')",
         'time_shift': 0.015,
         'train_set': 'a2md_train',
-        'weight_decay': 3.480668932284156e-05},
+        'weight_decay': 3.480668932284156e-05
+    },
     'Mamba no conv': {
         'activation': 'ReLU',
         'backbone': 'cnn',
@@ -798,7 +806,8 @@ final_experiment_params = {
         'test_sets': "('RBMA', 'MDB')",
         'time_shift': 0.015,
         'train_set': 'a2md_train',
-        'weight_decay': 2.4598108954923945e-08}
+        'weight_decay': 2.4598108954923945e-08
+    }
 }
 
 
