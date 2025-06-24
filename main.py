@@ -368,7 +368,7 @@ def evaluate(
 def main(
     config: Config = Config(),
     trial: optuna.Trial = None,
-    metric_to_track="F-Score/Validation",
+    metric_to_track="F-Score/Sum/Validation",
     seed=42,
 ):
     np.random.seed(seed)
@@ -443,6 +443,19 @@ def main(
         else initial_lr
     )
 
+    metrics = {
+        "Loss/Train": [],
+        "Loss/Validation": [],
+        "F-Score/Sum/Validation": [],
+        "F-Score/Avg/Validation": [],
+    }
+    directions = {
+        "Loss/Train": -1,
+        "Loss/Validation": -1,
+        "F-Score/Sum/Validation": 1,
+        "F-Score/Avg/Validation": 1,
+    }
+
     optimizer = optim.RAdam(
         model.parameters(),
         lr=initial_lr,
@@ -486,16 +499,6 @@ def main(
         error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
     scaler = torch.amp.GradScaler(device=device)
 
-    metrics = {
-        "Loss/Train": [],
-        "Loss/Validation": [],
-        "F-Score/Validation": [],
-    }
-    directions = {
-        "Loss/Train": -1,
-        "Loss/Validation": -1,
-        "F-Score/Validation": 1,
-    }
     last_improvement = 0
     print("Starting Training")
     for epoch in range(training_settings.epochs):
@@ -514,7 +517,7 @@ def main(
             tensorboard_writer=writer,
         )
         torch.cuda.empty_cache()
-        val_loss, f_score, avg_f_score = evaluate(
+        val_loss, f_score_sum, f_score_avg, best_thresholds = evaluate(
             epoch,
             model if ema_model is None else ema_model.module,
             loader_val,
@@ -527,14 +530,15 @@ def main(
         )
         metrics["Loss/Train"].append(train_loss)
         metrics["Loss/Validation"].append(val_loss)
-        metrics["F-Score/Validation"].append((f_score, avg_f_score))
+        metrics["F-Score/Sum/Validation"].append(f_score_sum)
+        metrics["F-Score/Avg/Validation"].append(f_score_avg)
         # if trial is not None:
         #     trial.report(f_score, epoch)
         torch.cuda.empty_cache()
         if scheduler is not None and isinstance(
             scheduler, optim.lr_scheduler.ReduceLROnPlateau
         ):
-            scheduler.step(f_score)
+            scheduler.step(metrics[metric_to_track][-1])
             if current_lr > optimizer.state_dict()["param_groups"][0]["lr"]:
                 current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
                 print(f"Adjusting learning rate to {current_lr}")
@@ -548,7 +552,7 @@ def main(
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {train_loss * 100:.4f}\t "
-            f"Val Loss: {val_loss * 100:.4f} F-Score: {avg_f_score * 100:.4f}/{f_score * 100:.4f}"
+            f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score_sum * 100:.4f}/{f_score_avg * 100:.4f}"
         )
         last_improvement += 1
         if epoch == 0 or np.all(
@@ -559,7 +563,7 @@ def main(
             ).state_dict()
             last_improvement = 0
         print(last_improvement)
-        if f_score > evaluation_settings.min_test_score and last_improvement == 0 and not is_unet:
+        if f_score_sum > evaluation_settings.min_test_score and last_improvement == 0 and not is_unet:
             for test_loader in test_sets:
                 identifier = test_loader.dataset.get_identifier()
                 test_loss, test_f_score, test_avg_f_score = evaluate(
@@ -579,8 +583,6 @@ def main(
                 print(
                     f"{identifier}: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
                 )
-                if test_f_score > 0.75:
-                    break
         # elif (
         #         last_improvement >= 5
         #         and dataset_settings.annotation_settings.time_shift > 0.0
@@ -593,7 +595,7 @@ def main(
         #     time_shift = dataset.time_shift
         #     print(f"Adjusting time shift to {time_shift}")
         #     """
-        recent_scores = np.array(metrics["F-Score/Validation"][-3:])
+        recent_scores = np.array(metrics["F-Score/Sum/Validation"][-3:])
         stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-4).all() and len(
             recent_scores) >= 3) or np.isnan(val_loss)
         if (
@@ -609,7 +611,7 @@ def main(
     if best_model is not None:
         model.load_state_dict(best_model)
 
-    if max(metrics["F-Score/Validation"])[0] > training_settings.min_save_score or is_unet:
+    if max(metrics["F-Score/Sum/Validation"]) > training_settings.min_save_score or is_unet:
         print("Saving model")
         dic = {
             "model": model.state_dict(),
@@ -619,7 +621,7 @@ def main(
             "evaluation_settings": asdict(evaluation_settings),
         }
         dir_name = writer.get_logdir().split("/")[-1]
-        torch.save(dic, f"./models/{dir_name}_{architecture}_{metrics['F-Score/Validation'][-1][0] * 100:.2f}.pt")
+        torch.save(dic, f"./models/{dir_name}_{architecture}_{metrics['F-Score/Sum/Validation'][-1] * 100:.2f}.pt")
 
     hyperparameters = {
         **asdict(training_settings),
@@ -628,7 +630,7 @@ def main(
         **asdict(model_settings),
         "seed": seed,
     }
-    best_score = np.max(metrics["F-Score/Validation"], axis=0)[0]
+    best_score = np.max(metrics["F-Score/Sum/Validation"], axis=0)
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")
 
