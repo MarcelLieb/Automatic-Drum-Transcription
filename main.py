@@ -85,20 +85,18 @@ def step(
     with torch.autocast(device_type=device, dtype=torch.float16):
         prediction = model(audio_batch)
         unfiltered = criterion(prediction, lbl_batch)
-        no_silence = unfiltered * (lbl_batch != -1)
-        # full_context = no_silence[..., 49:]  # Receptive field if causal model is 9 frames
-        # full_context = full_context * torch.any(lbl_batch[..., 9:] > 0, dim=-1, keepdim=True)
-        num_positives = torch.sum(lbl_batch > 0).detach()
-        total = torch.prod(torch.tensor(no_silence.shape))
-        scale_factor = (positive_weight - 1) * num_positives / total + 1
+        # no_silence = unfiltered * (lbl_batch != -1)
+        # num_positives = torch.sum(lbl_batch > 0).detach()
+        # total = torch.prod(torch.tensor(no_silence.shape))
+        # scale_factor = (positive_weight - 1) * num_positives / total + 1
 
-        mask = torch.ones_like(no_silence, requires_grad=False)
-        mask[lbl_batch > 0] = positive_weight
-        mask = mask / scale_factor
+        # mask = torch.ones_like(no_silence, requires_grad=False)
+        # mask[lbl_batch > 0] = positive_weight
+        # mask = mask / scale_factor
 
-        no_silence = no_silence * mask
+        # no_silence = no_silence * mask
 
-        loss = no_silence.mean()
+        loss = unfiltered[lbl_batch != -1].mean()
 
     scaler.scale(loss).backward()
 
