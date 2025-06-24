@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from dataset.datasets import get_dataset
 from dataset.mapping import DrumMapping
-from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score
+from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score, evaluate_onsets, combine_onsets
 from dataset.generics import ADTDataset
 from model import ModelEmaV2
 from model.CRNN import CRNN
@@ -30,6 +30,35 @@ from settings import (
     CNNAttentionSettings,
     CNNMambaSettings,
     asdict, UNetSettings, CRNNSettings, Config,
+)
+
+COLORS = (
+    np.array(
+        [
+            [230, 25, 75],
+            [60, 180, 75],
+            [255, 225, 25],
+            [0, 130, 200],
+            [245, 130, 48],
+            [145, 30, 180],
+            [70, 240, 240],
+            [240, 50, 230],
+            [210, 245, 60],
+            [250, 190, 190],
+            [0, 128, 128],
+            [230, 190, 255],
+            [170, 110, 40],
+            [255, 250, 200],
+            [128, 0, 0],
+            [170, 255, 195],
+            [128, 128, 0],
+            [255, 215, 180],
+            [0, 0, 128],
+            [128, 128, 128],
+            [0, 0, 0],
+        ]
+    )
+    / 255
 )
 
 
@@ -190,11 +219,8 @@ def evaluate(
     tensorboard_writer: SummaryWriter = None,
     is_unet: bool = False,
     tag: str = "Evaluation",
-) -> (float, float):
-    """Evaluates the model on the specified dataset
-
-    @return: The loss for the specified dataset
-    """
+    thresholds: list[float]=None,
+) -> (float, float, float, list[float]):
     model.eval()
     total_loss = 0
     device_str = str(device)
@@ -243,9 +269,12 @@ def evaluate(
                 evaluation_settings.peak_max_range,
             )
             # Shift back onsets
-            for cls in peaks:
-                for peak in cls:
-                    peak[0] -= time_shift
+            for song in peaks:
+                for cls in song:
+                    cls[0] -= time_shift
+
+            if thresholds is not None:
+                peaks = [[combine_onsets(song[0, :][song[1, :] >= thresh], cool_down=evaluation_settings.onset_cooldown) for song in cls] for cls, thresh in zip(peaks, thresholds)]
             # peaks = [[peak - time_shift for peak in cls] for cls in peaks]
             predictions.extend(peaks)
             groundtruth.extend(gts)
@@ -256,113 +285,107 @@ def evaluate(
     if is_unet:
         if tensorboard_writer is not None:
             tensorboard_writer.add_scalar(f"Loss/{tag}", total_loss / len(dataloader), global_step=epoch)
-        return total_loss / len(dataloader), 0, 0
+        return total_loss / len(dataloader), 0, 0, []
 
-    precisions, recalls, thresholds, f, f_avg, best_thresholds = calculate_pr(
-        predictions,
-        groundtruth,
-        onset_cooldown=evaluation_settings.onset_cooldown,
-        detection_window=evaluation_settings.detect_tolerance,
-        ignore_beats=evaluation_settings.ignore_beats,
-        pr_points=evaluation_settings.pr_points,
-    )
-    f_scores = [
-        calculate_f_score(precision, recall)
-        for precision, recall in zip(precisions, recalls)
-    ]
+    best_thresholds = thresholds
+    if thresholds is None:
+        precisions, recalls, thresholds, f_sum, f_avg, best_thresholds = calculate_pr(
+            predictions,
+            groundtruth,
+            onset_cooldown=evaluation_settings.onset_cooldown,
+            detection_window=evaluation_settings.detect_tolerance,
+            ignore_beats=evaluation_settings.ignore_beats,
+            pr_points=evaluation_settings.pr_points,
+        )
+        f_scores = [
+            calculate_f_score(precision, recall)
+            for precision, recall in zip(precisions, recalls)
+        ]
+        for score in f_scores:
+            assert not torch.isnan(score).any()
+        if tensorboard_writer is not None:
+            tensorboard_writer.add_tensor(
+                f"{tag}/Best_Thresholds", best_thresholds, global_step=epoch
+            )
+            # FixMe This might break with different settings
+            tensorboard_writer.add_tensor(
+                f"{tag}/Precisions", torch.stack(precisions), global_step=epoch
+            )
+            tensorboard_writer.add_tensor(
+                f"{tag}/Recalls", torch.stack(recalls), global_step=epoch
+            )
+            tensorboard_writer.add_tensor(
+                f"{tag}/F_scores", torch.stack(f_scores), global_step=epoch
+            )
+            tensorboard_writer.add_tensor(
+                f"{tag}/Thresholds", torch.stack(thresholds), global_step=epoch
+            )
+
+            fig = plt.figure()
+            for i in range(len(precisions)):
+                plt.plot(
+                    recalls[i],
+                    precisions[i],
+                    color=COLORS[i],
+                    label=DrumMapping.prettify(mapping[i]),
+                )
+
+            plt.xlim(0, 1)
+            plt.ylim(0, 1)
+            plt.xlabel("Recall")
+            plt.ylabel("Precision")
+            plt.title(f"Precision-Recall Curve for {tag}")
+            plt.legend()
+            plt.tight_layout()
+            tensorboard_writer.add_figure(
+                f"{tag}/PR-Curve/", fig, global_step=epoch, close=True
+            )
+
+            fig = plt.figure()
+            for i in range(len(f_scores)):
+                plt.plot(
+                    thresholds[i],
+                    f_scores[i],
+                    color=COLORS[i],
+                    label=DrumMapping.prettify(mapping[i]),
+                )
+            plt.xlim(0, 1)
+            plt.ylim(0, 1)
+            plt.xlabel("Threshold")
+            plt.ylabel("F-Score")
+            plt.title(f"F-Score for {tag}")
+            plt.legend()
+            plt.tight_layout()
+            tensorboard_writer.add_figure(
+                f"{tag}/Threshold-Curve/", fig, global_step=epoch, close=True
+            )
+    else:
+        stats_counter = torch.zeros(dataset.n_classes, 3)
+        assert len(predictions) == len(groundtruth), f"{len(predictions)} != {len(groundtruth)}"
+        for song_index in range(len(predictions)):
+            offset = 0
+            if evaluation_settings.ignore_beats:
+                offset = 2
+
+            assert len(predictions[song_index]) == len(groundtruth[song_index][offset:])
+            for cls, (cls_onset, cls_gt) in enumerate(zip(predictions[song_index], groundtruth[song_index][offset:])):
+                stats_counter[cls] += torch.tensor(evaluate_onsets(cls_onset, cls_gt, window=evaluation_settings.detect_tolerance))
+        f_scores = 2 * stats_counter[:, 0] / (2 * stats_counter[:, 0] + stats_counter[:, 1] + stats_counter[:, 2])
+        f_avg = f_scores.mean().item()
+        total_stats = stats_counter.sum(dim=1)
+        f_sum = (2 * total_stats[0] / (2 * total_stats[0] + total_stats[1] + total_stats[2])).item()
+        if tensorboard_writer is not None:
+            tensorboard_writer.add_tensor(f"Stats/{tag}", stats_counter)
+            tensorboard_writer.add_tensor(f"F-Score/Class/{tag}", f_scores)
 
     loss = total_loss / len(dataloader)
 
     if tensorboard_writer is not None:
-        tensorboard_writer.add_scalar(f"F-Score/Sum/{tag}", f, global_step=epoch)
-        tensorboard_writer.add_scalar(f"F-Score/Avg/{tag}", f_avg, global_step=epoch)
-        tensorboard_writer.add_tensor(
-            f"{tag}/Best_Thresholds", best_thresholds, global_step=epoch
-        )
-        # FixMe This might break with different settings
-        tensorboard_writer.add_tensor(
-            f"{tag}/Precisions", torch.stack(precisions), global_step=epoch
-        )
-        tensorboard_writer.add_tensor(
-            f"{tag}/Recalls", torch.stack(recalls), global_step=epoch
-        )
-        tensorboard_writer.add_tensor(
-            f"{tag}/F_scores", torch.stack(f_scores), global_step=epoch
-        )
-        tensorboard_writer.add_tensor(
-            f"{tag}/Thresholds", torch.stack(thresholds), global_step=epoch
-        )
-
-        colors = (
-            np.array(
-                [
-                    [230, 25, 75],
-                    [60, 180, 75],
-                    [255, 225, 25],
-                    [0, 130, 200],
-                    [245, 130, 48],
-                    [145, 30, 180],
-                    [70, 240, 240],
-                    [240, 50, 230],
-                    [210, 245, 60],
-                    [250, 190, 190],
-                    [0, 128, 128],
-                    [230, 190, 255],
-                    [170, 110, 40],
-                    [255, 250, 200],
-                    [128, 0, 0],
-                    [170, 255, 195],
-                    [128, 128, 0],
-                    [255, 215, 180],
-                    [0, 0, 128],
-                    [128, 128, 128],
-                    [0, 0, 0],
-                ]
-            )
-            / 255
-        )
-
-        fig = plt.figure()
-        for i in range(len(precisions)):
-            plt.plot(
-                recalls[i],
-                precisions[i],
-                color=colors[i],
-                label=DrumMapping.prettify(mapping[i]),
-            )
-
-        plt.xlim(0, 1)
-        plt.ylim(0, 1)
-        plt.xlabel("Recall")
-        plt.ylabel("Precision")
-        plt.title(f"Precision-Recall Curve for {tag}")
-        plt.legend()
-        plt.tight_layout()
-        tensorboard_writer.add_figure(
-            f"{tag}/PR-Curve/", fig, global_step=epoch, close=True
-        )
-
-        fig = plt.figure()
-        for i in range(len(f_scores)):
-            plt.plot(
-                thresholds[i],
-                f_scores[i],
-                color=colors[i],
-                label=DrumMapping.prettify(mapping[i]),
-            )
-        plt.xlim(0, 1)
-        plt.ylim(0, 1)
-        plt.xlabel("Threshold")
-        plt.ylabel("F-Score")
-        plt.title(f"F-Score for {tag}")
-        plt.legend()
-        plt.tight_layout()
-        tensorboard_writer.add_figure(
-            f"{tag}/Threshold-Curve/", fig, global_step=epoch, close=True
-        )
         tensorboard_writer.add_scalar(f"Loss/{tag}", loss, global_step=epoch)
+        tensorboard_writer.add_scalar(f"F-Score/Sum/{tag}", f_sum, global_step=epoch)
+        tensorboard_writer.add_scalar(f"F-Score/Avg/{tag}", f_avg, global_step=epoch)
 
-    return total_loss / len(dataloader), f, f_avg
+    return loss, f_sum, f_avg, best_thresholds
 
 
 def main(
@@ -566,7 +589,7 @@ def main(
         if f_score_sum > evaluation_settings.min_test_score and last_improvement == 0 and not is_unet:
             for test_loader in test_sets:
                 identifier = test_loader.dataset.get_identifier()
-                test_loss, test_f_score, test_avg_f_score = evaluate(
+                test_loss, test_f_score, test_avg_f_score, _ = evaluate(
                     epoch,
                     model if ema_model is None else ema_model.module,
                     test_loader,
@@ -575,6 +598,7 @@ def main(
                     evaluation_settings,
                     tensorboard_writer=writer,
                     tag=f"Test/{identifier}",
+                    thresholds=best_thresholds,
                 )
                 if trial is not None:
                     trial.set_user_attr(f"{identifier}_f_score_sum", test_f_score)
