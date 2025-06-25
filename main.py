@@ -378,7 +378,7 @@ def evaluate(
                 stats_counter[cls] += torch.tensor(evaluate_onsets(cls_onset, cls_gt, window=evaluation_settings.detect_tolerance))
         f_scores = 2 * stats_counter[:, 0] / (2 * stats_counter[:, 0] + stats_counter[:, 1] + stats_counter[:, 2])
         f_avg = f_scores.mean().item()
-        total_stats = stats_counter.sum(dim=1)
+        total_stats = stats_counter.sum(dim=0)
         f_sum = (2 * total_stats[0] / (2 * total_stats[0] + total_stats[1] + total_stats[2])).item()
         if tensorboard_writer is not None:
             tensorboard_writer.add_tensor(f"Stats/{tag}", stats_counter)
