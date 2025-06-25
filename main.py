@@ -267,12 +267,20 @@ def evaluate(
                 evaluation_settings.peak_max_range,
             )
             # Shift back onsets
-            for song in peaks:
-                for cls in song:
-                    cls[0] -= time_shift
+            for song_idx in range(len(peaks)):
+                for cls_idx in range(len(peaks[song_idx])):
+                    peaks[song_idx][cls_idx] -= time_shift
+                    # filter out predictions before the start
+                    peaks[song_idx][cls_idx] = peaks[song_idx][cls_idx][:, peaks[song_idx][cls_idx][0, :] >= 0]
 
             if thresholds is not None:
-                peaks = [[combine_onsets(song[0, :][song[1, :] >= thresh], cool_down=evaluation_settings.onset_cooldown) for song in cls] for cls, thresh in zip(peaks, thresholds)]
+                peaks = [
+                    [
+                        combine_onsets(cls[0, :][cls[1, :] >= thresh], cool_down=evaluation_settings.onset_cooldown)
+                        for cls, thresh in zip(song, thresholds)
+                    ]
+                    for song in peaks
+                ]
             # peaks = [[peak - time_shift for peak in cls] for cls in peaks]
             predictions.extend(peaks)
             groundtruth.extend(gts)
@@ -573,7 +581,7 @@ def main(
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {train_loss * 100:.4f}\t "
-            f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score_sum * 100:.4f}/{f_score_avg * 100:.4f}"
+            f"Val Loss: {val_loss * 100:.4f} F-Score: {f_score_avg * 100:.4f}/{f_score_sum * 100:.4f}"
         )
         last_improvement += 1
         if epoch == 0 or np.all(
