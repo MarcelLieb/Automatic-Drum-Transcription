@@ -248,9 +248,9 @@ def convert_to_wav(path: str | Path):
 T = TypeVar("T")
 
 
-def get_splits(splits: list[float], data: list[T]) -> list[list[T]]:
+def get_splits(splits: list[float], data: list[T], seed=42) -> list[list[T]]:
     assert abs(sum(splits) - 1) < 1e-4
-    generator = torch.Generator().manual_seed(42)
+    generator = torch.Generator().manual_seed(seed)
     split: list[Subset] = torch.utils.data.random_split(
         range(len(data)), splits, generator=generator
     )

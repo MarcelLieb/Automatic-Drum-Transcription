@@ -1,3 +1,4 @@
+import random
 from dataclasses import asdict as dataclass_asdict
 
 import matplotlib.pyplot as plt
@@ -141,7 +142,6 @@ def train_epoch(
     optimizer,
     scaler,
     scheduler,
-    positive_weight,
     is_unet=False,
     tensorboard_writer=None,
 ):
@@ -387,6 +387,8 @@ def main(
 ):
     np.random.seed(seed)
     torch.manual_seed(seed)
+    random.seed(seed)
+
     training_settings = config.training
     evaluation_settings = config.evaluation
     dataset_settings = config.dataset
@@ -527,7 +529,6 @@ def main(
             scaler,
             scheduler,
             is_unet=is_unet,
-            positive_weight=training_settings.positive_weight,
             tensorboard_writer=writer,
         )
         torch.cuda.empty_cache()

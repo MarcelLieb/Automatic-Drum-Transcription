@@ -57,7 +57,7 @@ def convert_to_wav_dataset(root: str):
 
 
 def get_splits(
-    version: str, splits: list[float], path: str
+    version: str, splits: list[float], path: str, seed: int = 42
 ) -> list[dict[str, list[str]]]:
     assert abs(sum(splits) - 1) < 1e-4
     cut_off = {
@@ -70,7 +70,7 @@ def get_splits(
     out = [{} for _ in range(len(splits))]
     for folder in folders:
         identifiers = tracks[folder]
-        split = get_splits_data(splits, identifiers)
+        split = get_splits_data(splits, identifiers, seed=seed)
         for i, s in enumerate(split):
             out[i][folder] = s
     # Check if the distribution is correct

@@ -14,6 +14,7 @@ def get_dataset(
     batch_size: int,
     test_batch_size: int,
     dataset_settings: DatasetSettings,
+    seed: int = 42,
 ) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
