@@ -1,7 +1,5 @@
 from dataclasses import asdict as dataclass_asdict
 
-import matplotlib
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import resource
@@ -69,7 +67,6 @@ def step(
     audio_batch: torch.Tensor,
     lbl_batch: torch.Tensor,
     scaler: torch.cuda.amp.GradScaler,
-    positive_weight: float,
     scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     """Performs one update step for the model
@@ -85,17 +82,6 @@ def step(
     with torch.autocast(device_type=device, dtype=torch.float16):
         prediction = model(audio_batch)
         unfiltered = criterion(prediction, lbl_batch)
-        # no_silence = unfiltered * (lbl_batch != -1)
-        # num_positives = torch.sum(lbl_batch > 0).detach()
-        # total = torch.prod(torch.tensor(no_silence.shape))
-        # scale_factor = (positive_weight - 1) * num_positives / total + 1
-
-        # mask = torch.ones_like(no_silence, requires_grad=False)
-        # mask[lbl_batch > 0] = positive_weight
-        # mask = mask / scale_factor
-
-        # no_silence = no_silence * mask
-
         loss = unfiltered[lbl_batch != -1].mean()
 
     scaler.scale(loss).backward()
@@ -196,7 +182,6 @@ def train_epoch(
             lbl_batch=lbl,
             scaler=scaler,
             scheduler=scheduler,
-            positive_weight=positive_weight,
         )
         if ema_model is not None:
             ema_model.update(model)
@@ -571,13 +556,6 @@ def main(
             if current_lr > optimizer.state_dict()["param_groups"][0]["lr"]:
                 current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
                 print(f"Adjusting learning rate to {current_lr}")
-                model.load_state_dict(best_model)
-                optimizer = optim.RAdam(
-                    model.parameters(), lr=current_lr, eps=1e-8, weight_decay=1e-5
-                )
-                scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer, mode="max", factor=0.2, patience=10
-                )
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {train_loss * 100:.4f}\t "

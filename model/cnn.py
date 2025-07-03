@@ -75,6 +75,5 @@ class CNN(nn.Module):
         x = self.activation(x)
         x = self.dropout(x)
         x = self.fc2(x)
-        x = self.activation(x)
         x = x.permute(0, 2, 1)
         return x

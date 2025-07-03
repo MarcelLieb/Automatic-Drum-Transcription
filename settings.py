@@ -122,7 +122,6 @@ class TrainingSettings(SettingsBase):
     beta_2: float = 0.999
     epsilon: float = 1e-8
     decoupled_weight_decay: bool = False
-    positive_weight: float = 1.0
     ema: bool = False
     scheduler: bool = False
     early_stopping: int | None = None
