@@ -452,15 +452,6 @@ def main(
 
     writer = SummaryWriter()
 
-    max_lr = training_settings.learning_rate * 2
-    initial_lr = max_lr / 25
-    _min_lr = initial_lr / 1e4
-    initial_lr = (
-        training_settings.learning_rate
-        if not training_settings.scheduler
-        else initial_lr
-    )
-
     metrics = {
         "Loss/Train": [],
         "Loss/Validation": [],
@@ -476,23 +467,31 @@ def main(
 
     optimizer = optim.RAdam(
         model.parameters(),
-        lr=initial_lr,
+        lr=training_settings.learning_rate,
         weight_decay=training_settings.weight_decay,
         decoupled_weight_decay=training_settings.decoupled_weight_decay,
         betas=(training_settings.beta_1, training_settings.beta_2),
         eps=training_settings.epsilon,
     )
     scheduler = (
+        # optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer,
+        #     mode="min" if directions[metric_to_track] < 0 else "max",
+        #     factor=0.2,
+        #     patience=10,
+        #     eps=training_settings.epsilon,
+        # )
         optim.lr_scheduler.OneCycleLR(
             optimizer,
-            max_lr=max_lr,
+            max_lr=2e-3,
+            div_factor= 2e-3 / training_settings.learning_rate,
+            final_div_factor=training_settings.learning_rate / 8e-6, # min_lr = 8e-6
             steps_per_epoch=len(loader_train),
             epochs=training_settings.epochs,
         )
         if training_settings.scheduler
         else None
     )
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.2, patience=10)
     current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
     # error = torch.nn.L1Loss(reduction="none")
     if is_unet:
