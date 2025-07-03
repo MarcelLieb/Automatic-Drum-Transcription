@@ -127,7 +127,7 @@ class TrainingSettings(SettingsBase):
     early_stopping: int | None = None
     min_save_score: float = 0.62
     test_batch_size: int = 1
-    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet", "crnn"] = "mamba_fast"
+    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet", "crnn", "vogl"] = "cnn_attention"
 
     def get_model_settings_class(self):
         match self.model_settings:
@@ -158,7 +158,7 @@ class EvaluationSettings(SettingsBase):
     peak_mean_range: int = 2
     peak_max_range: int = 2
     onset_cooldown: int = 0.021
-    detect_tolerance: int = 0.025
+    detect_tolerance: float = 0.025
     ignore_beats: bool = True
     min_test_score: float = 0.48
     pr_points: int | None = 1000
@@ -284,6 +284,6 @@ class Config(SettingsBase):
         dic["dataset"] = DatasetSettings.from_flat_dict(dic)
         dic["training"] = TrainingSettings.from_flat_dict(dic)
         dic["evaluation"] = EvaluationSettings.from_flat_dict(dic)
-        dic["model"] = dic["training"].get_model_settings_class().from_flat_dict(dic)
+        dic["model"] = dic["training"].get_model_settings_class().from_flat_dict(dic) if dic["training"].get_model_settings_class() is not None else None
         attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
         return cls(**attributes)

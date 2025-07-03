@@ -17,7 +17,7 @@ from dataset.mapping import DrumMapping
 from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score, evaluate_onsets, combine_onsets
 from dataset.generics import ADTDataset
 from model import ModelEmaV2
-from model.CRNN import CRNN
+from model.CRNN import CRNN, CRNN_Vogl
 from model.cnn import CNN
 from model.cnnA import CNNAttention
 from model.cnnM import CNNMamba
@@ -422,6 +422,8 @@ def main(
         case "crnn":
             model_settings = CRNNSettings() if model_settings is None else model_settings
             model = CRNN(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
+        case "vogl":
+            model = CRNN_Vogl(n_classes=n_classes, n_mels=n_mels, causal=True)
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
@@ -573,7 +575,8 @@ def main(
         print(last_improvement)
         if f_score_sum > evaluation_settings.min_test_score and last_improvement == 0 and not is_unet:
             for test_loader in test_sets:
-                identifier = test_loader.dataset.get_identifier()
+                test_set: ADTDataset = test_loader.dataset
+                identifier = test_set.get_identifier()
                 test_loss, test_f_score, test_avg_f_score, _ = evaluate(
                     epoch,
                     model if ema_model is None else ema_model.module,
@@ -605,7 +608,7 @@ def main(
         #     print(f"Adjusting time shift to {time_shift}")
         #     """
         recent_scores = np.array(metrics["F-Score/Sum/Validation"][-3:])
-        stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-4).all() and len(
+        stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-5).all() and len(
             recent_scores) >= 3) or np.isnan(val_loss)
         if (
             early_stopping is not None
@@ -624,11 +627,12 @@ def main(
         print("Saving model")
         dic = {
             "model": model.state_dict(),
-            "model_settings": asdict(model_settings),
             "dataset_settings": asdict(dataset_settings),
             "training_settings": asdict(training_settings),
             "evaluation_settings": asdict(evaluation_settings),
         }
+        if model_settings is not None:
+            dic["model_settings"] = asdict(model_settings)
         dir_name = writer.get_logdir().split("/")[-1]
         torch.save(dic, f"./models/{dir_name}_{architecture}_{metrics['F-Score/Sum/Validation'][-1] * 100:.2f}.pt")
 
@@ -636,9 +640,10 @@ def main(
         **asdict(training_settings),
         **asdict(evaluation_settings),
         **asdict(dataset_settings),
-        **asdict(model_settings),
         "seed": seed,
     }
+    if model_settings is not None:
+        hyperparameters.update(asdict(model_settings))
     best_score = np.max(metrics["F-Score/Sum/Validation"], axis=0)
     writer.add_hparams(hparam_dict=hyperparameters, metric_dict={"F-Score": best_score})
     print(f"Best F-score: {best_score * 100:.4f}")

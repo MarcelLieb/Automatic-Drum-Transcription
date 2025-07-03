@@ -36,7 +36,7 @@ class CRNN(nn.Module):
             bidirectional=not causal
         )
         self.fc = nn.Sequential(
-            nn.Linear(rnn_units, classifier_dim),
+            nn.Linear(rnn_units * (1 + (not causal)), classifier_dim),
             activation,
             nn.Dropout(dropout),
             nn.Linear(classifier_dim, n_classes),
@@ -53,5 +53,56 @@ class CRNN(nn.Module):
         x, _ = self.rnn(x)
         x = self.activation(x)
         x = self.fc(x)
+        x = x.permute(0, 2, 1)
+        return x
+
+
+class CRNN_Vogl(nn.Module):
+    def __init__(self, n_mels, n_classes, causal, *args, **kwargs):
+        super(CRNN_Vogl, self).__init__()
+        self.backbone = CNNFeature(
+            32,
+            2,
+            3,
+            2,
+            nn.ReLU(),
+            causal,
+            dropout=0.,
+            in_channels=1,
+        )
+
+        self.rnn1 = nn.GRU(
+            input_size=(n_mels // 9) * 64,
+            hidden_size=60,
+            num_layers=1,
+            batch_first=True,
+            dropout=0,
+            bidirectional=not causal,
+        )
+        self.rnn2 = nn.GRU(
+            input_size=60 * (1 + (not causal)),
+            hidden_size=60,
+            num_layers=1,
+            batch_first=True,
+            dropout=0,
+            bidirectional=False,
+        )
+        self.fc = nn.GRU(
+            input_size=60 * (1 + (not causal)),
+            hidden_size=n_classes,
+            num_layers=1,
+            batch_first=True,
+            dropout=0,
+            bidirectional=False,
+        )
+
+    def forward(self, x: torch.Tensor):
+        x = x.unsqueeze(1)
+
+        x = self.backbone(x)
+        x = x.view(x.size(0), -1, x.size(-1)).permute(0, 2, 1)
+        x, _ = self.rnn1(x)
+        x, _ = self.rnn2(x)
+        x, _ = self.fc(x)
         x = x.permute(0, 2, 1)
         return x
