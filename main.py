@@ -453,7 +453,7 @@ def main(
     print(model_settings)
 
     loader_train, loader_val, test_sets = get_dataset(
-        training_settings, dataset_settings=dataset_settings
+        training_settings.batch_size, training_settings.test_batch_size, dataset_settings=dataset_settings, seed=seed
     )
 
     ema_model = (

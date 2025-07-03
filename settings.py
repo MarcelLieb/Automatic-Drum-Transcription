@@ -82,6 +82,13 @@ class AnnotationSettings(SettingsBase):
 class DatasetSettings(SettingsBase):
     audio_settings: AudioProcessingSettings = field(default_factory=AudioProcessingSettings)
     annotation_settings: AnnotationSettings = field(default_factory=AnnotationSettings)
+    dataset_version: Literal["S", "M", "L"] = "S"
+    splits: list[float] = (0.85, 0.15, 0.0)
+    full_length_test: bool = True
+    num_workers: int = cpu_count()
+    train_set: Literal["all", "a2md_train", "midi"] = "a2md_train"
+    eval_set: str = "A2MD"
+    test_sets: tuple[str] = ("RBMA", "MDB")
     segment_type: Literal["frame", "label"] | None = "frame"
     frame_length: float = 8.0
     frame_overlap: float = 0.1
@@ -94,6 +101,10 @@ class DatasetSettings(SettingsBase):
         dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
+        if "splits" in class_attributes:
+            dic["splits"] = make_tuple(dic["splits"])
+        if "test_sets" in class_attributes:
+            dic["test_sets"] = make_tuple(dic["test_sets"])
         class_attributes += ["audio_settings", "annotation_settings"]
         dic["audio_settings"] = AudioProcessingSettings.from_flat_dict(dic)
         dic["annotation_settings"] = AnnotationSettings.from_flat_dict(dic)
@@ -115,15 +126,8 @@ class TrainingSettings(SettingsBase):
     ema: bool = False
     scheduler: bool = False
     early_stopping: int | None = None
-    dataset_version: Literal["S", "M", "L"] = "L"
-    splits: list[float] = (0.85, 0.15, 0.0)
-    num_workers: int = cpu_count()
     min_save_score: float = 0.62
     test_batch_size: int = 1
-    full_length_test: bool = False
-    train_set: Literal["all", "a2md_train", "midi"] = "a2md_train"
-    eval_set: str = "A2MD"
-    test_sets: tuple[str] = ("RBMA", "MDB")
     model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet", "crnn"] = "mamba_fast"
 
     def get_model_settings_class(self):
@@ -138,6 +142,7 @@ class TrainingSettings(SettingsBase):
                 return CRNNSettings
             case "unet":
                 return UNetSettings
+        return None
 
     @classmethod
     @override
@@ -145,10 +150,6 @@ class TrainingSettings(SettingsBase):
         dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
-        if "splits" in class_attributes:
-            dic["splits"] = make_tuple(dic["splits"])
-        if "test_sets" in class_attributes:
-            dic["test_sets"] = make_tuple(dic["test_sets"])
         attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
         return cls(**attributes)
 

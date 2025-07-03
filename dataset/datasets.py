@@ -11,7 +11,8 @@ from settings import TrainingSettings, DatasetSettings
 
 
 def get_dataset(
-    training_settings: TrainingSettings,
+    batch_size: int,
+    test_batch_size: int,
     dataset_settings: DatasetSettings,
 ) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
@@ -20,12 +21,12 @@ def get_dataset(
 ]:
     path = "./data/a2md_public/"
     train_split, val_split, test_split = get_a2md_splits(
-        training_settings.dataset_version, training_settings.splits, path
+        dataset_settings.dataset_version, dataset_settings.splits, path, seed=seed,
     )
     torch.multiprocessing.set_start_method("spawn", force=True)
 
-    match training_settings.train_set:
-        case "a2md":
+    match dataset_settings.train_set:
+        case "a2md_train":
             train = A2MD(
                 split=train_split,
                 settings=dataset_settings,
@@ -82,10 +83,10 @@ def get_dataset(
         path=path,
         use_dataloader=True,
         is_train=False,
-        segment=not training_settings.full_length_test,
+        segment=not dataset_settings.full_length_test,
     )
     test_sets = []
-    for test_set in training_settings.test_sets:
+    for test_set in dataset_settings.test_sets:
         match test_set:
             case "RBMA":
                 test_rbma = RBMA13(
@@ -93,12 +94,12 @@ def get_dataset(
                     settings=dataset_settings,
                     use_dataloader=True,
                     is_train=False,
-                    segment=not training_settings.full_length_test,
+                    segment=not dataset_settings.full_length_test,
                 )
                 loader = get_dataloader(
                     test_rbma,
-                    training_settings.test_batch_size if training_settings.full_length_test else training_settings.batch_size,
-                    training_settings.num_workers,
+                    test_batch_size if dataset_settings.full_length_test else batch_size,
+                    dataset_settings.num_workers,
                     is_train=False,
                 )
                 test_sets.append(loader)
@@ -108,12 +109,12 @@ def get_dataset(
                     settings=dataset_settings,
                     use_dataloader=True,
                     is_train=False,
-                    segment=not training_settings.full_length_test,
+                    segment=not dataset_settings.full_length_test,
                 )
                 loader = get_dataloader(
                     test_mdb,
-                    training_settings.test_batch_size if training_settings.full_length_test else training_settings.batch_size,
-                    training_settings.num_workers,
+                    test_batch_size if dataset_settings.full_length_test else batch_size,
+                    dataset_settings.num_workers,
                     is_train=False,
                 )
                 test_sets.append(loader)
@@ -121,14 +122,14 @@ def get_dataset(
     torch.multiprocessing.set_start_method("fork", force=True)
     dataloader_train = get_dataloader(
         train,
-        training_settings.batch_size,
-        training_settings.num_workers,
+        batch_size,
+        dataset_settings.num_workers,
         is_train=True,
     )
     dataloader_val = get_dataloader(
         val,
-        training_settings.test_batch_size if training_settings.full_length_test else training_settings.batch_size,
-        training_settings.num_workers,
+        test_batch_size if dataset_settings.full_length_test else batch_size,
+        dataset_settings.num_workers,
         is_train=False,
     )
 
