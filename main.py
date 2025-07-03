@@ -366,8 +366,8 @@ def evaluate(
         total_stats = stats_counter.sum(dim=0)
         f_sum = (2 * total_stats[0] / (2 * total_stats[0] + total_stats[1] + total_stats[2])).item()
         if tensorboard_writer is not None:
-            tensorboard_writer.add_tensor(f"Stats/{tag}", stats_counter)
-            tensorboard_writer.add_tensor(f"F-Score/Class/{tag}", f_scores)
+            tensorboard_writer.add_tensor(f"Stats/{tag}", stats_counter, global_step=epoch)
+            tensorboard_writer.add_tensor(f"F-Score/Class/{tag}", f_scores, global_step=epoch)
 
     loss = total_loss / len(dataloader)
 

@@ -52,7 +52,7 @@ four_class_names = ("BD", "SD", "HH", "TT")
 # Mapping used in ADTOF
 five_class_mapping = (
     ("BD",),  # Bass Drum
-    ("SD",),  # Snare Drum
+    ("SD", "SS", "CLP"),  # Snare Drum
     ("CHH", "PHH", "OHH"),  # Hi-Hat
     ("LT", "MT", "HT"),  # Toms
     ("CRC", "SPC", "CHC", "RD", "RB"),  # Cymbal + Ride
