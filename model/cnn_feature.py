@@ -4,6 +4,7 @@ from torch import nn
 from model import ResidualBlock
 
 
+@torch.compile(fullgraph=True, dynamic=True)
 class CNNFeature(nn.Module):
     def __init__(
         self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout,
