@@ -4,26 +4,61 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from dataset import get_label_windows, get_length, get_segments, convert_to_wav
+from dataset import get_label_windows, get_length, get_segments, convert_to_wav, DrumMapping, get_splits
 from dataset.generics import ADTDataset
 from settings import DatasetSettings
 
 rbma_13_path = "./data/rbma_13/"
 
+# From http://ifs.tuwien.ac.at/~vogl/dafx2018/mappings.py
+# RBMA annotations to gm midi drum note
+rbma_drum_map = {
+    0: 36,  # bass drum
+    1: 38,  # snare drum
+    2: 42,  # closed hi-hat
+    3: 46,  # open hi-hat
+    4: 44,  # pedal hi-hat
+    5: 56,  # cowbell
+    6: 53,  # ride bell
+    7: 41,  # low floor tom
+    9: 43,  # high floor tom
+    10: 45,  # low tom
+    11: 47,  # low-mid tom
+    12: 48,  # high-mid tom
+    13: 50,  # high tom
+    14: 37,  # side stick
+    15: 39,  # hand clap
+    16: 51,  # ride cymbal
+    17: 49,  # crash cymbal
+    18: 55,  # splash cymbal
+    19: 52,  # chinese cymbal
+    20: 70,  # shaker, maracas
+    21: 54,  # tambourine
+    22: 75,  # claves, stick click
+    23: 81,  # high bells / triangle
+}
 
-def load_rbma(rbma_path: str = rbma_13_path) -> dict[str, (np.array, np.array)]:
+
+def load_rbma(rbma_path: str, mapping: DrumMapping) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     annotations = {}
-    for root, dirs, files in os.walk(os.path.join(rbma_path, "annotations", "drums")):
+    midi_to_class = mapping.get_midi_to_class()
+    for root, dirs, files in os.walk(os.path.join(rbma_path, "annotations", "drums_full")):
+        files = [file for file in files if file.endswith(".drums")]
         for file in files:
             track = file.split(".")[0]
-            drums = np.loadtxt(os.path.join(root, file), delimiter="\t")
-            drums = [drums[drums[:, 1] == i][:, 0] for i in range(3)]
+            number = int(track.split("-")[-1])
+            drums = np.loadtxt(os.path.join(root, file), delimiter="\t", )
+            if len(drums) == 0:
+                continue
+            drums_midi = np.vectorize(rbma_drum_map.get)(drums[:, 1])
+            drums[:, 1] = midi_to_class[drums_midi.astype(int)]
+            drums = [drums[drums[:, 1] == i][:, 0] for i in range(len(mapping))]
             beats = np.loadtxt(
-                os.path.join(rbma_path, "annotations", "beats", f"{track}.txt"),
+                os.path.join(rbma_path, "annotations", "beats_full", f"{track}.beats"),
                 delimiter="\t",
             )
             beats = [beats[beats[:, 1] == 1][:, 0], beats[:, 0]]
-            annotations[track] = (beats, drums)
+            annotations[number] = (beats, drums)
     return annotations
 
 
@@ -58,13 +93,13 @@ def rename_rbma_audio_files():
 def get_tracks(path: str) -> list[int]:
     return [
         int(file.split("-")[-1].split(".")[0])
-        for file in os.listdir(os.path.join(path, "annotations", "drums"))
-        if file.endswith(".txt")
+        for file in os.listdir(os.path.join(path, "annotations", "drums_full"))
+        if file.endswith(".drums")
     ]
 
 
 def convert_to_wav_dataset(root: str):
-    tracks = load_rbma(root)
+    tracks = load_rbma(root, DrumMapping.THREE_CLASS)
     for track, _ in tracks.items():
         convert_to_wav(os.path.join(root, "audio", f"{track}.mp3"))
 
@@ -83,16 +118,16 @@ class RBMA13(ADTDataset):
         self.path = path
 
         self.full = splits is None
-        self.annotations = load_rbma(path)
+        self.annotations = load_rbma(path, self.mapping)
         if splits is None:
-            splits = get_tracks(path)
-        tracks = [f"RBMA-13-Track-{number:02}" for number in splits]
+            splits = list(self.annotations.keys())
+        tracks = splits
         self.annotations = {track: self.annotations[track] for track in tracks}
         self.annotations = [
             (identifier, annotation[1], annotation[0])
             for identifier, annotation in self.annotations.items()
         ]
-        self.annotations.sort(key=lambda x: int(x[0].split("-")[-1]))
+        self.annotations.sort(key=lambda x: int(x[0]))
 
         if self.segment:
             lengths = [
@@ -120,8 +155,8 @@ class RBMA13(ADTDataset):
     def adjust_time_shift(self, time_shift: float):
         self.time_shift = time_shift
 
-    def get_full_path(self, track: str) -> Path:
-        audio_path = os.path.join(self.path, "audio", f"{track}")
+    def get_full_path(self, number: int) -> Path:
+        audio_path = os.path.join(self.path, "audio", f"RBMA-13-Track-{number:02}")
         if os.path.exists(audio_path + ".wav"):
             return Path(audio_path + ".wav")
         else:
