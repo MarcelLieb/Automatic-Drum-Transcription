@@ -1,0 +1,64 @@
+[project]
+name = "automatic-drum-transcription"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "causal-conv1d",
+    "librosa>=0.11.0",
+    "matplotlib>=3.10.5",
+    "numpy>=2.2",
+    "optuna>=4.4.0",
+    "optunahub>=0.3.1",
+    "polars>=1.32.0",
+    "pretty-midi",
+    "rustimport>=1.7.1",
+    "scikit-learn>=1.7.1",
+    "setuptools",
+    "triton==3.2.0",
+    "torchaudio==2.6.0",
+    "tqdm>=4.67.1",
+    "overrides>=7.7.0",
+    "tensorboard>=2.20.0",
+    "mamba-ssm",
+    "torch==2.6.0",
+]
+
+[tool.uv]
+no-build-isolation-package = ["mamba-ssm", "causal-conv1d"]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.pip]
+[extra-build-dependencies]
+mamba-ssm = ["setuptools", "torch==2.6.0"]
+causal-conv1d = ["setuptools", "torch==2.6.0"]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchaudio = [
+  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+causal-conv1d = { git = "https://github.com/MarcelLieb/causal-conv1d" }
+mamba-ssm = { git = "https://github.com/MarcelLieb/mamba" }
+pretty-midi = { git = "https://github.com/craffel/pretty-midi" }
+
+[dependency-groups]
+dev = [
+    "audiomentations>=0.42.0",
+    "calflops>=0.3.2",
+    "fcwt>=0.1.18",
+    "fuzzywuzzy>=0.18.0",
+    "ipywidgets>=8.1.7",
+    "jupyter>=1.1.1",
+    "nnaudio>=0.3.3",
+    "pandas>=2.3.1",
+    "pillow>=11.3.0",
+    "seaborn>=0.13.2",
+]
