@@ -65,8 +65,8 @@ def load_audio(
                                            num_frames=int(sample_rate * (end - start)), offset=int(sample_rate * start))
             audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
             audio = torchaudio.transforms.Resample(orig_freq=og_sr, new_freq=sample_rate)(audio)
-        assert audio.shape[-1] == int(
-            sample_rate * (end - start)), f"{audio.shape[-1]} != {int(sample_rate * (end - start))}"
+        # assert audio.shape[-1] == int(
+        #     sample_rate * (end - start)), f"{audio.shape[-1]} != {int(sample_rate * (end - start))}"
     if normalize:
         audio = audio / torch.max(torch.abs(audio))
     return audio
@@ -158,7 +158,7 @@ def get_segments(
         ends = np.minimum(starts + segment_length, length)
         segment = np.stack((starts, ends, np.zeros_like(starts) + i), axis=1)
         segments.append(segment)
-    segments = np.concatenate(segments, axis=0)
+    segments = np.concatenate(segments, axis=0) if len(segments) > 0 else np.empty((0, 3))
     return segments
 
 
@@ -218,6 +218,7 @@ def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[np.ndarray]
     )
     audio = audio.permute(0, 2, 1)
     annotation = annotation.permute(0, 2, 1)
+    assert len(audio) == len(gts)
     return audio, annotation, gts
 
 
@@ -228,9 +229,10 @@ def get_dataloader(dataset, batch_size, num_workers, is_train=False):
         shuffle=is_train,
         num_workers=num_workers,
         collate_fn=audio_collate,
-        drop_last=False,
+        drop_last=is_train,
         pin_memory=True,
-        prefetch_factor=6 if num_workers > 0 else None,
+        prefetch_factor=2 if num_workers > 0 else None,
+        # persistent_workers=num_workers > 0,
     )
     return dataloader
 

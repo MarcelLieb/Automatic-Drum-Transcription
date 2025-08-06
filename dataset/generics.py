@@ -52,7 +52,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         self.lead_out = settings.label_lead_out
 
         self.frame_length = settings.frame_length
-        self.frame_overlap = settings.frame_overlap
+        self.frame_overlap = settings.frame_overlap if self.is_train else 0
 
         self._segment_length = (
             self.lead_in + self.lead_out

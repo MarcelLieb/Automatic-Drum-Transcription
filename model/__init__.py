@@ -4,6 +4,7 @@ from copy import deepcopy
 import torch
 from torch import nn as nn
 from torch.nn import functional as f
+import torch._dynamo as torchdynamo
 
 
 class PositionalEncoding(nn.Module):
@@ -207,11 +208,17 @@ class CausalConv2d(nn.Module):
             dilation=dilation,
             **kwargs,
         )
+        self.causal_padding = (kernel_size - 1) * dilation
+
+    @torchdynamo.assume_constant_result
+    def get_padding(self):
+        return self.causal_padding
 
     def forward(self, x):
         x = self.conv(x)
-        if self.conv.padding[1] != 0:
-            x = x[..., : -self.conv.padding[1]]
+        if self.get_padding() != 0:
+            x = x[..., : -self.get_padding()]
+
         return x
 
 
@@ -415,5 +422,5 @@ class ResidualBlock(nn.Module):
         x = self.activation(x)
         x = self.conv2(x)
         x = self.norm2(x)
-        x = self.activation(x)
-        return x + residual
+        x = self.activation(x + residual)
+        return x

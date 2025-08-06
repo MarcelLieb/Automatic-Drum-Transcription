@@ -56,7 +56,7 @@ class AudioProcessingSettings(SettingsBase):
 
 @dataclass
 class AnnotationSettings(SettingsBase):
-    mapping: DrumMapping = DrumMapping.THREE_CLASS_STANDARD
+    mapping: DrumMapping = DrumMapping.THREE_CLASS
     pad_annotations: bool = True
     pad_value: float = 0.5
     time_shift: float = 0.025

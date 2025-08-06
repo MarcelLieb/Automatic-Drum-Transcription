@@ -351,12 +351,15 @@ def evaluate(
                 f"{tag}/Threshold-Curve/", fig, global_step=epoch, close=True
             )
     else:
-        stats_counter = torch.zeros(dataset.n_classes, 3)
+        beats = (len(groundtruth[0]) - dataset.n_classes) == 0
+        stats_counter = torch.zeros(dataset.n_classes - 2 * (beats - (1 - evaluation_settings.ignore_beats)), 3)
         assert len(predictions) == len(groundtruth), f"{len(predictions)} != {len(groundtruth)}"
         for song_index in range(len(predictions)):
             offset = 0
             if evaluation_settings.ignore_beats:
                 offset = 2
+                if len(predictions[song_index]) == len(groundtruth[song_index]):
+                    predictions[song_index] = predictions[song_index][2:]
 
             assert len(predictions[song_index]) == len(groundtruth[song_index][offset:])
             for cls, (cls_onset, cls_gt) in enumerate(zip(predictions[song_index], groundtruth[song_index][offset:])):
@@ -388,6 +391,9 @@ def main(
     np.random.seed(seed)
     torch.manual_seed(seed)
     random.seed(seed)
+
+    stuck_threshold = 4
+    min_delta = 1e-5
 
     training_settings = config.training
     evaluation_settings = config.evaluation
@@ -501,10 +507,12 @@ def main(
         num_pos, num_neg = trainset.get_sample_distribution()
         # weights according to https://markcartwright.com/files/cartwright2018increasing.pdf section 3.4.1 Task weights
         total = (num_pos + num_neg)[0]
+        # if dataset_settings.annotation_settings.pad_annotations:
+        #     num_pos = num_pos * (1 + 2 * dataset_settings.annotation_settings.pad_value)
         p_i = num_pos / total
         weight: torch.Tensor = 1 / (-p_i * p_i.log() - (1 - p_i) * (1 - p_i).log())
         weight = weight / 4 # shift weight closer to the ones used by Zheren and Vogl
-        weight[0] = 1.0 # don't weigh kick as it is easy and common
+        weight[0 + 2 * dataset_settings.annotation_settings.beats] = 1.0 # don't weigh kick as it is easy and common
         # weight = None
         print(weight.numpy())
         weight = weight.unsqueeze(-1).to(device) if weight is not None else None
@@ -560,7 +568,7 @@ def main(
         )
         last_improvement += 1
         if epoch == 0 or np.all(
-            np.max(np.array(metrics[metric_to_track][:-1]) * directions[metric_to_track], axis=0) < np.array(
+            np.max(np.array(metrics[metric_to_track][:-1]) * directions[metric_to_track], axis=0) + directions[metric_to_track] * min_delta < np.array(
                 metrics[metric_to_track][-1]) * directions[metric_to_track]):
             best_model = (
                 ema_model.module if ema_model is not None else model
@@ -589,27 +597,17 @@ def main(
                 print(
                     f"{identifier}: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
                 )
-        # elif (
-        #         last_improvement >= 5
-        #         and dataset_settings.annotation_settings.time_shift > 0.0
-        # ):
-        #     last_improvement = 0
-        #     """
-        #     optimizer = optim.RAdam(model.parameters(), lr=initial_lr, eps=1e-8, weight_decay=1e-4)
-        #     best_score = f_score
-        #     dataset.adjust_time_shift(max(time_shift - 0.01, 0))
-        #     time_shift = dataset.time_shift
-        #     print(f"Adjusting time shift to {time_shift}")
-        #     """
-        recent_scores = np.array(metrics["F-Score/Sum/Validation"][-3:])
+        recent_scores = np.array(metrics["F-Score/Sum/Validation"][-stuck_threshold:])
         stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-5).all() and len(
-            recent_scores) >= 3) or np.isnan(val_loss)
+            recent_scores) >= stuck_threshold) or np.isnan(val_loss)
         if (
-            early_stopping is not None
-            and last_improvement >= training_settings.early_stopping or stuck
+            (early_stopping is not None
+            and last_improvement >= training_settings.early_stopping) or stuck
         ):
             if stuck:
                 print("Detected stuck training")
+                if trial is not None:
+                    raise optuna.TrialPruned()
             break
         # if trial is not None and trial.should_prune():
         #     raise optuna.TrialPruned()
