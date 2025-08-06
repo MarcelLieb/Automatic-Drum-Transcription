@@ -148,6 +148,38 @@ class MultiHeadSelfAttention(nn.Module):
         return att_vals
 
 
+class DenseFeedForward(nn.Module):
+    def __init__(self, d_model, n_layers, activation=nn.ReLU(), expansion_factor=4, dropout=0.1, use_residual=False):
+        super(DenseFeedForward, self).__init__()
+        self.use_residual = use_residual
+        self.layers = nn.ModuleList()
+        self.norms = nn.ModuleList()
+
+        assert n_layers % 2 == 0, "Number of layers must be even for DenseFeedForward"
+
+        for i in range(n_layers // 2):
+            self.layers.append(
+                nn.Sequential(
+                    nn.Linear(d_model, d_model * expansion_factor),
+                    activation,
+                    nn.Dropout(dropout),
+                    nn.Linear(d_model * expansion_factor, d_model),
+                )
+            )
+            self.norms.append(nn.LayerNorm(d_model))
+
+        self.activation = activation
+
+    def forward(self, x):
+        for layer, norm in zip(self.layers, self.norms):
+            residual = x
+            x = layer(x)
+            if self.use_residual:
+                x = x + residual
+            x = norm(x)
+        return x
+
+
 class ModelEmaV2(nn.Module):
     def __init__(self, model, decay=0.9999, device=None):
         super(ModelEmaV2, self).__init__()
@@ -175,6 +207,16 @@ class ModelEmaV2(nn.Module):
 
     def set(self, model):
         self._update(model, update_fn=lambda e, m: m)
+
+
+class EnsembleModel(nn.Module):
+    def __init__(self, models):
+        super(EnsembleModel, self).__init__()
+        self.models = nn.ModuleList(models)
+
+    def forward(self, x):
+        outputs = [model(x) for model in self.models]
+        return torch.stack(outputs, dim=0).mean(dim=0)
 
 
 class CausalConv1d(nn.Module):
