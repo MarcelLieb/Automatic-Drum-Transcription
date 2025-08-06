@@ -12,13 +12,15 @@ class CNN(nn.Module):
         n_mels,
         n_classes,
         num_channels,
-        dropout,
         num_feature_layers,
         channel_multiplication,
         num_residual_blocks,
         causal,
         flux,
         down_sample_factor: int,
+        dropout=None,
+        cnn_dropout=0.3,
+        dense_dropout=0.5,
         activation=nn.SELU(),
         classifier_dim=2 ** 6,
     ):
@@ -29,6 +31,10 @@ class CNN(nn.Module):
         self.classifier_dim = classifier_dim
         self.down_sample_factor = down_sample_factor
 
+        if dropout is not None:
+            cnn_dropout = dropout
+            dense_dropout = dropout
+
         self.backbone = CNNFeature(
             num_channels=num_channels,
             n_layers=num_feature_layers,
@@ -36,7 +42,7 @@ class CNN(nn.Module):
             channel_multiplication=channel_multiplication,
             activation=activation,
             causal=causal,
-            dropout=dropout,
+            dropout=cnn_dropout,
             in_channels=1 + flux,
         )
 
@@ -55,7 +61,7 @@ class CNN(nn.Module):
             num_channels * (channel_multiplication ** (num_feature_layers - 1)) * (
                 self.n_dims // (down_sample_factor ** num_feature_layers)), classifier_dim
         )
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dense_dropout)
         self.fc2 = nn.Linear(classifier_dim, n_classes)
         self.num_channels = num_channels
 

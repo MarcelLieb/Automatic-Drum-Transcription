@@ -18,12 +18,14 @@ class CNNAttention(nn.Module):
         num_attention_blocks=3,
         num_heads=8,
         expansion_factor=4,
-        context_size=25,
         use_relative_pos=False,
-        dropout=0.1,
+        dropout=None,
+        cnn_dropout=0.3,
+        attention_dropout=0.1,
         down_sample_factor=3,
         num_conv_layers=2,
         channel_multiplication=2,
+        **kwargs
     ):
         super(CNNAttention, self).__init__()
         self.activation = activation
@@ -31,6 +33,11 @@ class CNNAttention(nn.Module):
         self.n_dims = (n_mels // (down_sample_factor ** num_conv_layers)) * num_channels * (
             channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
         self.causal = causal
+
+        if dropout is not None:
+            cnn_dropout = dropout
+            attention_dropout = dropout
+
         self.backbone = CNNFeature(
             num_channels,
             num_conv_layers,
@@ -38,11 +45,11 @@ class CNNAttention(nn.Module):
             channel_multiplication,
             activation,
             causal,
-            dropout,
+            cnn_dropout,
             in_channels=1 + flux,
         )
 
-        self.pos_enc = PositionalEncoding(self.n_dims, dropout)
+        self.pos_enc = PositionalEncoding(self.n_dims, attention_dropout)
 
         self.use_relative_pos = use_relative_pos
 
@@ -52,18 +59,16 @@ class CNNAttention(nn.Module):
                 AttentionBlock(
                     self.n_dims,
                     num_heads,
-                    self.causal,
+                    causal,
                     self.activation,
-                    dropout,
+                    attention_dropout,
                     is_causal=self.causal,
                     expansion_factor=expansion_factor,
                     use_relative_pe=use_relative_pos,
                 )
             )
 
-        self.fc1 = nn.Linear(self.n_dims, self.n_dims * expansion_factor)
-        self.dropout = nn.Dropout(dropout)
-        self.fc2 = nn.Linear(self.n_dims * expansion_factor, n_classes)
+        self.fc = nn.Linear(self.n_dims, n_classes)
 
     def forward(self, x):
         x = x.unsqueeze(1)
@@ -78,9 +83,6 @@ class CNNAttention(nn.Module):
             x = self.pos_enc(x)
         for attention_block in self.attention_blocks:
             x = attention_block(x)
-        x = self.fc1(x)
-        x = self.activation(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
+        x = self.fc(x)
         x = x.permute(0, 2, 1)
         return x

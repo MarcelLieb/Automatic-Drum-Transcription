@@ -203,8 +203,9 @@ class CNNSettings(ModelSettingsBase):
 
 @dataclass
 class CNNAttentionSettings(ModelSettingsBase):
-    num_channels: int = 24
-    dropout: float = 0.1
+    num_channels: int = 32
+    cnn_dropout: float = 0.3
+    attention_dropout: float = 0.5
     causal: bool = True
     flux: bool = True
     activation: nn.Module = nn.SELU()
@@ -227,7 +228,9 @@ class CNNMambaSettings(ModelSettingsBase):
     d_state: int = 64
     d_conv: int = 4
     expand: int = 2
-    dropout: float = 0.1
+    cnn_dropout: float = 0.3
+    mamba_dropout: float = 0.5
+    dense_dropout: float = 0.5
     causal: bool = True
     flux: bool = False
     backbone: Literal["unet", "cnn"] = "cnn"
@@ -252,7 +255,10 @@ class CRNNSettings(ModelSettingsBase):
     channel_multiplication: int = 2
     rnn_units: int = 60
     classifier_dim: int = 2 ** 6
-    dropout: float = 0.3
+    cnn_dropout: float = 0.3
+    rnn_dropout: float = 0.0
+    dense_dropout: float = 0.5
+    use_dense: bool = True
     causal: bool = True
     flux: bool = True
     activation: nn.Module = nn.SELU()

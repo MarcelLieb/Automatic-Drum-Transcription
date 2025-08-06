@@ -84,7 +84,10 @@ class CNNMambaFast(nn.Module):
         n_layers,
         backbone: Literal["unet", "cnn"],
         return_features=1,
-        dropout=0.1,
+        dropout=None,
+        cnn_dropout=0.3,
+        mamba_dropout=0.5,
+        dense_dropout=0.5,
         down_sample_factor: int = 3,
         num_conv_layers: int = 2,
         channel_multiplication: int = 2,
@@ -99,6 +102,12 @@ class CNNMambaFast(nn.Module):
             channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
         self.causal = causal
 
+        # Backward compatibility
+        if dropout is not None:
+            cnn_dropout = dropout
+            mamba_dropout = dropout
+            dense_dropout = dropout
+
         match backbone:
             case "cnn":
                 self.backbone = CNNFeature(
@@ -108,7 +117,7 @@ class CNNMambaFast(nn.Module):
                     channel_multiplication=channel_multiplication,
                     activation=activation,
                     causal=causal,
-                    dropout=dropout,
+                    dropout=cnn_dropout,
                     in_channels=1 + flux,
                 )
             case "unet":
@@ -131,14 +140,17 @@ class CNNMambaFast(nn.Module):
                 d_state=d_state,
                 d_conv=d_conv,
                 expand=expand,
-                dropout=dropout,
+                dropout=mamba_dropout,
             )
             for _ in range(n_layers)
         ]
         self.mamba = nn.Sequential(*mamba_layers)
-        self.fc1 = nn.Linear(hidden_units, classifier_dim)
-        self.dropout = nn.Dropout(dropout)
-        self.fc2 = nn.Linear(classifier_dim, n_classes)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_units, classifier_dim),
+            activation,
+            nn.Dropout(dense_dropout),
+            nn.Linear(classifier_dim, n_classes),
+        )
 
     def forward(self, x):
         x = x.unsqueeze(1)
@@ -151,9 +163,6 @@ class CNNMambaFast(nn.Module):
         x = x.permute(0, 2, 1)
         x = self.proj(x)
         x = self.mamba(x)
-        x = self.fc1(x)
-        x = self.activation(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
+        x = self.fc(x)
         x = x.permute(0, 2, 1)
         return x
