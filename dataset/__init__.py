@@ -74,7 +74,7 @@ def load_audio(
 
 def get_length(path: str | Path) -> float:
     path = str(path)
-    assert path.endswith(".wav") or path.endswith(".mp3"), f"{path} is not a valid audio file"
+    assert path.endswith(".wav") or path.endswith(".mp3") or path.endswith(".flac"), f"{path} is not a valid audio file"
     return librosa.get_duration(path=path)
 
 
@@ -239,10 +239,20 @@ def convert_to_wav(path: str | Path):
     path = Path(path)
     if path.suffix == ".wav":
         return
-    audio = load_audio(path, 44100, False)
+    audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg", channels_first=True)
     if len(audio.shape) == 1:
         audio = audio.unsqueeze(0)
-    torchaudio.save(path.with_suffix(".wav"), audio, 44100, channels_first=True)
+    torchaudio.save(path.with_suffix(".wav"), audio, sr, channels_first=True, bits_per_sample=16, format="wav", encoding="PCM_S")
+
+
+def convert_to_flac(path: str | Path):
+    path = Path(path)
+    if path.suffix == ".flac":
+        return
+    audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg", channels_first=True)
+    if len(audio.shape) == 1:
+        audio = audio.unsqueeze(0)
+    torchaudio.save(path.with_suffix(".flac"), audio, sr, channels_first=True, bits_per_sample=16, format="flac", encoding="PCM_S")
 
 
 T = TypeVar("T")

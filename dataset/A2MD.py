@@ -1,4 +1,5 @@
 import os
+import subprocess
 from pathlib import Path
 from typing import Literal
 
@@ -13,7 +14,7 @@ from dataset import (
     get_drums,
     get_length,
     get_segments,
-    get_splits as get_splits_data, convert_to_wav,
+    get_splits as get_splits_data, convert_to_wav, convert_to_flac,
 )
 from dataset.mapping import DrumMapping
 from dataset.generics import ADTDataset
@@ -57,6 +58,19 @@ def convert_to_wav_dataset(root: str):
         print(f"Converting {folder}")
         for identifier in identifiers:
             convert_to_wav(A2MD._get_full_path(root, (folder, identifier)))
+
+
+def convert_to_flac_dataset(root: str):
+    tracks = get_tracks(root)
+    for folder, identifiers in tracks.items():
+        print(f"Converting {folder}")
+        for identifier in identifiers:
+            convert_to_flac(A2MD._get_full_path(root, (folder, identifier)))
+        # Add seek points to the flac files to improve random read performance
+        cwd = str(Path(os.path.join(root, "ytd_audio", folder)).resolve())
+        code = subprocess.run("metaflac --add-seekpoint=0.1s *.flac", cwd=cwd, shell=True)
+        if code.returncode != 0:
+            print("Metaflac failed. Please ensure it is installed and in your PATH.")
 
 
 def get_fold(version: Literal["L", "M", "S"], path: str, n_folds: int, fold: int, seed=42) -> list[dict[str, list[str]]]:
@@ -199,15 +213,17 @@ class A2MD(ADTDataset):
     @staticmethod
     def _get_full_path(root: str, identification: tuple[str, str]) -> Path:
         folder, identifier = identification
+        if os.path.exists(os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.flac")):
+            return Path(os.path.join(
+                root, "ytd_audio", folder, f"ytd_audio_{identifier}.flac"
+            ))
         if os.path.exists(os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav")):
-            audio_path = os.path.join(
+            return Path(os.path.join(
                 root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav"
-            )
-        else:
-            audio_path = os.path.join(
-                root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3"
-            )
-        return Path(audio_path)
+            ))
+        return Path(os.path.join(
+            root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3"
+        ))
 
     def get_full_path(self, identification: tuple[str, str]) -> Path:
         return self._get_full_path(self.path, identification)
@@ -220,5 +236,5 @@ class A2MD(ADTDataset):
 
 
 if __name__ == "__main__":
-    convert_to_wav_dataset("../data/a2md_public/")
+    convert_to_flac_dataset("../data/a2md_public/")
     print("Done")
