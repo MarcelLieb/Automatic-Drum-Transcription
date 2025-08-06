@@ -551,8 +551,8 @@ def main(
         metrics["Loss/Validation"].append(val_loss)
         metrics["F-Score/Sum/Validation"].append(f_score_sum)
         metrics["F-Score/Avg/Validation"].append(f_score_avg)
-        # if trial is not None:
-        #     trial.report(f_score, epoch)
+        if trial is not None:
+            trial.report(f_score_sum, epoch)
         torch.cuda.empty_cache()
         if scheduler is not None and isinstance(
             scheduler, optim.lr_scheduler.ReduceLROnPlateau
@@ -609,8 +609,8 @@ def main(
                 if trial is not None:
                     raise optuna.TrialPruned()
             break
-        # if trial is not None and trial.should_prune():
-        #     raise optuna.TrialPruned()
+        if trial is not None and trial.should_prune():
+            raise optuna.TrialPruned()
 
     if best_model is not None:
         model.load_state_dict(best_model)
