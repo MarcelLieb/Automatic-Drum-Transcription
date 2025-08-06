@@ -219,7 +219,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             iden, drums, beats = self.annotations[i]
             time_stamps = [*beats, *drums] if self.beats else [*drums]
             path = self.get_full_path(iden)
-            length = int(np.round(get_length(path) * self.sample_rate / self.hop_size))
+            length = int(np.ceil(get_length(path) * self.sample_rate / self.hop_size))
             labels = get_labels(time_stamps, self.sample_rate, self.hop_size, length)
             total_frames += length
             label_count += labels.sum(dim=1)
