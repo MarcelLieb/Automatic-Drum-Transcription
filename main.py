@@ -480,21 +480,21 @@ def main(
         eps=training_settings.epsilon,
     )
     scheduler = (
-        # optim.lr_scheduler.ReduceLROnPlateau(
-        #     optimizer,
-        #     mode="min" if directions[metric_to_track] < 0 else "max",
-        #     factor=0.2,
-        #     patience=10,
-        #     eps=training_settings.epsilon,
-        # )
-        optim.lr_scheduler.OneCycleLR(
+        optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
-            max_lr=2e-3,
-            div_factor= 2e-3 / training_settings.learning_rate,
-            final_div_factor=training_settings.learning_rate / 8e-6, # min_lr = 8e-6
-            steps_per_epoch=len(loader_train),
-            epochs=training_settings.epochs,
+            mode="min" if directions[metric_to_track] < 0 else "max",
+            factor=0.2,
+            patience=10,
+            eps=training_settings.epsilon,
         )
+        # optim.lr_scheduler.OneCycleLR(
+        #     optimizer,
+        #     max_lr=2e-3,
+        #     div_factor= 2e-3 / training_settings.learning_rate,
+        #     final_div_factor=training_settings.learning_rate / 8e-6, # min_lr = 8e-6
+        #     steps_per_epoch=len(loader_train),
+        #     epochs=training_settings.epochs,
+        # )
         if training_settings.scheduler
         else None
     )
