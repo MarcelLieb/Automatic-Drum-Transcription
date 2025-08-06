@@ -1,8 +1,11 @@
 import os
 from pathlib import Path
+from typing import Literal
 
 import pretty_midi
 import torch
+import polars as pl
+from sklearn.model_selection import KFold
 
 from dataset import (
     # load_audio,
@@ -56,9 +59,44 @@ def convert_to_wav_dataset(root: str):
             convert_to_wav(A2MD._get_full_path(root, (folder, identifier)))
 
 
+def get_fold(version: Literal["L", "M", "S"], path: str, n_folds: int, fold: int, seed=42) -> list[dict[str, list[str]]]:
+    assert fold < n_folds, "Fold index out of range"
+    cut_off = {
+        "L": 0.7,
+        "M": 0.4,
+        "S": 0.2,
+    }
+    folders = [f"dist0p{x:02}" for x in range(0, int(cut_off[version] * 100), 10)]
+    groups = pl.scan_csv(Path(path) / "groups.csv", has_header=True).filter(pl.col("folder").is_in(folders))
+    if n_folds in [3, 5, 10]:
+        fold = (
+            pl.scan_csv(Path(path) / f"splits_{n_folds}-folds_0.csv", has_header=True)
+            .filter((pl.col("folder").is_in(folders)) & (pl.col("fold") == fold))
+            .select("identifier")
+            .collect()
+            .to_series()
+            .to_list()
+        )
+    else:
+        k_fold = KFold(n_splits=n_folds, shuffle=True, random_state=seed)
+        group_index = groups.select("group").unique().to_series().to_list()
+        k_folds = k_fold.split(group_index)
+        fold = list(k_folds)[fold][1]
+        fold = groups.filter(pl.col("group").is_in(fold)).select("identifier").collect().to_series().to_list()
+    train_ids = groups.filter(~(pl.col("identifier").is_in(fold))).select("identifier").collect().to_series().to_list()
+    val_ids = fold
+    out = [{} for _ in range(3)]
+    for folder in folders:
+        identifiers = groups.filter(pl.col("folder") == folder).select("identifier").collect().to_series().to_list()
+        out[0][folder] = sorted(set(identifiers) & set(train_ids))
+        out[1][folder] = sorted(set(identifiers) & set(val_ids))
+        out[2][folder] = sorted(set(identifiers) - set(train_ids) - set(val_ids))
+    return out
+
+
 def get_splits(
-    version: str, splits: list[float], path: str, seed: int = 42
-) -> list[dict[str, list[str]]]:
+    version: str, splits: list[float], path: str, seed: int = 42, return_seed: bool = False
+) -> list[dict[str, list[str]]] | tuple[list[dict[str, list[str]]], int]:
     assert abs(sum(splits) - 1) < 1e-4
     cut_off = {
         "L": 0.7,
@@ -66,18 +104,39 @@ def get_splits(
         "S": 0.2,
     }
     folders = [f"dist0p{x:02}" for x in range(0, int(cut_off[version] * 100), 10)]
-    tracks = get_tracks(path)
+
+    group_index = pl.scan_csv(Path(path) / "groups.csv", has_header=True).filter(pl.col("folder").is_in(folders))
+    groups = sorted(group_index.select("group").unique().collect().to_series().to_list())
+
+    finished = False
     out = [{} for _ in range(len(splits))]
-    for folder in folders:
-        identifiers = tracks[folder]
-        split = get_splits_data(splits, identifiers, seed=seed)
-        for i, s in enumerate(split):
-            out[i][folder] = s
-    # Check if the distribution is correct
-    flat_tracks = [track for folder in folders for track in tracks[folder]]
-    for i, s in enumerate(out):
-        total = sum(len(arr) for _, arr in s.items())
-        assert abs(total / len(flat_tracks) - splits[i]) < 2e-2, f"{total / len(flat_tracks)} != {splits[i]}"
+
+    while not finished:
+        split = get_splits_data(splits, groups, seed=seed)
+
+        out = [{} for _ in range(len(splits))]
+        for folder in folders:
+            identifiers = group_index.filter((pl.col("folder") == folder))
+            for split_ixd, selected_groups in enumerate(split):
+                out[split_ixd][folder] = sorted(
+                    identifiers.filter(pl.col("group").is_in(selected_groups))
+                    .select("identifier").collect().to_series().to_list()
+                )
+
+        # Check if the distribution per folder is acceptable
+        finished = True
+        for folder in folders:
+            track_counts = torch.tensor([len(out[i][folder]) for i in range(len(splits))])
+            total = sum(track_counts)
+            fractions = track_counts.float() / total
+            if not torch.allclose(fractions, torch.tensor(splits), atol=0.02):
+                finished = False
+                # Set the next seed
+                seed += 1
+                break
+
+    if return_seed:
+        return out, seed
 
     return out
 

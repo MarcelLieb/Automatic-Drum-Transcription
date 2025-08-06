@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from dataset import get_dataloader
 from dataset.RBMA13 import RBMA13
 from dataset.MDB_Drums import MDBDrums
-from dataset.A2MD import A2MD, get_splits as get_a2md_splits
+from dataset.A2MD import A2MD, get_splits as get_a2md_splits, get_fold
 from dataset.TMIDT import TMIDT
 from dataset.generics import ConcatADTDataset
 from settings import TrainingSettings, DatasetSettings
@@ -21,9 +21,15 @@ def get_dataset(
     list[DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]]
 ]:
     path = "./data/a2md_public/"
-    train_split, val_split, test_split = get_a2md_splits(
-        dataset_settings.dataset_version, dataset_settings.splits, path, seed=seed,
-    )
+    if dataset_settings.k_folds is not None:
+        train_split, val_split, test_split = get_fold(
+            dataset_settings.dataset_version, path=path,
+            n_folds=dataset_settings.k_folds, fold=dataset_settings.fold, seed=seed
+        )
+    else:
+        train_split, val_split, test_split = get_a2md_splits(
+            dataset_settings.dataset_version, dataset_settings.splits, path, seed=seed,
+        )
     torch.multiprocessing.set_start_method("spawn", force=True)
 
     match dataset_settings.train_set:

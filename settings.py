@@ -83,7 +83,9 @@ class DatasetSettings(SettingsBase):
     audio_settings: AudioProcessingSettings = field(default_factory=AudioProcessingSettings)
     annotation_settings: AnnotationSettings = field(default_factory=AnnotationSettings)
     dataset_version: Literal["S", "M", "L"] = "S"
-    splits: list[float] = (0.85, 0.15, 0.0)
+    splits: list[float] = (0.8, 0.2, 0.0)
+    k_folds: Literal[None, 5, 10] = 5
+    fold : int | None = 0
     full_length_test: bool = True
     num_workers: int = cpu_count()
     train_set: Literal["all", "a2md_train", "midi"] = "a2md_train"
