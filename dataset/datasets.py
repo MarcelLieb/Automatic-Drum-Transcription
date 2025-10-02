@@ -23,12 +23,18 @@ def get_dataset(
     path = "./data/a2md_public/"
     if dataset_settings.k_folds is not None:
         train_split, val_split, test_split = get_fold(
-            dataset_settings.dataset_version, path=path,
-            n_folds=dataset_settings.k_folds, fold=dataset_settings.fold, seed=seed
+            dataset_settings.a2md_penalty_cutoff,
+            path=path,
+            n_folds=dataset_settings.k_folds,
+            fold=dataset_settings.fold,
+            seed=seed,
         )
     else:
         train_split, val_split, test_split = get_a2md_splits(
-            dataset_settings.dataset_version, dataset_settings.splits, path, seed=seed,
+            dataset_settings.a2md_penalty_cutoff,
+            dataset_settings.splits,
+            path,
+            seed=seed,
         )
     torch.multiprocessing.set_start_method("spawn", force=True)
 
@@ -105,7 +111,9 @@ def get_dataset(
                 )
                 loader = get_dataloader(
                     test_rbma,
-                    test_batch_size if dataset_settings.full_length_test else batch_size,
+                    test_batch_size
+                    if dataset_settings.full_length_test
+                    else batch_size,
                     dataset_settings.num_workers,
                     is_train=False,
                 )
@@ -120,7 +128,9 @@ def get_dataset(
                 )
                 loader = get_dataloader(
                     test_mdb,
-                    test_batch_size if dataset_settings.full_length_test else batch_size,
+                    test_batch_size
+                    if dataset_settings.full_length_test
+                    else batch_size,
                     dataset_settings.num_workers,
                     is_train=False,
                 )

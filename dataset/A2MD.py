@@ -23,6 +23,12 @@ from settings import DatasetSettings
 
 A2MD_PATH = "./data/a2md_public/"
 
+PENALTY_CUTOFFS = {
+    "S": 0.2,
+    "M": 0.4,
+    "L": 0.7,
+}
+
 
 def get_annotation(
     path: str,
@@ -69,23 +75,25 @@ def convert_to_flac_dataset(root: str):
             convert_to_flac(A2MD._get_full_path(root, (folder, identifier)))
         # Add seek points to the flac files to improve random read performance
         cwd = str(Path(os.path.join(root, "ytd_audio", folder)).resolve())
-        code = subprocess.run("metaflac --add-seekpoint=0.1s *.flac", cwd=cwd, shell=True)
+        code = subprocess.run(
+            "metaflac --add-seekpoint=0.1s *.flac", cwd=cwd, shell=True
+        )
         if code.returncode != 0:
             print("Metaflac failed. Please ensure it is installed and in your PATH.")
 
 
-def get_fold(version: Literal["L", "M", "S"], path: str, n_folds: int, fold: int, seed=42) -> list[dict[str, list[str]]]:
+def get_fold(
+    cut_off: float, path: str, n_folds: int, fold: int, seed=42
+) -> list[dict[str, list[str]]]:
     assert fold < n_folds, "Fold index out of range"
-    cut_off = {
-        "L": 0.7,
-        "M": 0.4,
-        "S": 0.2,
-    }
-    folders = [f"dist0p{x:02}" for x in range(0, int(cut_off[version] * 100), 10)]
-    groups = pl.scan_csv(Path(path) / "groups.csv", has_header=True).filter(pl.col("folder").is_in(folders))
+    assert 0.1 <= cut_off <= 0.7, "Cut-off must be between 0.1 and 0.7"
+    folders = [f"dist0p{x:02}" for x in range(0, int(cut_off * 100), 10)]
+    groups = pl.scan_csv(Path(path) / "groups.csv", has_header=True).filter(
+        pl.col("folder").is_in(folders)
+    )
     if n_folds in [3, 5, 10]:
         fold = (
-            pl.scan_csv(Path(path) / f"splits_{n_folds}-folds_0.csv", has_header=True)
+            pl.scan_csv(Path(path) / f"splits_{n_folds}-folds_3.csv", has_header=True)
             .filter((pl.col("folder").is_in(folders)) & (pl.col("fold") == fold))
             .select("identifier")
             .collect()
@@ -128,18 +136,22 @@ def get_fold(version: Literal["L", "M", "S"], path: str, n_folds: int, fold: int
 
 
 def get_splits(
-    version: str, splits: list[float], path: str, seed: int = 42, return_seed: bool = False
+    cut_off: float,
+    splits: list[float],
+    path: str,
+    seed: int = 42,
+    return_seed: bool = False,
 ) -> list[dict[str, list[str]]] | tuple[list[dict[str, list[str]]], int]:
+    assert 0.1 <= cut_off <= 0.7, "Cut-off must be between 0.1 and 0.7"
     assert abs(sum(splits) - 1) < 1e-4
-    cut_off = {
-        "L": 0.7,
-        "M": 0.4,
-        "S": 0.2,
-    }
-    folders = [f"dist0p{x:02}" for x in range(0, int(cut_off[version] * 100), 10)]
+    folders = [f"dist0p{x:02}" for x in range(0, int(cut_off * 100), 10)]
 
-    group_index = pl.scan_csv(Path(path) / "groups.csv", has_header=True).filter(pl.col("folder").is_in(folders))
-    groups = sorted(group_index.select("group").unique().collect().to_series().to_list())
+    group_index = pl.scan_csv(Path(path) / "groups.csv", has_header=True).filter(
+        pl.col("folder").is_in(folders)
+    )
+    groups = sorted(
+        group_index.select("group").unique().collect().to_series().to_list()
+    )
 
     finished = False
     out = [{} for _ in range(len(splits))]

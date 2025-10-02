@@ -88,7 +88,7 @@ class DatasetSettings(SettingsBase):
         default_factory=AudioProcessingSettings
     )
     annotation_settings: AnnotationSettings = field(default_factory=AnnotationSettings)
-    dataset_version: Literal["S", "M", "L"] = "S"
+    a2md_penalty_cutoff: float = 0.7
     splits: list[float] = (0.8, 0.2, 0.0)
     k_folds: Literal[None, 5, 10] = 5
     fold: int | None = 0
