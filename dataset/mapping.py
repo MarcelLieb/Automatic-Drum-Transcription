@@ -23,6 +23,14 @@ drum_midi_mapping = {
     "SPC": [55],
     "CHC": [52],
     "CL": [75],
+    "TRI": [80, 81],
+    "CA": [69],
+    "MA": [70],
+    "CO": [62, 63, 64],
+    "WB": [76, 77],
+    "AG": [67, 68],
+    "TIM": [65, 66],
+    "BO": [60, 61],
 }
 
 drum_midi_mapping = {key: tuple(value) for key, value in drum_midi_mapping.items()}
@@ -71,8 +79,64 @@ eight_class_mapping = (
 )
 eight_class_names = ("BD", "SD", "TT", "HH", "RD", "BE", "CY", "CL")
 
-eighteen_class_mapping = tuple([(key,) for key in drum_midi_mapping.keys()])
-eighteen_class_names = tuple(drum_midi_mapping.keys())
+eighteen_class_mapping = (
+    ('BD',),
+    ('SD',),
+    ('SS',),
+    ('CLP',),
+    ('LT',),
+    ('MT',),
+    ('HT',),
+    ('CHH',),
+    ('PHH',),
+    ('OHH',),
+    ('TB',),
+    ('RD',),
+    ('RB',),
+    ('CB',),
+    ('CRC',),
+    ('SPC',),
+    ('CHC',),
+    ('CL',),
+)
+eighteen_class_names = tuple(map(lambda x: x[0], eighteen_class_mapping))
+
+frequent_classes_mapping = (
+    ("BD",),  # Bass Drum
+    ("SD", "SS"),  # Snare Drum
+    ("CLP",),  # Clap
+    ("CHH", "PHH"),  # Closed Hi-Hat
+    ("OHH",),  # Open Hi-Hat
+    ("LT", "MT", "HT"),  # Toms
+    ("CRC", "SPC", "CHC"),  # Cymbal
+    ("RD",),  # Ride
+    ("RB", "CB", "AG"),  # Bell
+    # ("CL", "WB"),  # Clave/Sticks/Woodblock
+    ("TB",),  # Tambourine
+    # ("TRI",),  # Triangle
+    ("CA",),  # Cabasa
+    ("MA",),  # Maracas
+    ("CO",),  # Conga
+    ("BO", "TIM"),  # Bongos + Timbales
+)
+frequent_classes_names = (
+    "BD",
+    "SD",
+    "CLP",
+    "CHH",
+    "OHH",
+    "TT",
+    "CY",
+    "RD",
+    "BE",
+    # "ST",
+    "TB",
+    # "TRI",
+    "CA",
+    "MA",
+    "CO",
+    "BO"
+)
 
 
 class DrumMapping(Enum):
@@ -82,6 +146,7 @@ class DrumMapping(Enum):
     FIVE_CLASS = (five_class_mapping, five_class_names)
     EIGHT_CLASS = (eight_class_mapping, eight_class_names)
     EIGHTEEN_CLASS = (eighteen_class_mapping, eighteen_class_names)
+    FREQUENT_CLASSES = (frequent_classes_mapping, frequent_classes_names)
 
     def __len__(self):
         return len(self.value[0])
