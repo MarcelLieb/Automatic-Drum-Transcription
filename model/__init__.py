@@ -5,6 +5,9 @@ import torch
 from torch import nn as nn
 from torch.nn import functional as f
 import torch._dynamo as torchdynamo
+from torch.nn.attention.flex_attention import flex_attention
+
+flex_attention = torch.compile(flex_attention, fullgraph=True, mode="max-autotune")
 
 
 class PositionalEncoding(nn.Module):
@@ -30,6 +33,11 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
+def causal_fn(_b, _h, q_idx, kv_idx):
+    return q_idx >= kv_idx
+
+
+@torch.compile(fullgraph=True)
 class AttentionBlock(nn.Module):
     def __init__(
         self,
@@ -73,6 +81,28 @@ class AttentionBlock(nn.Module):
         x = x + skip
         return x
 
+def generate_relative_positions_matrix(L, position_bias):
+    def relative_positional(score, _b, h, q_idx, kv_idx):
+        bias = torch.where(torch.abs(q_idx - kv_idx) < L, position_bias[L + q_idx - kv_idx, h], -float("inf"))
+        return score + bias # position_bias[L + q_idx - kv_idx, h]
+    return relative_positional
+
+
+def generate_alibi_bias(H: int):
+    """Returns an alibi bias score_mod given the number of heads H
+
+    Args:
+        H: number of heads
+
+    Returns:
+        alibi_bias: alibi bias score_mod
+    """
+
+    def alibi_mod(score, _, h, q_idx, kv_idx):
+        scale = torch.exp2(-((h + 1) * 8.0 / H))
+        bias = (kv_idx - q_idx) * scale
+        return score + bias
+    return alibi_mod
 
 class MultiHeadSelfAttention(nn.Module):
     def __init__(self, L, d_model, n_head, use_relative_pe=True, is_causal=True, dropout=0.1):
@@ -89,10 +119,14 @@ class MultiHeadSelfAttention(nn.Module):
         self.dropout_p = dropout
 
         if use_relative_pe:
-            self.position_bias = nn.Parameter(torch.zeros(2 * L - 1, n_head))
-            abs_pos = torch.arange(0, L).unsqueeze(0)  # [L] | int
-            rel_pos = abs_pos.T - abs_pos  # [L, L] | int | {-(L-1), ..., 0, ..., (L-1)}
-            self.rel_pos_idx = rel_pos + (L - 1)  # [L, L] | int | {0, ..., (2*L-1)}
+            pass
+            # self.position_bias = nn.Parameter(torch.zeros(2 * L - 1, n_head), requires_grad=True)
+            # abs_pos = torch.arange(0, L).unsqueeze(0)  # [L] | int
+            # rel_pos = abs_pos.T - abs_pos  # [L, L] | int | {-(L-1), ..., 0, ..., (L-1)}
+            # self.rel_pos_idx = rel_pos + (L - 1)  # [L, L] | int | {0, ..., (2*L-1)}
+        else:
+            self.position_bias = None
+            self.rel_pos_idx = None
 
     def init_weights(self):
         nn.init.xavier_uniform_(self.W_qkv.weight)
@@ -111,34 +145,39 @@ class MultiHeadSelfAttention(nn.Module):
         q, k, v = qkv.chunk(3, dim=-1)  # Each tensor : [B, n_head, L, d_head]
 
         if self.use_relative_pe:
+            # flex attention does not support dropout yet
+            # score_mod = generate_relative_positions_matrix(self.L, self.position_bias)
+            score_mod = generate_alibi_bias(self.n_head)
+            att_vals = flex_attention(
+                q, k, v, score_mod=score_mod, block_mask=attn_mask, return_lse=False, scale=1/math.sqrt(d_head)
+            )
             # Compute the attention scores from q and k, and combine the values in v
-            dot_products = torch.matmul(q, k.transpose(-2, -1))  # [B, n_head, L, L]
-
-            b_pos = self.position_bias[self.rel_pos_idx.view(-1)]  # [L*L, n_head]
-            b_pos = b_pos.view(self.L, self.L, self.n_head)
-            b_pos = b_pos[:L, :L, :]  # [L, L, n_head]
-            b_pos = torch.transpose(
-                torch.transpose(b_pos, 1, 2), 0, 1
-            )  # [n_head, L, L]
-            b_pos = b_pos.unsqueeze(0)  # [B, n_head, L, L]
-
-            dot_products = dot_products + b_pos
-
-            values = dot_products / math.sqrt(d_head)
-            attn_bias = torch.zeros(L, L, dtype=x.dtype, device=x.device)
-            attn_mask = None
-            if self.is_causal:
-                assert attn_mask is None
-                temp_mask = torch.ones(L, L, dtype=torch.bool, device=x.device).tril(diagonal=0)
-                attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
-                attn_bias.to(x.dtype)
-            values += attn_bias
-            attention = f.softmax(
-                values,  # d_head = d_k in the paper
-                dim=-1,
-            )  # [B, n_head, L, L]
-            att_vals = torch.matmul(attention, v)  # [B, n_head, L, d_head]
+            # dot_products = torch.matmul(q, k.transpose(-2, -1))  # [B, n_head, L, L]
+            # b_pos = self.position_bias[self.rel_pos_idx.view(-1)]  # [L*L, n_head]
+            # b_pos = b_pos.view(self.L, self.L, self.n_head)
+            # b_pos = b_pos[:L, :L, :]  # [L, L, n_head]
+            # b_pos = torch.transpose(
+            #     torch.transpose(b_pos, 1, 2), 0, 1
+            # )  # [n_head, L, L]
+            # b_pos = b_pos.unsqueeze(0)  # [B, n_head, L, L]
+            # dot_products = dot_products + b_pos
+            # values = dot_products / math.sqrt(d_head)
+            # attn_bias = torch.zeros(L, L, dtype=x.dtype, device=x.device)
+            # attn_mask = None
+            # if self.is_causal:
+            #     assert attn_mask is None
+            #     temp_mask = torch.ones(L, L, dtype=torch.bool, device=x.device).tril(diagonal=0)
+            #     attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
+            #     attn_bias.to(x.dtype)
+            # values += attn_bias
+            # attention = f.softmax(
+            #     values,  # d_head = d_k in the paper
+            #     dim=-1,
+            # )  # [B, n_head, L, L]
+            # att_vals = torch.matmul(attention, v)  # [B, n_head, L, d_head]
         else:
+            if self.is_causal:
+                attn_mask = None
             att_vals = f.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask,
                                                       dropout_p=self.dropout_p if self.training else 0.0,
                                                       is_causal=self.is_causal)

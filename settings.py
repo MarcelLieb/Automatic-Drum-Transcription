@@ -222,15 +222,16 @@ class CNNAttentionSettings(ModelSettingsBase):
     num_channels: int = 32
     cnn_dropout: float = 0.3
     attention_dropout: float = 0.5
+    positional_encoding_dropout: float = 0.1
     causal: bool = True
-    flux: bool = True
-    activation: nn.Module = nn.SELU()
+    flux: bool = False
+    activation: nn.Module = nn.SiLU()
     num_attention_blocks: int = 5
-    num_heads: int = 8
-    context_size: int = 200
+    num_heads: int = 4
+    hidden_units: int = 64
     expansion_factor: int = 4
-    use_relative_pos: bool = False
-    down_sample_factor: int = 3
+    use_relative_pos: bool = True
+    down_sample_factor: int = 4
     num_conv_layers: int = 2
     channel_multiplication: int = 2
 
