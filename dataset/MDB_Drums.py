@@ -1,5 +1,6 @@
 import os.path
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -167,6 +168,10 @@ class MDBDrums(ADTDataset):
         return (
             len(self.segments) if self.segments is not None else len(self.annotations)
         )
+
+    @staticmethod
+    def get_tracks(path) -> Any:
+        return get_tracks(path)
 
     def get_full_path(self, identifier: str) -> Path:
         audio_path = os.path.join(

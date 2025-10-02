@@ -169,8 +169,9 @@ class RBMA13(ADTDataset):
             len(self.segments) if self.segments is not None else len(self.annotations)
         )
 
-    def adjust_time_shift(self, time_shift: float):
-        self.time_shift = time_shift
+    @staticmethod
+    def get_tracks(path) -> Any:
+        return get_tracks(path)
 
     def get_full_path(self, number: int) -> Path:
         audio_path = os.path.join(self.path, "audio", f"RBMA-13-Track-{number:02}")

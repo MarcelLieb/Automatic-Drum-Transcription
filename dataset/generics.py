@@ -120,8 +120,12 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     T = TypeVar("T")
 
     @staticmethod
+    def get_splits(splits: list[float], data: Any, seed: int, **kwargs):
+        return get_splits(splits, data, seed)
+
+    @staticmethod
     @abstractmethod
-    def get_splits(splits: list[float], data: list[T], ):
+    def get_tracks(path) -> Any:
         pass
 
     @abstractmethod
@@ -131,6 +135,20 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     @abstractmethod
     def get_identifier(self) -> str:
         pass
+
+    def get_song_to_indices(self):
+        song_to_indices = {}
+        if self.segments is not None:
+            for idx, (_, _, audio_idx) in enumerate(self.segments):
+                audio_idx = int(audio_idx)
+                if audio_idx not in song_to_indices:
+                    song_to_indices[audio_idx] = []
+                song_to_indices[audio_idx].append(idx)
+        else:
+            song_to_indices = {i: [i] for i in range(len(self.annotations))}
+
+        song_to_indices = {k: np.sort(np.array(v)) for k, v in song_to_indices.items()}
+        return song_to_indices
 
     @abstractmethod
     def __len__(self):
@@ -287,3 +305,15 @@ class ConcatADTDataset(ADTDataset):
         raise NotImplementedError(
             "get_full_path is not implemented for ConcatADTDataset"
         )
+
+    def get_identifier(self) -> str:
+        return "_".join(dataset.get_identifier() for dataset in self.datasets)
+
+    @staticmethod
+    def get_tracks(path) -> Any:
+        raise NotImplementedError("get_tracks is not implemented for ConcatADTDataset")
+
+    @staticmethod
+    def get_splits(splits: list[float], data: Any, seed: int, **kwargs):
+        raise NotImplementedError("get_splits is not implemented for ConcatADTDataset")
+

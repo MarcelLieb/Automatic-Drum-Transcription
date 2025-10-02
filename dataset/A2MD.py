@@ -251,6 +251,45 @@ class A2MD(ADTDataset):
         )
 
     @staticmethod
+    def get_splits(splits: list[float], data: dict, seed: int, **kwargs):
+        cut_off = {
+            "L": 0.7,
+            "M": 0.4,
+            "S": 0.2,
+        }
+        folders = [
+            f"dist0p{x:02}"
+            for x in range(0, int(cut_off[kwargs["dataset_version"]] * 100), 10)
+        ]
+        out = [{} for _ in range(len(splits))]
+        for folder in folders:
+            identifiers = data[folder]
+            split = get_splits_data(splits, identifiers, seed=seed)
+            for i, s in enumerate(split):
+                out[i][folder] = s
+        # Check if the distribution is correct
+        flat_tracks = [track for folder in folders for track in data[folder]]
+        for i, s in enumerate(out):
+            total = sum(len(arr) for _, arr in s.items())
+            assert abs(total / len(flat_tracks) - splits[i]) < 2e-2, (
+                f"{total / len(flat_tracks)} != {splits[i]}"
+            )
+
+        return out
+
+    @staticmethod
+    def get_tracks(path: str) -> dict[str, list[str]]:
+        folders = [f"dist0p{x:02}" for x in range(0, 70, 10)]
+        out = {}
+        for folder in folders:
+            out[folder] = []
+            for root, dirs, files in os.walk(os.path.join(path, "align_mid", folder)):
+                for file in files:
+                    identifier = "_".join(file.split(".")[0].split("_")[2:4])
+                    out[folder].append(identifier)
+        return out
+
+    @staticmethod
     def _get_full_path(root: str, identification: tuple[str, str]) -> Path:
         folder, identifier = identification
         if os.path.exists(
