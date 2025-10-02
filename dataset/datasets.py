@@ -18,7 +18,7 @@ def get_dataset(
 ) -> tuple[
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
     DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
-    list[DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]]
+    list[DataLoader[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]],
 ]:
     path = "./data/a2md_public/"
     if dataset_settings.k_folds is not None:

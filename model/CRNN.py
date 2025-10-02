@@ -27,13 +27,14 @@ class CRNN(nn.Module):
             dense_dropout = dropout
 
         self.conv = CNNFeature(
-            num_channels,
-            num_conv_layers,
-            down_sample_factor,
-            channel_multiplication,
-            activation,
-            causal,
-            cnn_dropout,
+            num_channels=num_channels,
+            n_layers=num_conv_layers,
+            down_sample_factor=down_sample_factor,
+            channel_multiplication=channel_multiplication,
+            # activation=nn.ReLU(),
+            activation=activation,
+            causal=causal,
+            dropout=cnn_dropout,
             in_channels=1 + flux,
         )
         self.rnn = nn.GRU(

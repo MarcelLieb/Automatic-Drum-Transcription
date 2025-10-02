@@ -7,8 +7,15 @@ from model import ResidualBlock
 @torch.compile(fullgraph=True, dynamic=True)
 class CNNFeature(nn.Module):
     def __init__(
-        self, num_channels, n_layers, down_sample_factor, channel_multiplication, activation, causal, dropout,
-        in_channels=1
+        self,
+        num_channels,
+        n_layers,
+        down_sample_factor,
+        channel_multiplication,
+        causal,
+        dropout,
+        activation=nn.ReLU(),
+        in_channels=1,
     ):
         super(CNNFeature, self).__init__()
 
@@ -23,7 +30,7 @@ class CNNFeature(nn.Module):
                     nn.Sequential(
                         ResidualBlock(
                             in_channels,
-                            num_channels * (channel_multiplication ** i),
+                            num_channels * (channel_multiplication**i),
                             kernel_size=3,
                             causal=causal,
                             activation=self.activation,
@@ -41,7 +48,7 @@ class CNNFeature(nn.Module):
                 nn.Sequential(
                     ResidualBlock(
                         num_channels * (channel_multiplication ** (i - 1)),
-                        num_channels * (channel_multiplication ** i),
+                        num_channels * (channel_multiplication**i),
                         kernel_size=3,
                         causal=causal,
                         activation=self.activation,

@@ -17,7 +17,7 @@ from speedup import calculate_pr as rust_calculate_pr, combine_onsets as rust_co
 
 
 def peak_pick_max_mean(
-    data: torch.tensor,
+    data: torch.Tensor,
     sample_rate: int,
     hop_size: int,
     fft_size: int,
@@ -117,7 +117,9 @@ def combine_onsets(onsets: torch.Tensor, cool_down: float, strategy: Literal["mi
 
 def evaluate_onsets(onsets: torch.Tensor, groundtruth: torch.Tensor, window: float):
     onsets = np.array(onsets)
+    onsets.sort(kind="stable")
     groundtruth = np.array(groundtruth)
+    groundtruth.sort(kind="stable")
     tp, fp, fn = rust_evaluate_onsets(onsets, groundtruth, window)
     return tp, fp, fn
 

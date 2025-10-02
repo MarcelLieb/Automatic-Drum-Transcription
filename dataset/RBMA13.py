@@ -1,10 +1,16 @@
 import os
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-import torch
 
-from dataset import get_label_windows, get_length, get_segments, convert_to_wav, DrumMapping, get_splits
+from dataset import (
+    get_label_windows,
+    get_length,
+    get_segments,
+    convert_to_wav,
+    DrumMapping,
+)
 from dataset.generics import ADTDataset
 from settings import DatasetSettings
 
@@ -39,15 +45,22 @@ rbma_drum_map = {
 }
 
 
-def load_rbma(rbma_path: str, mapping: DrumMapping) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+def load_rbma(
+    rbma_path: str, mapping: DrumMapping
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     annotations = {}
     midi_to_class = mapping.get_midi_to_class()
-    for root, dirs, files in os.walk(os.path.join(rbma_path, "annotations", "drums_full")):
+    for root, dirs, files in os.walk(
+        os.path.join(rbma_path, "annotations", "drums_full")
+    ):
         files = [file for file in files if file.endswith(".drums")]
         for file in files:
             track = file.split(".")[0]
             number = int(track.split("-")[-1])
-            drums = np.loadtxt(os.path.join(root, file), delimiter="\t", )
+            drums = np.loadtxt(
+                os.path.join(root, file),
+                delimiter="\t",
+            )
             if len(drums) == 0:
                 continue
             drums_midi = np.vectorize(rbma_drum_map.get)(drums[:, 1])
@@ -84,7 +97,7 @@ def rename_rbma_audio_files():
         if len(files) == 1:
             os.rename(
                 os.path.join(rbma_13_path, "audio", files[0]),
-                os.path.join(rbma_13_path, "audio", f"RBMA-13-Track-{i + 1:02}.mp3"),
+                os.path.join(rbma_13_path, "audio", f"RBMA-13-Track-{i + 1:02}.flac"),
             )
 
     return positions
@@ -101,7 +114,7 @@ def get_tracks(path: str) -> list[int]:
 def convert_to_wav_dataset(root: str):
     tracks = load_rbma(root, DrumMapping.THREE_CLASS)
     for track, _ in tracks.items():
-        convert_to_wav(os.path.join(root, "audio", f"{track}.mp3"))
+        convert_to_wav(os.path.join(root, "audio", f"{track}.flac"))
 
 
 class RBMA13(ADTDataset):
@@ -110,22 +123,24 @@ class RBMA13(ADTDataset):
         path: str | Path,
         settings: DatasetSettings,
         segment: bool = True,
-        splits: list[int] | None = None,
+        splits: list[str] | None = None,
         is_train=False,
         use_dataloader=False,
     ):
-        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
+        super().__init__(
+            settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment
+        )
         self.path = path
 
         self.full = splits is None
-        self.annotations = load_rbma(path, self.mapping)
+        annotations = load_rbma(path, self.mapping)
         if splits is None:
-            splits = list(self.annotations.keys())
+            splits = list(annotations.keys())
         tracks = splits
-        self.annotations = {track: self.annotations[track] for track in tracks}
+        annotations = {track: annotations[track] for track in tracks}
         self.annotations = [
             (identifier, annotation[1], annotation[0])
-            for identifier, annotation in self.annotations.items()
+            for identifier, annotation in annotations.items()
         ]
         self.annotations.sort(key=lambda x: int(x[0]))
 
@@ -150,7 +165,9 @@ class RBMA13(ADTDataset):
                 )
 
     def __len__(self):
-        return len(self.segments) if self.segments is not None else len(self.annotations)
+        return (
+            len(self.segments) if self.segments is not None else len(self.annotations)
+        )
 
     def adjust_time_shift(self, time_shift: float):
         self.time_shift = time_shift
@@ -160,7 +177,7 @@ class RBMA13(ADTDataset):
         if os.path.exists(audio_path + ".wav"):
             return Path(audio_path + ".wav")
         else:
-            return Path(audio_path + ".mp3")
+            return Path(audio_path + ".flac")
 
     def get_identifier(self) -> str:
         if self.full:

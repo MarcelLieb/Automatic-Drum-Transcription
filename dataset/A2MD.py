@@ -1,7 +1,6 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Literal
 
 import pretty_midi
 import torch
@@ -14,7 +13,9 @@ from dataset import (
     get_drums,
     get_length,
     get_segments,
-    get_splits as get_splits_data, convert_to_wav, convert_to_flac,
+    get_splits as get_splits_data,
+    convert_to_wav,
+    convert_to_flac,
 )
 from dataset.mapping import DrumMapping
 from dataset.generics import ADTDataset
@@ -96,12 +97,30 @@ def get_fold(version: Literal["L", "M", "S"], path: str, n_folds: int, fold: int
         group_index = groups.select("group").unique().to_series().to_list()
         k_folds = k_fold.split(group_index)
         fold = list(k_folds)[fold][1]
-        fold = groups.filter(pl.col("group").is_in(fold)).select("identifier").collect().to_series().to_list()
-    train_ids = groups.filter(~(pl.col("identifier").is_in(fold))).select("identifier").collect().to_series().to_list()
+        fold = (
+            groups.filter(pl.col("group").is_in(fold))
+            .select("identifier")
+            .collect()
+            .to_series()
+            .to_list()
+        )
+    train_ids = (
+        groups.filter(~(pl.col("identifier").is_in(fold)))
+        .select("identifier")
+        .collect()
+        .to_series()
+        .to_list()
+    )
     val_ids = fold
     out = [{} for _ in range(3)]
     for folder in folders:
-        identifiers = groups.filter(pl.col("folder") == folder).select("identifier").collect().to_series().to_list()
+        identifiers = (
+            groups.filter(pl.col("folder") == folder)
+            .select("identifier")
+            .collect()
+            .to_series()
+            .to_list()
+        )
         out[0][folder] = sorted(set(identifiers) & set(train_ids))
         out[1][folder] = sorted(set(identifiers) & set(val_ids))
         out[2][folder] = sorted(set(identifiers) - set(train_ids) - set(val_ids))
@@ -134,13 +153,18 @@ def get_splits(
             for split_ixd, selected_groups in enumerate(split):
                 out[split_ixd][folder] = sorted(
                     identifiers.filter(pl.col("group").is_in(selected_groups))
-                    .select("identifier").collect().to_series().to_list()
+                    .select("identifier")
+                    .collect()
+                    .to_series()
+                    .to_list()
                 )
 
         # Check if the distribution per folder is acceptable
         finished = True
         for folder in folders:
-            track_counts = torch.tensor([len(out[i][folder]) for i in range(len(splits))])
+            track_counts = torch.tensor(
+                [len(out[i][folder]) for i in range(len(splits))]
+            )
             total = sum(track_counts)
             fractions = track_counts.float() / total
             if not torch.allclose(fractions, torch.tensor(splits), atol=0.02):
@@ -165,7 +189,9 @@ class A2MD(ADTDataset):
         is_train: bool = False,
         use_dataloader: bool = False,
     ):
-        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
+        super().__init__(
+            settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment
+        )
         self.path = path
         self.split = get_tracks(path) if split is None else split
         self.full = split is None
@@ -208,22 +234,28 @@ class A2MD(ADTDataset):
             # self.cache = pool.starmap(load_audio, args)
 
     def __len__(self):
-        return len(self.segments) if self.segments is not None else len(self.annotations)
+        return (
+            len(self.segments) if self.segments is not None else len(self.annotations)
+        )
 
     @staticmethod
     def _get_full_path(root: str, identification: tuple[str, str]) -> Path:
         folder, identifier = identification
-        if os.path.exists(os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.flac")):
-            return Path(os.path.join(
-                root, "ytd_audio", folder, f"ytd_audio_{identifier}.flac"
-            ))
-        if os.path.exists(os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav")):
-            return Path(os.path.join(
-                root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav"
-            ))
-        return Path(os.path.join(
-            root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3"
-        ))
+        if os.path.exists(
+            os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.flac")
+        ):
+            return Path(
+                os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.flac")
+            )
+        if os.path.exists(
+            os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav")
+        ):
+            return Path(
+                os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.wav")
+            )
+        return Path(
+            os.path.join(root, "ytd_audio", folder, f"ytd_audio_{identifier}.mp3")
+        )
 
     def get_full_path(self, identification: tuple[str, str]) -> Path:
         return self._get_full_path(self.path, identification)

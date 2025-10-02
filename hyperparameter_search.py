@@ -6,12 +6,27 @@ from typing import Any
 
 import numpy as np
 import optuna
-from optuna import storages, load_study, Study, create_study, Trial, terminator, samplers, logging as optuna_logging
+from optuna import (
+    storages,
+    load_study,
+    Study,
+    create_study,
+    Trial,
+    terminator,
+    samplers,
+    logging as optuna_logging,
+)
 import optuna.pruners as pruners
 import optunahub
 from optuna.samplers import BruteForceSampler, TPESampler
-from optuna.terminator import TerminatorCallback, report_cross_validation_scores, Terminator, EMMREvaluator, \
-    CrossValidationErrorEvaluator, RegretBoundEvaluator
+from optuna.terminator import (
+    TerminatorCallback,
+    report_cross_validation_scores,
+    Terminator,
+    EMMREvaluator,
+    CrossValidationErrorEvaluator,
+    RegretBoundEvaluator,
+)
 import torch
 from calflops import calculate_flops
 from optuna.trial import TrialState

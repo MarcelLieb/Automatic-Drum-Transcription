@@ -14,21 +14,27 @@ from tqdm import tqdm
 
 from dataset.datasets import get_dataset
 from dataset.mapping import DrumMapping
-from evallib import peak_pick_max_mean, calculate_pr, calculate_f_score, evaluate_onsets, combine_onsets
+from evallib import (
+    peak_pick_max_mean,
+    calculate_pr,
+    calculate_f_score,
+    evaluate_onsets,
+    combine_onsets,
+)
 from dataset.generics import ADTDataset
 from model import ModelEmaV2
 from model.CRNN import CRNN, CRNN_Vogl
 from model.cnn import CNN
 from model.cnnA import CNNAttention
-from model.cnnM import CNNMamba
 from model.cnnM2 import CNNMambaFast
-from model.unet import UNet
 from settings import (
     CNNSettings,
     EvaluationSettings,
     CNNAttentionSettings,
     CNNMambaSettings,
-    asdict, UNetSettings, CRNNSettings, Config,
+    asdict,
+    CRNNSettings,
+    Config,
 )
 
 COLORS = (
@@ -67,7 +73,7 @@ def step(
     optimizer: optim.Optimizer,
     audio_batch: torch.Tensor,
     lbl_batch: torch.Tensor,
-    scaler: torch.cuda.amp.GradScaler,
+    scaler: torch.amp.GradScaler,
     scheduler: optim.lr_scheduler.LRScheduler = None,
 ) -> float:
     """Performs one update step for the model
@@ -94,39 +100,7 @@ def step(
     scaler.step(optimizer)
     scaler.update()
 
-    if scheduler is not None and not isinstance(
-        scheduler, optim.lr_scheduler.ReduceLROnPlateau
-    ):
-        scheduler.step()
-
-    return loss.item() if not torch.isnan(loss) else 0.0
-
-
-def step_encoder(
-    model: UNet,
-    criterion,
-    optimizer: optim.Optimizer,
-    audio_batch: torch.Tensor,
-    scaler: torch.cuda.amp.GradScaler,
-    scheduler: optim.lr_scheduler.LRScheduler = None,
-) -> float:
-    model.train()
-    optimizer.zero_grad()
-
-    device = str(audio_batch.device)
-    device = "cuda" if "cuda" in device else "cpu"
-
-    with torch.autocast(device_type=device, dtype=torch.float16):
-        prediction = model(audio_batch)
-        loss = criterion(prediction, audio_batch.unsqueeze(1))
-
-    scaler.scale(loss).backward()
-    scaler.step(optimizer)
-    scaler.update()
-
-    if scheduler is not None and not isinstance(
-        scheduler, optim.lr_scheduler.ReduceLROnPlateau
-    ):
+    if scheduler is not None and isinstance(scheduler, optim.lr_scheduler.OneCycleLR):
         scheduler.step()
 
     return loss.item() if not torch.isnan(loss) else 0.0
@@ -142,7 +116,6 @@ def train_epoch(
     optimizer,
     scaler,
     scheduler,
-    is_unet=False,
     tensorboard_writer=None,
 ):
     total_loss = 0
@@ -157,21 +130,6 @@ def train_epoch(
     ):
         audio, lbl, _ = data
         audio = audio.to(device)
-        if is_unet:
-            loss = step_encoder(
-                model=model,
-                criterion=error,
-                optimizer=optimizer,
-                audio_batch=audio,
-                scaler=scaler,
-                scheduler=scheduler,
-            )
-
-            if ema_model is not None:
-                ema_model.update(model)
-
-            total_loss += loss
-            continue
         lbl = lbl.to(device)
 
         loss = step(
@@ -200,10 +158,9 @@ def evaluate(
     device: torch.device,
     evaluation_settings: EvaluationSettings,
     tensorboard_writer: SummaryWriter = None,
-    is_unet: bool = False,
     tag: str = "Evaluation",
-    thresholds: list[float]=None,
-) -> (float, float, float, list[float]):
+    thresholds: list[float] = None,
+) -> tuple[float, float, float, list[float]]:
     model.eval()
     total_loss = 0
     device_str = str(device)
@@ -232,13 +189,6 @@ def evaluate(
             audio = audio.to(device)
             lbl = lbl.to(device)
 
-            if is_unet:
-                with torch.autocast(device_type=device_str, dtype=torch.float16):
-                    prediction = model(audio)
-                    loss = criterion(prediction, audio.unsqueeze(1))
-                    total_loss += loss.item()
-                    continue
-
             with torch.autocast(device_type=device_str, dtype=torch.float16):
                 prediction = model(audio)
                 unfiltered = criterion(prediction, lbl)
@@ -256,12 +206,17 @@ def evaluate(
                 for cls_idx in range(len(peaks[song_idx])):
                     peaks[song_idx][cls_idx] -= time_shift
                     # filter out predictions before the start
-                    peaks[song_idx][cls_idx] = peaks[song_idx][cls_idx][:, peaks[song_idx][cls_idx][0, :] >= 0]
+                    peaks[song_idx][cls_idx] = peaks[song_idx][cls_idx][
+                        :, peaks[song_idx][cls_idx][0, :] >= 0
+                    ]
 
             if thresholds is not None:
                 peaks = [
                     [
-                        combine_onsets(cls[0, :][cls[1, :] >= thresh], cool_down=evaluation_settings.onset_cooldown)
+                        combine_onsets(
+                            cls[0, :][cls[1, :] >= thresh],
+                            cool_down=evaluation_settings.onset_cooldown,
+                        )
                         for cls, thresh in zip(song, thresholds)
                     ]
                     for song in peaks
@@ -272,11 +227,6 @@ def evaluate(
             loss = unfiltered[lbl != -1].mean()
             total_loss += loss.item()
             torch.cuda.empty_cache()
-
-    if is_unet:
-        if tensorboard_writer is not None:
-            tensorboard_writer.add_scalar(f"Loss/{tag}", total_loss / len(dataloader), global_step=epoch)
-        return total_loss / len(dataloader), 0, 0, []
 
     best_thresholds = thresholds
     if thresholds is None:
@@ -352,8 +302,12 @@ def evaluate(
             )
     else:
         beats = (len(groundtruth[0]) - dataset.n_classes) == 0
-        stats_counter = torch.zeros(dataset.n_classes - 2 * (beats - (1 - evaluation_settings.ignore_beats)), 3)
-        assert len(predictions) == len(groundtruth), f"{len(predictions)} != {len(groundtruth)}"
+        stats_counter = torch.zeros(
+            dataset.n_classes - 2 * (beats - (1 - evaluation_settings.ignore_beats)), 3
+        )
+        assert len(predictions) == len(groundtruth), (
+            f"{len(predictions)} != {len(groundtruth)}"
+        )
         for song_index in range(len(predictions)):
             offset = 0
             if evaluation_settings.ignore_beats:
@@ -362,15 +316,31 @@ def evaluate(
                     predictions[song_index] = predictions[song_index][2:]
 
             assert len(predictions[song_index]) == len(groundtruth[song_index][offset:])
-            for cls, (cls_onset, cls_gt) in enumerate(zip(predictions[song_index], groundtruth[song_index][offset:])):
-                stats_counter[cls] += torch.tensor(evaluate_onsets(cls_onset, cls_gt, window=evaluation_settings.detect_tolerance))
-        f_scores = 2 * stats_counter[:, 0] / (2 * stats_counter[:, 0] + stats_counter[:, 1] + stats_counter[:, 2])
+            for cls, (cls_onset, cls_gt) in enumerate(
+                zip(predictions[song_index], groundtruth[song_index][offset:])
+            ):
+                stats_counter[cls] += torch.tensor(
+                    evaluate_onsets(
+                        cls_onset, cls_gt, window=evaluation_settings.detect_tolerance
+                    )
+                )
+        f_scores = (
+            2
+            * stats_counter[:, 0]
+            / (2 * stats_counter[:, 0] + stats_counter[:, 1] + stats_counter[:, 2])
+        )
         f_avg = f_scores.mean().item()
         total_stats = stats_counter.sum(dim=0)
-        f_sum = (2 * total_stats[0] / (2 * total_stats[0] + total_stats[1] + total_stats[2])).item()
+        f_sum = (
+            2 * total_stats[0] / (2 * total_stats[0] + total_stats[1] + total_stats[2])
+        ).item()
         if tensorboard_writer is not None:
-            tensorboard_writer.add_tensor(f"Stats/{tag}", stats_counter, global_step=epoch)
-            tensorboard_writer.add_tensor(f"F-Score/Class/{tag}", f_scores, global_step=epoch)
+            tensorboard_writer.add_tensor(
+                f"Stats/{tag}", stats_counter, global_step=epoch
+            )
+            tensorboard_writer.add_tensor(
+                f"F-Score/Class/{tag}", f_scores, global_step=epoch
+            )
 
     loss = total_loss / len(dataloader)
 
@@ -407,35 +377,45 @@ def main(
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
 
-    architecture = training_settings.model_settings if model_settings is None else model_settings.get_identifier()
+    architecture = (
+        training_settings.model_settings
+        if model_settings is None
+        else model_settings.get_identifier()
+    )
 
     match architecture:
         case "cnn":
             model_settings = CNNSettings() if model_settings is None else model_settings
-            model = CNN(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
+            model = CNN(
+                **dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels
+            )
         case "cnn_attention":
-            model_settings = CNNAttentionSettings() if model_settings is None else model_settings
-            model = CNNAttention(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
-        case "mamba":
-            model_settings = CNNMambaSettings() if model_settings is None else model_settings
-            model = CNNMamba(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
-        case "mamba_fast":
-            model_settings = CNNMambaSettings() if model_settings is None else model_settings
-            model = CNNMambaFast(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
-        case "unet":
-            model_settings = UNetSettings() if model_settings is None else model_settings
-            model = UNet(**dataclass_asdict(model_settings))
+            model_settings = (
+                CNNAttentionSettings() if model_settings is None else model_settings
+            )
+            model = CNNAttention(
+                **dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels
+            )
+        case "mamba_fast" | "mamba":
+            model_settings = (
+                CNNMambaSettings() if model_settings is None else model_settings
+            )
+            model = CNNMambaFast(
+                **dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels
+            )
         case "crnn":
-            model_settings = CRNNSettings() if model_settings is None else model_settings
-            model = CRNN(**dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels)
+            model_settings = (
+                CRNNSettings() if model_settings is None else model_settings
+            )
+            model = CRNN(
+                **dataclass_asdict(model_settings), n_classes=n_classes, n_mels=n_mels
+            )
         case "vogl":
             model = CRNN_Vogl(n_classes=n_classes, n_mels=n_mels, causal=True)
         case _:
             raise ValueError("Invalid model setting")
     model.to(device)
     training_settings.model_settings = architecture
-
-    is_unet = training_settings.model_settings == "unet"
 
     # Multiprocessing headaches
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -448,7 +428,10 @@ def main(
     print(model_settings)
 
     loader_train, loader_val, test_sets = get_dataset(
-        training_settings.batch_size, training_settings.test_batch_size, dataset_settings=dataset_settings, seed=seed
+        training_settings.batch_size,
+        training_settings.test_batch_size,
+        dataset_settings=dataset_settings,
+        seed=seed,
     )
 
     ema_model = (
@@ -500,23 +483,22 @@ def main(
     )
     current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
     # error = torch.nn.L1Loss(reduction="none")
-    if is_unet:
-        error = torch.nn.MSELoss()
-    else:
-        trainset: ADTDataset = loader_train.dataset
-        num_pos, num_neg = trainset.get_sample_distribution()
-        # weights according to https://markcartwright.com/files/cartwright2018increasing.pdf section 3.4.1 Task weights
-        total = (num_pos + num_neg)[0]
-        # if dataset_settings.annotation_settings.pad_annotations:
-        #     num_pos = num_pos * (1 + 2 * dataset_settings.annotation_settings.pad_value)
-        p_i = num_pos / total
-        weight: torch.Tensor = 1 / (-p_i * p_i.log() - (1 - p_i) * (1 - p_i).log())
-        weight = weight / 4 # shift weight closer to the ones used by Zheren and Vogl
-        weight[0 + 2 * dataset_settings.annotation_settings.beats] = 1.0 # don't weigh kick as it is easy and common
-        # weight = None
-        print(weight.numpy())
-        weight = weight.unsqueeze(-1).to(device) if weight is not None else None
-        error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
+    trainset: ADTDataset = loader_train.dataset
+    num_pos, num_neg = trainset.get_sample_distribution()
+    # weights according to https://markcartwright.com/files/cartwright2018increasing.pdf section 3.4.1 Task weights
+    total = (num_pos + num_neg)[0]
+    # if dataset_settings.annotation_settings.pad_annotations:
+    #     num_pos = num_pos * (1 + 2 * dataset_settings.annotation_settings.pad_value)
+    p_i = num_pos / total
+    weight: torch.Tensor = 1 / (-p_i * p_i.log() - (1 - p_i) * (1 - p_i).log())
+    weight = weight / 4  # shift weight closer to the ones used by Zheren and Vogl
+    weight[0 + 2 * dataset_settings.annotation_settings.beats] = (
+        1.0  # don't weigh kick as it is easy and common
+    )
+    # weight = None
+    print(weight.numpy())
+    weight = weight.unsqueeze(-1).to(device) if weight is not None else None
+    error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
     scaler = torch.amp.GradScaler(device=device)
 
     last_improvement = 0
@@ -532,7 +514,6 @@ def main(
             optimizer,
             scaler,
             scheduler,
-            is_unet=is_unet,
             tensorboard_writer=writer,
         )
         torch.cuda.empty_cache()
@@ -544,7 +525,6 @@ def main(
             device,
             evaluation_settings,
             tensorboard_writer=writer,
-            is_unet=is_unet,
             tag="Validation",
         )
         metrics["Loss/Train"].append(train_loss)
@@ -558,9 +538,16 @@ def main(
             scheduler, optim.lr_scheduler.ReduceLROnPlateau
         ):
             scheduler.step(metrics[metric_to_track][-1])
-            if current_lr > optimizer.state_dict()["param_groups"][0]["lr"]:
-                current_lr = optimizer.state_dict()["param_groups"][0]["lr"]
-                print(f"Adjusting learning rate to {current_lr}")
+        if scheduler is not None and not isinstance(
+            scheduler,
+            (optim.lr_scheduler.ReduceLROnPlateau, optim.lr_scheduler.OneCycleLR),
+        ):
+            scheduler.step()
+        if scheduler is not None:
+            if current_lr != scheduler.get_last_lr()[0]:
+                current_lr = scheduler.get_last_lr()[0]
+                logging.info("Setting learning rate to {:.6f}".format(current_lr))
+
         print(
             f"Epoch: {epoch + 1} "
             f"Loss: {train_loss * 100:.4f}\t "
@@ -568,14 +555,19 @@ def main(
         )
         last_improvement += 1
         if epoch == 0 or np.all(
-            np.max(np.array(metrics[metric_to_track][:-1]) * directions[metric_to_track], axis=0) + directions[metric_to_track] * min_delta < np.array(
-                metrics[metric_to_track][-1]) * directions[metric_to_track]):
+            np.max(
+                np.array(metrics[metric_to_track][:-1]) * directions[metric_to_track],
+                axis=0,
+            )
+            + directions[metric_to_track] * min_delta
+            < np.array(metrics[metric_to_track][-1]) * directions[metric_to_track]
+        ):
             best_model = (
                 ema_model.module if ema_model is not None else model
             ).state_dict()
             last_improvement = 0
         print(last_improvement)
-        if f_score_sum > evaluation_settings.min_test_score and last_improvement == 0 and not is_unet:
+        if f_score_sum > evaluation_settings.min_test_score and last_improvement == 0:
             for test_loader in test_sets:
                 test_set: ADTDataset = test_loader.dataset
                 identifier = test_set.get_identifier()
@@ -598,12 +590,14 @@ def main(
                     f"{identifier}: Test Loss: {test_loss * 100:.4f} F-Score: {test_avg_f_score * 100:.4f}/{test_f_score * 100:.4f}"
                 )
         recent_scores = np.array(metrics["F-Score/Sum/Validation"][-stuck_threshold:])
-        stuck = ((np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-5).all() and len(
-            recent_scores) >= stuck_threshold) or np.isnan(val_loss)
+        stuck = (
+            (np.abs(recent_scores - recent_scores.mean(axis=0)) < 1e-5).all()
+            and len(recent_scores) >= stuck_threshold
+        ) or np.isnan(val_loss)
         if (
-            (early_stopping is not None
-            and last_improvement >= training_settings.early_stopping) or stuck
-        ):
+            early_stopping is not None
+            and last_improvement >= training_settings.early_stopping
+        ) or stuck:
             if stuck:
                 print("Detected stuck training")
                 if trial is not None:
@@ -615,7 +609,7 @@ def main(
     if best_model is not None:
         model.load_state_dict(best_model)
 
-    if max(metrics["F-Score/Sum/Validation"]) > training_settings.min_save_score or is_unet:
+    if max(metrics["F-Score/Sum/Validation"]) > training_settings.min_save_score:
         print("Saving model")
         dic = {
             "model": model.state_dict(),
@@ -626,7 +620,10 @@ def main(
         if model_settings is not None:
             dic["model_settings"] = asdict(model_settings)
         dir_name = writer.get_logdir().split("/")[-1]
-        torch.save(dic, f"./models/{dir_name}_{architecture}_{metrics['F-Score/Sum/Validation'][-1] * 100:.2f}.pt")
+        torch.save(
+            dic,
+            f"./models/{dir_name}_{architecture}_{metrics['F-Score/Sum/Validation'][-1] * 100:.2f}.pt",
+        )
 
     hyperparameters = {
         **asdict(training_settings),

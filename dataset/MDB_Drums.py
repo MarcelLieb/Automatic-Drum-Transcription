@@ -35,34 +35,37 @@ label_translator = {
 
 # from http://ifs.tuwien.ac.at/~vogl/dafx2018/mappings.py
 mdb_drum_map = {
-    'KD': 35,
-    'SD': 38,
-    'SDB': 38,
-    'SDD': 38,
-    'SDF': 38,
-    'SDG': 38,
-    'SDNS': 38,
-    'CHH': 42,
-    'OHH': 46,
-    'PHH': 44,
-    'HIT': 50,
-    'MHT': 48,
-    'HFT': 43,
-    'LFT': 41,
-    'RDC': 51,
-    'RDB': 53,
-    'CRC': 49,
-    'CHC': 52,
-    'SPC': 55,
-    'SST': 37,
-    'TMB': 54,
+    "KD": 35,
+    "SD": 38,
+    "SDB": 38,
+    "SDD": 38,
+    "SDF": 38,
+    "SDG": 38,
+    "SDNS": 38,
+    "CHH": 42,
+    "OHH": 46,
+    "PHH": 44,
+    "HIT": 50,
+    "MHT": 48,
+    "HFT": 43,
+    "LFT": 41,
+    "RDC": 51,
+    "RDB": 53,
+    "CRC": 49,
+    "CHC": 52,
+    "SPC": 55,
+    "SST": 37,
+    "TMB": 54,
 }
 
-for key, value in label_translator.items():
+for key, val in label_translator.items():
     assert key in mdb_drum_map, f"{key}"
-    assert value == \
-           DrumMapping.EIGHTEEN_CLASS.value[0][DrumMapping.EIGHTEEN_CLASS.get_midi_to_class()[mdb_drum_map[key]]][
-               0]
+    assert (
+        val
+        == DrumMapping.EIGHTEEN_CLASS.value[0][
+            DrumMapping.EIGHTEEN_CLASS.get_midi_to_class()[mdb_drum_map[key]]
+        ][0]
+    )
 
 
 def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
@@ -79,10 +82,11 @@ def get_annotations(root: str | Path, name: str, mapping: DrumMapping):
     midi_to_class = mapping.get_midi_to_class()
     midi_to_class = {i: value for i, value in enumerate(midi_to_class)}
     labels = (
-        labels
-        .select(
+        labels.select(
             pl.col("time").cast(pl.Float32),
-            pl.col("class").replace_strict(mdb_drum_map, return_dtype=pl.Int8).replace_strict(midi_to_class),
+            pl.col("class")
+            .replace_strict(mdb_drum_map, return_dtype=pl.Int8)
+            .replace_strict(midi_to_class),
         )
         .filter(pl.col("class") >= 0)
         .cast(pl.Float32)
@@ -128,14 +132,14 @@ class MDBDrums(ADTDataset):
         self.full = split is None
         self.split = split if split is not None else get_tracks(path)
 
-        self.annotations = {}
+        annotations = {}
         for name in self.split:
-            self.annotations[name] = get_annotations(
+            annotations[name] = get_annotations(
                 path, name, settings.annotation_settings.mapping
             )
 
         self.annotations = [
-            (name, drums, beats) for name, (beats, drums) in self.annotations.items()
+            (name, drums, beats) for name, (beats, drums) in annotations.items()
         ]
         self.annotations.sort(key=lambda x: x[0])
 
@@ -160,7 +164,9 @@ class MDBDrums(ADTDataset):
                 )
 
     def __len__(self):
-        return len(self.segments) if self.segments is not None else len(self.annotations)
+        return (
+            len(self.segments) if self.segments is not None else len(self.annotations)
+        )
 
     def get_full_path(self, identifier: str) -> Path:
         audio_path = os.path.join(

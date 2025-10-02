@@ -5,7 +5,6 @@ from typing import Sequence, TypeVar
 import librosa
 import numpy as np
 import pretty_midi
-import sox
 import torch
 import torchaudio
 from torch.utils.data import Subset
@@ -42,29 +41,22 @@ def load_audio(
         )
     else:
         if backend == "librosa":
-            audio = librosa.load(path=path, sr=sample_rate, mono=True, offset=start, duration=end - start)[0]
+            audio = librosa.load(
+                path=path, sr=sample_rate, mono=True, offset=start, duration=end - start
+            )[0]
             audio = torch.from_numpy(audio)
-        elif backend == "sox":
-            final_duration = end - start
-            if start <= 0.28:
-                offset = 2257
-                end = end + (offset / sample_rate) + 0.1
-            else:
-                offset = 1105
-                end = end + (offset / sample_rate) + 0.1
-            tfm = sox.Transformer()
-            tfm.trim(start, end)
-            tfm.fade(fade_in_len=0, fade_out_len=0)
-            tfm.set_output_format(rate=sample_rate, channels=1)
-            audio = tfm.build_array(input_filepath=path)
-            audio = torch.from_numpy(audio.copy())
-            audio = audio / torch.iinfo(audio.dtype).max
-            audio = audio[offset:offset + int(final_duration * sample_rate)]
         else:
-            audio, og_sr = torchaudio.load(path, normalize=True, backend="ffmpeg",
-                                           num_frames=int(sample_rate * (end - start)), offset=int(sample_rate * start))
+            audio, og_sr = torchaudio.load(
+                path,
+                normalize=True,
+                backend="ffmpeg",
+                num_frames=int(sample_rate * (end - start)),
+                offset=int(sample_rate * start),
+            )
             audio = torch.mean(audio, dim=0, keepdim=False, dtype=torch.float32)
-            audio = torchaudio.transforms.Resample(orig_freq=og_sr, new_freq=sample_rate)(audio)
+            audio = torchaudio.transforms.Resample(
+                orig_freq=og_sr, new_freq=sample_rate
+            )(audio)
         # assert audio.shape[-1] == int(
         #     sample_rate * (end - start)), f"{audio.shape[-1]} != {int(sample_rate * (end - start))}"
     if normalize:
@@ -74,7 +66,9 @@ def load_audio(
 
 def get_length(path: str | Path) -> float:
     path = str(path)
-    assert path.endswith(".wav") or path.endswith(".mp3") or path.endswith(".flac"), f"{path} is not a valid audio file"
+    assert path.endswith(".wav") or path.endswith(".mp3") or path.endswith(".flac"), (
+        f"{path} is not a valid audio file"
+    )
     return librosa.get_duration(path=path)
 
 
@@ -114,7 +108,7 @@ def get_label_windows(
     lead_out: float,
     sample_rate: int,
     unique: bool = False,
-) -> np.array:
+) -> np.ndarray:
     """
     :param lengths: List of lengths of the audio files in seconds
     :param drum_labels: List of drum labels
@@ -129,7 +123,7 @@ def get_label_windows(
         labels = np.concatenate(drum_label)
         if unique:
             labels = np.unique(labels)
-        start = (labels - lead_in)
+        start = labels - lead_in
         start = np.clip(start, 0, length)
         end = labels + lead_out - 1 / sample_rate
         end = np.clip(end, 0, length)
@@ -140,7 +134,7 @@ def get_label_windows(
 
 def get_segments(
     lengths: list[float], segment_length: float, overlap: float, sample_rate: int
-) -> np.array:
+) -> np.ndarray:
     """
     Computes overlapping segments for a list of audio files
     :param lengths: List of lengths of the audio files in seconds
@@ -158,7 +152,9 @@ def get_segments(
         ends = np.minimum(starts + segment_length, length)
         segment = np.stack((starts, ends, np.zeros_like(starts) + i), axis=1)
         segments.append(segment)
-    segments = np.concatenate(segments, axis=0) if len(segments) > 0 else np.empty((0, 3))
+    segments = (
+        np.concatenate(segments, axis=0) if len(segments) > 0 else np.empty((0, 3))
+    )
     return segments
 
 
@@ -178,13 +174,9 @@ def pad_audio(audio: torch.Tensor, length: int, front: bool) -> torch.Tensor:
     if audio.shape[-1] >= length:
         return audio
     if front:
-        cut_audio = torch.cat(
-            (torch.zeros(int(length - audio.shape[-1])), audio)
-        )
+        cut_audio = torch.cat((torch.zeros(int(length - audio.shape[-1])), audio))
     else:
-        cut_audio = torch.cat(
-            (audio, torch.zeros(int(length - audio.shape[-1])))
-        )
+        cut_audio = torch.cat((audio, torch.zeros(int(length - audio.shape[-1]))))
     assert cut_audio.shape[-1] == length, "Audio too short"
     return cut_audio
 
@@ -201,11 +193,13 @@ def get_labels(
     return labels
 
 
-def get_indices(time_stamps: np.array, sample_rate: float, hop_size: int) -> np.array:
+def get_indices(
+    time_stamps: np.ndarray, sample_rate: float, hop_size: int
+) -> np.ndarray:
     return np.round((time_stamps * sample_rate) / hop_size).astype(int)
 
 
-def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.array:
+def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.ndarray:
     return (np.arange(length) * hop_size) / sample_rate
 
 
@@ -241,20 +235,40 @@ def convert_to_wav(path: str | Path):
     path = Path(path)
     if path.suffix == ".wav":
         return
-    audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg", channels_first=True)
+    audio, sr = torchaudio.load(
+        path, normalize=True, backend="ffmpeg", channels_first=True
+    )
     if len(audio.shape) == 1:
         audio = audio.unsqueeze(0)
-    torchaudio.save(path.with_suffix(".wav"), audio, sr, channels_first=True, bits_per_sample=16, format="wav", encoding="PCM_S")
+    torchaudio.save(
+        path.with_suffix(".wav"),
+        audio,
+        sr,
+        channels_first=True,
+        bits_per_sample=16,
+        format="wav",
+        encoding="PCM_S",
+    )
 
 
 def convert_to_flac(path: str | Path):
     path = Path(path)
     if path.suffix == ".flac":
         return
-    audio, sr = torchaudio.load(path, normalize=True, backend="ffmpeg", channels_first=True)
+    audio, sr = torchaudio.load(
+        path, normalize=True, backend="ffmpeg", channels_first=True
+    )
     if len(audio.shape) == 1:
         audio = audio.unsqueeze(0)
-    torchaudio.save(path.with_suffix(".flac"), audio, sr, channels_first=True, bits_per_sample=16, format="flac", encoding="PCM_S")
+    torchaudio.save(
+        path.with_suffix(".flac"),
+        audio,
+        sr,
+        channels_first=True,
+        bits_per_sample=16,
+        format="flac",
+        encoding="PCM_S",
+    )
 
 
 T = TypeVar("T")

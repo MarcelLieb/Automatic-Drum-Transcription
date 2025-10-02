@@ -10,7 +10,8 @@ from dataset import (
     DrumMapping,
     get_length,
     get_label_windows,
-    get_segments, convert_to_wav,
+    get_segments,
+    convert_to_wav,
 )
 from dataset.generics import ADTDataset
 from settings import DatasetSettings
@@ -41,7 +42,7 @@ drum_map = {int(key): value for key, value in drum_map.items()}
 
 def get_annotations(
     path: Path | str, identifier: str, mapping: DrumMapping
-) -> tuple[str, list[np.array], list[np.array]]:
+) -> tuple[str, list[np.ndarray], list[np.ndarray]]:
     file_path = os.path.join(path, "annotations", "drums_l", f"{identifier}.txt")
 
     with warnings.catch_warnings():
@@ -69,13 +70,20 @@ def get_annotations(
     return identifier, drums, beats
 
 
-def get_tracks(path: str | Path, instruments: Literal["all", "solo", "accomp"] = "all") -> list[str]:
+def get_tracks(
+    path: str | Path, instruments: Literal["all", "solo", "accomp"] = "all"
+) -> list[str]:
     ids = [
         ".".join(file.split(".")[:-1])
         for file in os.listdir(os.path.join(path, "annotations", "drums_l"))
         if file.endswith(".txt")
     ]
-    ids = [iden for iden in ids if os.stat(os.path.join(path, "annotations", "drums_l", iden + ".txt")).st_size > 0]
+    ids = [
+        iden
+        for iden in ids
+        if os.stat(os.path.join(path, "annotations", "drums_l", iden + ".txt")).st_size
+        > 0
+    ]
     if instruments == "all":
         pass
     elif instruments == "solo":
@@ -89,11 +97,16 @@ def get_tracks(path: str | Path, instruments: Literal["all", "solo", "accomp"] =
                 warnings.simplefilter("ignore")
                 get_length(os.path.join(path, "mp3", f"{iden}.mp3"))
             out.append(iden)
-        except Exception as e:
+        except Exception as _:
             continue
-    if not all(os.path.exists(os.path.join(path, "mp3", f"{iden}.wav")) for iden in out):
+    if not all(
+        os.path.exists(os.path.join(path, "mp3", f"{iden}.wav")) for iden in out
+    ):
         with torch.multiprocessing.Pool(torch.multiprocessing.cpu_count()) as pool:
-            pool.map(convert_to_wav, [os.path.join(path, "mp3", f"{iden}.mp3") for iden in out])
+            pool.map(
+                convert_to_wav,
+                [os.path.join(path, "mp3", f"{iden}.mp3") for iden in out],
+            )
     return out
 
 
@@ -106,14 +119,18 @@ class TMIDT(ADTDataset):
         split: list[str] | None = None,
         is_train: bool = False,
         use_dataloader: bool = False,
-        instruments: Literal["all", "solo", "accomp"] = "all"
+        instruments: Literal["all", "solo", "accomp"] = "all",
     ):
-        super().__init__(settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment)
+        super().__init__(
+            settings, is_train=is_train, use_dataloader=use_dataloader, segment=segment
+        )
 
         self.path = path
         self.instruments = instruments
         self.full = split is None
-        self.split = get_tracks(path, instruments=instruments) if split is None else split
+        self.split = (
+            get_tracks(path, instruments=instruments) if split is None else split
+        )
 
         with torch.multiprocessing.Pool(torch.multiprocessing.cpu_count()) as pool:
             args = [(path, identifier, self.mapping) for identifier in self.split]
@@ -121,7 +138,9 @@ class TMIDT(ADTDataset):
             self.annotations.sort(key=lambda x: int(x[0].split("_")[0]))
 
             self.annotations = [
-                (iden, drums, beats) for iden, drums, beats in self.annotations if any(len(d) > 0 for d in drums)
+                (iden, drums, beats)
+                for iden, drums, beats in self.annotations
+                if any(len(d) > 0 for d in drums)
             ]
 
             args = [(self.path, iden) for (iden, *_) in self.annotations]
@@ -146,7 +165,13 @@ class TMIDT(ADTDataset):
                     )
 
     def __len__(self):
-        return len(self.segments) if self.segments is not None else len(self.annotations)
+        return (
+            len(self.segments) if self.segments is not None else len(self.annotations)
+        )
+
+    @staticmethod
+    def get_tracks(path) -> Any:
+        return get_tracks(path, instruments="all")
 
     @staticmethod
     def _get_full_path(root: str, identification: str) -> Path:
@@ -157,7 +182,13 @@ class TMIDT(ADTDataset):
         return self._get_full_path(self.path, identification)
 
     def get_identifier(self) -> str:
-        return "TMIDT" + f"_{self.instruments}" if self.instruments != "all" else "" + "_split" if not self.full else ""
+        return (
+            "TMIDT" + f"_{self.instruments}"
+            if self.instruments != "all"
+            else "" + "_split"
+            if not self.full
+            else ""
+        )
 
 
 if __name__ == "__main__":
@@ -165,6 +196,6 @@ if __name__ == "__main__":
     a = get_annotations(
         Path("../data/midi"), "35_ABBA_-_SOS_accomp", DrumMapping.THREE_CLASS_STANDARD
     )
-    d = TMIDT(Path("../data/midi"), DatasetSettings())
-    b = d[0]
+    data = TMIDT(Path("../data/midi"), DatasetSettings())
+    b = data[0]
     print(b)

@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, asdict as dataclass_asdict, is_dataclass, field
-from typing import Literal
+from typing import Literal, Optional
 from overrides import override
 from ast import literal_eval as make_tuple
 
@@ -36,7 +36,9 @@ class SettingsBase(ABC):
         dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
-        attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
+        attributes = {
+            key: dic[key] if dic[key] != "None" else None for key in class_attributes
+        }
         return cls(**attributes)
 
 
@@ -74,18 +76,22 @@ class AnnotationSettings(SettingsBase):
         class_attributes = [key for key in keys if key in dic]
         if "mapping" in class_attributes:
             dic["mapping"] = DrumMapping.from_str(dic["mapping"])
-        attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
+        attributes = {
+            key: dic[key] if dic[key] != "None" else None for key in class_attributes
+        }
         return cls(**attributes)
 
 
 @dataclass
 class DatasetSettings(SettingsBase):
-    audio_settings: AudioProcessingSettings = field(default_factory=AudioProcessingSettings)
+    audio_settings: AudioProcessingSettings = field(
+        default_factory=AudioProcessingSettings
+    )
     annotation_settings: AnnotationSettings = field(default_factory=AnnotationSettings)
     dataset_version: Literal["S", "M", "L"] = "S"
     splits: list[float] = (0.8, 0.2, 0.0)
     k_folds: Literal[None, 5, 10] = 5
-    fold : int | None = 0
+    fold: int | None = 0
     full_length_test: bool = True
     num_workers: int = cpu_count()
     train_set: Literal["all", "a2md_train", "midi"] = "a2md_train"
@@ -110,7 +116,9 @@ class DatasetSettings(SettingsBase):
         class_attributes += ["audio_settings", "annotation_settings"]
         dic["audio_settings"] = AudioProcessingSettings.from_flat_dict(dic)
         dic["annotation_settings"] = AnnotationSettings.from_flat_dict(dic)
-        attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
+        attributes = {
+            key: dic[key] if dic[key] != "None" else None for key in class_attributes
+        }
         return cls(**attributes)
 
 
@@ -127,9 +135,11 @@ class TrainingSettings(SettingsBase):
     ema: bool = False
     scheduler: bool = False
     early_stopping: int | None = None
-    min_save_score: float = 0.62
-    test_batch_size: int = 1
-    model_settings: Literal["cnn", "cnn_attention", "mamba", "mamba_fast", "unet", "crnn", "vogl"] = "cnn_attention"
+    min_save_score: float = 0.75
+    test_batch_size: int = 3
+    model_settings: Literal["cnn", "cnn_attention", "mamba", "crnn", "vogl"] = (
+        "cnn_attention"
+    )
 
     def get_model_settings_class(self):
         match self.model_settings:
@@ -141,8 +151,6 @@ class TrainingSettings(SettingsBase):
                 return CNNMambaSettings
             case "crnn":
                 return CRNNSettings
-            case "unet":
-                return UNetSettings
         return None
 
     @classmethod
@@ -151,7 +159,9 @@ class TrainingSettings(SettingsBase):
         dic = {key: item for key, item in dic.items()}  # make copy
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
-        attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
+        attributes = {
+            key: dic[key] if dic[key] != "None" else None for key in class_attributes
+        }
         return cls(**attributes)
 
 
@@ -180,7 +190,9 @@ class ModelSettingsBase(SettingsBase):
         class_attributes = [key for key in keys if key in dic]
         if "activation" in class_attributes:
             dic["activation"] = getattr(nn, dic["activation"])()
-        attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
+        attributes = {
+            key: dic[key] if dic[key] != "None" else None for key in class_attributes
+        }
         return cls(**attributes)
 
 
@@ -194,8 +206,8 @@ class CNNSettings(ModelSettingsBase):
     causal: bool = True
     flux: bool = True
     activation: nn.Module = nn.SELU()
-    classifier_dim: int = 2 ** 6
-    down_sample_factor: 2 | 3 | 4 = 2
+    classifier_dim: int = 2**6
+    down_sample_factor: Literal[2, 3, 4] = 2
 
     def get_identifier(self):
         return "cnn"
@@ -250,9 +262,9 @@ class CNNMambaSettings(ModelSettingsBase):
 class CRNNSettings(ModelSettingsBase):
     num_channels: int = 32
     num_conv_layers: int = 2
-    num_rnn_layers: int = 3
-    down_sample_factor: int = 2
     channel_multiplication: int = 2
+    down_sample_factor: int = 4
+    num_rnn_layers: int = 3
     rnn_units: int = 256
     classifier_dim: int = 64
     cnn_dropout: float = 0.3
@@ -268,17 +280,9 @@ class CRNNSettings(ModelSettingsBase):
 
 
 @dataclass
-class UNetSettings(ModelSettingsBase):
-    channels: int = 32
-
-    def get_identifier(self):
-        return "unet"
-
-
-@dataclass
 class Config(SettingsBase):
-    dataset: DatasetSettings = field(default_factory=DatasetSettings)
     training: TrainingSettings = field(default_factory=TrainingSettings)
+    dataset: DatasetSettings = field(default_factory=DatasetSettings)
     evaluation: EvaluationSettings = field(default_factory=EvaluationSettings)
     model: ModelSettingsBase | None = None
 
@@ -292,6 +296,12 @@ class Config(SettingsBase):
         dic["dataset"] = DatasetSettings.from_flat_dict(dic)
         dic["training"] = TrainingSettings.from_flat_dict(dic)
         dic["evaluation"] = EvaluationSettings.from_flat_dict(dic)
-        dic["model"] = dic["training"].get_model_settings_class().from_flat_dict(dic) if dic["training"].get_model_settings_class() is not None else None
-        attributes = {key: dic[key] if dic[key] != "None" else None for key in class_attributes}
+        dic["model"] = (
+            dic["training"].get_model_settings_class().from_flat_dict(dic)
+            if dic["training"].get_model_settings_class() is not None
+            else None
+        )
+        attributes = {
+            key: dic[key] if dic[key] != "None" else None for key in class_attributes
+        }
         return cls(**attributes)

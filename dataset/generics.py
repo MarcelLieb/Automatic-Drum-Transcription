@@ -7,11 +7,18 @@ import torchaudio
 from torch.utils.data import Dataset
 # import audiomentations as A
 
-from dataset import get_labels, load_audio, segment_audio, get_length, pad_audio
+from dataset import (
+    get_labels,
+    load_audio,
+    segment_audio,
+    get_length,
+    pad_audio,
+    get_splits,
+)
 from settings import DatasetSettings
 
 
-class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]]):
+class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]], ABC):
     @abstractmethod
     def __init__(
         self,
@@ -59,7 +66,9 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             if self.segment_type == "label"
             else settings.frame_length
         )
-        self.segment_overlap = settings.frame_overlap if self.segment_type == "frame" else 0
+        self.segment_overlap = (
+            settings.frame_overlap if self.segment_type == "frame" else 0
+        )
 
         self.spectrum = torchaudio.transforms.Spectrogram(
             n_fft=self.fft_size,
@@ -82,7 +91,24 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
             # norm="slaney",
         )
 
-        self.annotations: list[tuple[Any, list[np.ndarray], list[np.ndarray]]] | None = None
+        # torchaudio.transforms.MelSpectrogram(
+        #     sample_rate=self.sample_rate,
+        #     n_fft=self.fft_size,
+        #     win_length=self.fft_size,
+        #     hop_length=self.hop_size,
+        #     f_min=audio_settings.mel_min,
+        #     f_max=audio_settings.mel_max,
+        #     n_mels=self.n_mels,
+        #     power=self.power,
+        #     normalized=True,
+        #     center=self.center,
+        #     pad_mode=self.pad_mode,
+        #     mel_scale="htk",
+        # )
+
+        self.annotations: (
+            list[tuple[Any, list[np.ndarray], list[np.ndarray]]] | None
+        ) = None
 
         self.annotation_padder = (
             torch.nn.MaxPool1d(3, stride=1, padding=1) if self.pad_annotations else None
@@ -196,7 +222,9 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
 
         start_sec, end_sec = start / self.sample_rate, end / self.sample_rate
         gt_labels = [np.array(cls) for cls in [*beats, *drums]]
-        gt_labels = [cls[(cls >= start_sec) & (cls <= end_sec)] - start_sec for cls in gt_labels]
+        gt_labels = [
+            cls[(cls >= start_sec) & (cls <= end_sec)] - start_sec for cls in gt_labels
+        ]
 
         if self.use_dataloader:
             # allows use of torch.nn.utils.rnn.pad_sequence
@@ -227,7 +255,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]])
         return label_count, total_frames - label_count
 
 
-class ConcatADTDataset(ADTDataset, ABC):
+class ConcatADTDataset(ADTDataset):
     def __init__(self, settings: DatasetSettings, datasets: list[ADTDataset]):
         super().__init__(settings, datasets[0].is_train, datasets[0].use_dataloader)
         self.datasets = datasets
