@@ -6,8 +6,47 @@ from dataset.RBMA13 import RBMA13
 from dataset.MDB_Drums import MDBDrums
 from dataset.A2MD import A2MD, get_splits as get_a2md_splits, get_fold
 from dataset.TMIDT import TMIDT
-from dataset.generics import ConcatADTDataset
-from settings import TrainingSettings, DatasetSettings
+from dataset.generics import ConcatADTDataset, ADTDataset
+from settings import DatasetSettings
+
+
+class SongSampler(torch.utils.data.Sampler):
+    def __init__(self, dataset: ADTDataset, oversample: int = 2, generator=None):
+        super().__init__(dataset)
+        self.dataset = dataset
+        self.generator = generator if generator is not None else torch.Generator()
+        self.song_to_global_index = dataset.get_song_to_indices()
+        self.oversample = oversample
+        self.sampled_indices = None
+        self.__iter__()
+
+    def __iter__(self):
+        # draw `oversample` segments from each song
+        song_indices = list(self.song_to_global_index.keys())
+        song_frame_indices = [
+            torch.randperm(len(self.song_to_global_index[i]), generator=self.generator)[
+                : self.oversample
+            ].tolist()
+            for i in self.song_to_global_index.keys()
+        ]
+        flattened_indices = [
+            self.song_to_global_index[song][frame]
+            for song, frames in zip(song_indices, song_frame_indices)
+            for frame in frames
+        ]
+        # shuffle the frames to dissociate from song order
+        indices = torch.randperm(
+            len(flattened_indices), generator=self.generator
+        ).tolist()
+        self.sampled_indices = [flattened_indices[i] for i in indices]
+        yield from self.sampled_indices
+
+        # for i in indices:
+        #     segment_idx = torch.randint(0, len(self.song_to_global_index[i % len(self.song_to_global_index)]), (1,), generator=self.generator).item()
+        #     yield self.song_to_global_index[i % len(self.song_to_global_index)][segment_idx]
+
+    def __len__(self):
+        return len(self.sampled_indices)
 
 
 def get_dataset(
