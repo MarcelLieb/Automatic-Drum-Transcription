@@ -75,6 +75,7 @@ def step(
     lbl_batch: torch.Tensor,
     scaler: torch.amp.GradScaler,
     scheduler: optim.lr_scheduler.LRScheduler = None,
+    clip_value: float = 1.0,
 ) -> float:
     """Performs one update step for the model
 
@@ -95,8 +96,8 @@ def step(
 
     # gradient clipping
     scaler.unscale_(optimizer)
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
+    torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
     scaler.step(optimizer)
     scaler.update()
 
@@ -117,6 +118,7 @@ def train_epoch(
     scaler,
     scheduler,
     tensorboard_writer=None,
+    clip_value: float = 1.0,
 ):
     total_loss = 0
     for _, data in tqdm(
@@ -140,6 +142,7 @@ def train_epoch(
             lbl_batch=lbl,
             scaler=scaler,
             scheduler=scheduler,
+            clip_value=clip_value,
         )
         if ema_model is not None:
             ema_model.update(model)
@@ -435,7 +438,9 @@ def main(
     )
 
     ema_model = (
-        ModelEmaV2(model, decay=0.998, device=device) if training_settings.ema else None
+        ModelEmaV2(model, decay=training_settings.ema, device=device)
+        if training_settings.ema is not None
+        else None
     )
     best_model = None
 
@@ -454,22 +459,53 @@ def main(
         "F-Score/Avg/Validation": 1,
     }
 
-    optimizer = optim.RAdam(
-        model.parameters(),
-        lr=training_settings.learning_rate,
-        weight_decay=training_settings.weight_decay,
-        decoupled_weight_decay=training_settings.decoupled_weight_decay,
-        betas=(training_settings.beta_1, training_settings.beta_2),
-        eps=training_settings.epsilon,
-    )
-    scheduler = (
-        optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            mode="min" if directions[metric_to_track] < 0 else "max",
-            factor=0.2,
-            patience=10,
+    if training_settings.optimizer == "adam":
+        optimizer = optim.Adam(
+            model.parameters(),
+            lr=training_settings.learning_rate,
+            weight_decay=training_settings.weight_decay,
+            decoupled_weight_decay=training_settings.decoupled_weight_decay,
+            betas=(training_settings.beta_1, training_settings.beta_2),
             eps=training_settings.epsilon,
         )
+    elif training_settings.optimizer == "radam":
+        optimizer = optim.RAdam(
+            model.parameters(),
+            lr=training_settings.learning_rate,
+            weight_decay=training_settings.weight_decay,
+            decoupled_weight_decay=training_settings.decoupled_weight_decay,
+            betas=(training_settings.beta_1, training_settings.beta_2),
+            eps=training_settings.epsilon,
+        )
+    else:
+        raise ValueError("Invalid optimizer")
+
+    scheduler = (
+        # warmup-stable-decay schedule
+        # warmup / anneal for at most 10% of the epochs each, but at least 5 epochs
+        optim.lr_scheduler.SequentialLR(
+            optimizer,
+            [
+                # LinearLR keeps the LR constant after the warmup phase if end_factor = 1.0
+                optim.lr_scheduler.LinearLR(
+                    optimizer,
+                    start_factor=0.1,
+                    end_factor=1.0,
+                    total_iters=max(training_settings.epochs // 10, 5),
+                ),
+                optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer, T_max=max(training_settings.epochs // 10, 5)
+                ),
+            ],
+            [training_settings.epochs - max(training_settings.epochs // 10, 5)],
+        )
+        # optim.lr_scheduler.ReduceLROnPlateau(
+        #     optimizer,
+        #     mode="min" if directions[metric_to_track] < 0 else "max",
+        #     factor=0.2,
+        #     patience=10,
+        #     eps=training_settings.epsilon,
+        # )
         # optim.lr_scheduler.OneCycleLR(
         #     optimizer,
         #     max_lr=2e-3,
@@ -515,6 +551,7 @@ def main(
             scaler,
             scheduler,
             tensorboard_writer=writer,
+            clip_value=training_settings.gradient_clip_norm,
         )
         torch.cuda.empty_cache()
         val_loss, f_score_sum, f_score_avg, best_thresholds = evaluate(

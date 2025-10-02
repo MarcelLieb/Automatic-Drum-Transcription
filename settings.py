@@ -132,7 +132,10 @@ class TrainingSettings(SettingsBase):
     beta_2: float = 0.999
     epsilon: float = 1e-8
     decoupled_weight_decay: bool = False
-    ema: bool = False
+    gradient_clip_norm: Optional[float] = 1.0
+    optimizer: Literal["adam", "radam"] = "radam"
+    use_pos_weight: bool = True
+    ema: Optional[float] = None  # 0.998
     scheduler: bool = False
     early_stopping: int | None = None
     min_save_score: float = 0.75
@@ -202,7 +205,8 @@ class CNNSettings(ModelSettingsBase):
     num_residual_blocks: int = 7
     num_feature_layers: int = 2
     channel_multiplication: int = 2
-    dropout: float = 0.1
+    cnn_dropout: float = 0.3
+    dense_dropout: float = 0.5
     causal: bool = True
     flux: bool = True
     activation: nn.Module = nn.SELU()
