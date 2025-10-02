@@ -49,24 +49,28 @@ class AttentionBlock(nn.Module):
         )
         self.activation = activation
         self.causal = causal
-        self.dense1 = nn.Linear(d_model, d_model * expansion_factor)
-        self.dense2 = nn.Linear(d_model * expansion_factor, d_model)
-        self.norm1 = nn.LayerNorm(d_model)
-        self.norm2 = nn.LayerNorm(d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_model * expansion_factor),
+            activation,
+            nn.Dropout(dropout),
+            nn.Linear(d_model * expansion_factor, d_model),
+        )
+        self.norm1 = nn.LayerNorm(d_model, eps=1e-3)
+        self.norm2 = nn.LayerNorm(d_model, eps=1e-3)
         self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
 
     def forward(self, x, attn_mask=None):
         skip = x
-        x = self.multihead(x, attn_mask=attn_mask)
-        x = x + skip
         x = self.norm1(x)
-        skip = x
-        x = self.dense1(x)
-        x = self.activation(x)
+        x = self.multihead(x, attn_mask=attn_mask)
         x = self.dropout1(x)
-        x = self.dense2(x)
         x = x + skip
+        skip = x
         x = self.norm2(x)
+        x = self.ffn(x)
+        x = self.dropout2(x)
+        x = x + skip
         return x
 
 
@@ -166,7 +170,7 @@ class DenseFeedForward(nn.Module):
                     nn.Linear(d_model * expansion_factor, d_model),
                 )
             )
-            self.norms.append(nn.LayerNorm(d_model))
+            self.norms.append(nn.LayerNorm(d_model, eps=1e-3))
 
         self.activation = activation
 
@@ -241,16 +245,18 @@ class CausalConv1d(nn.Module):
 class CausalConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, dilation=1, **kwargs):
         super(CausalConv2d, self).__init__()
-        self.kernel_size = kernel_size
+        if isinstance(kernel_size, int):
+            kernel_size = (kernel_size, kernel_size)
+        self.time_kernel_size = kernel_size[1]
         self.conv = nn.Conv2d(
             in_channels,
             out_channels,
             kernel_size,
-            padding=(kernel_size // 2, (kernel_size - 1) * dilation),
+            padding=(kernel_size[0] // 2, (kernel_size[1] - 1) * dilation),
             dilation=dilation,
             **kwargs,
         )
-        self.causal_padding = (kernel_size - 1) * dilation
+        self.causal_padding = (self.time_kernel_size - 1) * dilation
 
     @torchdynamo.assume_constant_result
     def get_padding(self):
@@ -312,7 +318,7 @@ class Conv1dVNormActivation(nn.Module):
         self.conv = Conv1dVertical(in_channels, out_channels, kernel_size)
         # TODO: Ask if the norm is used properly
         # self.norm = nn.BatchNorm1d(out_channels)
-        self.norm = nn.BatchNorm2d(out_channels)
+        self.norm = nn.BatchNorm2d(out_channels, eps=1e-3)
         self.activation = activation
 
     def forward(self, x):
@@ -378,7 +384,7 @@ class Conv2dNormActivationPool(nn.Module):
             )
         )
         self.activation = activation
-        self.norm = nn.BatchNorm2d(out_channels)
+        self.norm = nn.BatchNorm2d(out_channels, eps=1e-3)
         self.pooling = pooling
 
     def forward(self, x):
@@ -395,7 +401,7 @@ class ResidualBlock(nn.Module):
         self,
         in_channels,
         out_channels,
-        kernel_size=3,
+        kernel_size: int | tuple[int, int]=3,
         dilation=1,
         causal=True,
         activation=nn.ELU(),
@@ -446,8 +452,8 @@ class ResidualBlock(nn.Module):
                 **kwargs,
             )
         )
-        self.norm1 = nn.BatchNorm2d(out_channels)
-        self.norm2 = nn.BatchNorm2d(out_channels)
+        self.norm1 = nn.BatchNorm2d(out_channels, eps=1e-3) # higher eps increases stability with weight decay
+        self.norm2 = nn.BatchNorm2d(out_channels, eps=1e-3)
         self.activation = activation
         self.re_sample = (
             nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
