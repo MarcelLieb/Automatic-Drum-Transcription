@@ -66,6 +66,9 @@ COLORS = (
     / 255
 )
 
+GRADIENT_NORMS = []
+PARAMETER_NORMS = []
+
 
 def step(
     model: nn.Module,
@@ -92,12 +95,51 @@ def step(
         unfiltered = criterion(prediction, lbl_batch)
         loss = unfiltered[lbl_batch != -1].mean()
 
+    if torch.isnan(loss):
+        logging.warning("NaN loss encountered")
+        # skip step
+        # return 0.0
+
     scaler.scale(loss).backward()
 
     # gradient clipping
     scaler.unscale_(optimizer)
 
+    # calculate gradient stats
+    stats = [
+        (p.grad.detach(), p.detach().norm())
+        for p in model.parameters()
+        if p.grad is not None
+    ]
+    grads = [g for g, _ in stats]
+    avg_norm = torch.nn.utils.get_total_norm([p.norm() for _, p in stats]).item()
+    PARAMETER_NORMS.append(avg_norm)
+
+    if not all([torch.isfinite(grad).all() for grad in grads]):
+        invalid_params = [
+            (name, p.grad.detach())
+            for name, p in model.named_parameters()
+            if p.grad is not None and not torch.isfinite(p.grad).all()
+        ]
+        inf_grads = [name for name, grad in invalid_params if torch.isinf(grad).any()]
+        nan_grads = [name for name, grad in invalid_params if torch.isnan(grad).any()]
+        if len(inf_grads) > 0:
+            logging.warning(f"Inf in gradients of parameters: {inf_grads}")
+        if len(nan_grads) > 0:
+            logging.warning(f"NaN in gradients of parameters: {nan_grads}")
+
+    total_norm = torch.nn.utils.get_total_norm(grads)
+    GRADIENT_NORMS.append(total_norm.item())
+
+    # inspired by https://github.com/pseeth/autoclip
+    # clip_value = float(np.percentile(GRADIENT_NORMS, 1))
+    # torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+
+    # clip value can handle inf values
+    # torch.nn.utils.clip_grad_value_(model.parameters(), 1.0)
     torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
+
+    # if the gradients are nan or inf scaler will skip the step and decrease the scaling factor
     scaler.step(optimizer)
     scaler.update()
 
@@ -150,6 +192,22 @@ def train_epoch(
     loss = total_loss / len(dataloader_train)
     if tensorboard_writer is not None:
         tensorboard_writer.add_scalar("Loss/Train", loss, global_step=epoch)
+
+    # print gradient stats
+    global GRADIENT_NORMS
+    global PARAMETER_NORMS
+    if len(GRADIENT_NORMS) > 0:
+        logging.info(
+            f"Gradient norms: {np.nanmin(GRADIENT_NORMS)}, {np.nanmean(GRADIENT_NORMS)}, {np.nanmax(GRADIENT_NORMS)} +- {np.nanstd(GRADIENT_NORMS)}"
+        )
+        logging.info(
+            f"Gradient percentiles: {np.nanpercentile(GRADIENT_NORMS, [1, 10, 25, 50, 75, 90, 99])}"
+        )
+        # GRADIENT_NORMS = []
+        logging.info(f"Parameter norms: {np.mean(PARAMETER_NORMS)}")
+        GRADIENT_NORMS = GRADIENT_NORMS[-1000:]
+        PARAMETER_NORMS = []
+
     return total_loss / len(dataloader_train)
 
 
@@ -537,7 +595,22 @@ def main(
     error = torch.nn.BCEWithLogitsLoss(reduction="none", pos_weight=weight)
     scaler = torch.amp.GradScaler(device=device)
 
+    debug_info = os.environ.get("DEBUG_INFO", "0") == "1"
+    if debug_info:
+        # torch.autograd.set_detect_anomaly(True)
+
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        if not logger.hasHandlers():
+            handler = logging.StreamHandler()
+            handler.setLevel(logging.INFO)
+            formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+
     last_improvement = 0
+    global GRADIENT_NORMS
+    GRADIENT_NORMS = []
     print("Starting Training")
     for epoch in range(training_settings.epochs):
         train_loss = train_epoch(
