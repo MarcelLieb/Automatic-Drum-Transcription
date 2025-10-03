@@ -47,11 +47,11 @@ class AudioProcessingSettings(SettingsBase):
     sample_rate: int = 44100
     hop_size: int = 441
     fft_size: int = 2048
-    n_mels: int = 96
+    n_mels: int = 128
     center: bool = True
     pad_mode: Literal["constant", "reflect"] = "constant"
     mel_min: float = 20.0
-    mel_max: float = 20000.0
+    mel_max: float = 16000.0  # A2MD uses 128 kbps mp3 files, which have a maximum frequency of 16 kHz
     power: Literal[1, 2] = 1
     normalize: bool = False
 
@@ -61,7 +61,7 @@ class AnnotationSettings(SettingsBase):
     mapping: DrumMapping = DrumMapping.THREE_CLASS
     pad_annotations: bool = True
     pad_value: float = 0.5
-    time_shift: float = 0.025
+    time_shift: float = 0.02
     beats: bool = False
 
     @property
@@ -93,14 +93,14 @@ class DatasetSettings(SettingsBase):
     k_folds: Literal[None, 5, 10] = 5
     fold: int | None = 0
     full_length_test: bool = True
-    num_workers: int = cpu_count()
     per_song_sampling: bool = False
+    num_workers: int = 8
     train_set: Literal["all", "a2md_train", "midi"] = "a2md_train"
     eval_set: str = "A2MD"
     test_sets: tuple[str] = ("RBMA", "MDB")
     segment_type: Literal["frame", "label"] | None = "frame"
     frame_length: float = 8.0
-    frame_overlap: float = 0.1
+    frame_overlap: float = 0.0
     label_lead_in: float = 0.25
     label_lead_out: float = 0.10
 
@@ -125,16 +125,16 @@ class DatasetSettings(SettingsBase):
 
 @dataclass
 class TrainingSettings(SettingsBase):
-    learning_rate: float = 1e-4
-    epochs: int = 20
-    batch_size: int = 16
-    weight_decay: float = 1e-5
+    learning_rate: float = 0.004
+    epochs: int = 30
+    batch_size: int = 32
+    weight_decay: float = 1e-12
     beta_1: float = 0.9
     beta_2: float = 0.999
     epsilon: float = 1e-8
-    decoupled_weight_decay: bool = False
     gradient_clip_norm: Optional[float] = 1.0
     optimizer: Literal["adam", "radam"] = "radam"
+    decoupled_weight_decay: bool = True
     use_pos_weight: bool = True
     ema: Optional[float] = None  # 0.998
     scheduler: bool = False
@@ -174,10 +174,10 @@ class EvaluationSettings(SettingsBase):
     peak_mean_range: int = 2
     peak_max_range: int = 2
     onset_cooldown: int = 0.021
-    detect_tolerance: float = 0.025
+    detect_tolerance: float = 0.05
     ignore_beats: bool = True
-    min_test_score: float = 0.48
-    pr_points: int | None = 1000
+    min_test_score: float = 0.79
+    pr_points: int | None = 50
 
 
 @dataclass
@@ -242,8 +242,8 @@ class CNNAttentionSettings(ModelSettingsBase):
 
 @dataclass
 class CNNMambaSettings(ModelSettingsBase):
-    num_channels: int = 16
-    d_state: int = 64
+    num_channels: int = 32
+    d_state: int = 16
     d_conv: int = 4
     expand: int = 2
     cnn_dropout: float = 0.3
@@ -252,13 +252,13 @@ class CNNMambaSettings(ModelSettingsBase):
     causal: bool = True
     flux: bool = False
     backbone: Literal["unet", "cnn"] = "cnn"
-    activation: nn.Module = nn.SELU()
-    n_layers: int = 5
-    down_sample_factor: int = 3
+    activation: nn.Module = nn.SiLU()
+    n_layers: int = 20
+    down_sample_factor: int = 4
     num_conv_layers: int = 2
     channel_multiplication: int = 2
-    classifier_dim: int = 1024
-    hidden_units: int = 512
+    classifier_dim: int = 128
+    hidden_units: int = 128
 
     def get_identifier(self):
         return "mamba_fast"
@@ -272,13 +272,13 @@ class CRNNSettings(ModelSettingsBase):
     down_sample_factor: int = 4
     num_rnn_layers: int = 3
     rnn_units: int = 256
-    classifier_dim: int = 64
+    classifier_dim: int = 512
     cnn_dropout: float = 0.3
     rnn_dropout: float = 0.0
     dense_dropout: float = 0.5
     use_dense: bool = True
     causal: bool = True
-    flux: bool = True
+    flux: bool = False
     activation: nn.Module = nn.SELU()
 
     def get_identifier(self):
