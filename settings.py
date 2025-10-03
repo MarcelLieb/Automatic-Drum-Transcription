@@ -94,6 +94,7 @@ class DatasetSettings(SettingsBase):
     fold: int | None = 0
     full_length_test: bool = True
     num_workers: int = cpu_count()
+    per_song_sampling: bool = False
     train_set: Literal["all", "a2md_train", "midi"] = "a2md_train"
     eval_set: str = "A2MD"
     test_sets: tuple[str] = ("RBMA", "MDB")
@@ -310,3 +311,21 @@ class Config(SettingsBase):
             key: dic[key] if dic[key] != "None" else None for key in class_attributes
         }
         return cls(**attributes)
+
+
+def flatten_dict(_dict: dict) -> dict:
+    out = {}
+    inner_dicts = []
+    for key, value in _dict.items():
+        if isinstance(value, dict):
+            inner_dicts.append(value)
+        else:
+            out[key] = value
+    while len(inner_dicts) > 0:
+        inner_dict = inner_dicts.pop()
+        for key, value in inner_dict.items():
+            if isinstance(value, dict):
+                inner_dicts.append(value)
+            else:
+                out[key] = value
+    return out

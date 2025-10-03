@@ -16,38 +16,44 @@ dependencies = [
     "rustimport>=1.7.1",
     "scikit-learn>=1.7.1",
     "setuptools",
-    "triton==3.2.0",
-    "torchaudio==2.6.0",
+    "triton>=3.2.0",
+    "torchaudio>=2.7.0, <2.8.0",
     "tqdm>=4.67.1",
     "overrides>=7.7.0",
     "tensorboard>=2.20.0",
     "mamba-ssm",
-    "torch==2.6.0",
+    "torch>=2.7.0, <2.8.0",
+    "psycopg2>=2.9.10",
+    "lightning>=2.5.2",
+    "optuna-integration[pytorch-lightning]>=4.4.0",
+    "mlflow>=3.3.2",
+    "llvmlite>=0.37.0", # needed for the version resolution for librosa fails
 ]
 
 [tool.uv]
 no-build-isolation-package = ["mamba-ssm", "causal-conv1d"]
 
-[[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
-explicit = true
+# [[tool.uv.index]]
+# name = "pytorch-cu118"
+# url = "https://download.pytorch.org/whl/cu118"
+# explicit = true
 
 [tool.uv.pip]
 [extra-build-dependencies]
-mamba-ssm = ["setuptools", "torch==2.6.0"]
-causal-conv1d = ["setuptools", "torch==2.6.0"]
+mamba-ssm = ["setuptools", ">=2.7.0, <2.8.0"]
+causal-conv1d = ["setuptools", ">=2.7.0, <2.8.0"]
 
 [tool.uv.sources]
-torch = [
-  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-torchaudio = [
-  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
+# torch = [
+#   { index = "pytorch-cu118", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+# ]
+# torchaudio = [
+#   { index = "pytorch-cu118", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+# ]
 causal-conv1d = { git = "https://github.com/MarcelLieb/causal-conv1d" }
 mamba-ssm = { git = "https://github.com/MarcelLieb/mamba" }
 pretty-midi = { git = "https://github.com/craffel/pretty-midi" }
+madmom = { git = "https://github.com/CPJKU/madmom.git" }
 
 [dependency-groups]
 dev = [
@@ -61,4 +67,6 @@ dev = [
     "pandas>=2.3.1",
     "pillow>=11.3.0",
     "seaborn>=0.13.2",
+    "notebook>=7.4.5",
+    "madmom",
 ]
