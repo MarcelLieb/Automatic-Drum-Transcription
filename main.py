@@ -1,7 +1,14 @@
+import hashlib
+import json
+import logging
+import os
 import random
 from dataclasses import asdict as dataclass_asdict
 
 import matplotlib.pyplot as plt
+import matplotlib
+
+matplotlib.use("Agg")
 import numpy as np
 import resource
 
@@ -488,6 +495,21 @@ def main(
     print(dataset_settings)
     print(model_settings)
 
+    train_settings_hash = hashlib.sha1(
+        json.dumps(dict(sorted(asdict(training_settings).items()))).encode("ascii")
+    ).hexdigest()[:8]
+    eval_settings_hash = hashlib.sha1(
+        json.dumps(dict(sorted(asdict(evaluation_settings).items()))).encode("ascii")
+    ).hexdigest()[:8]
+    dataset_settings_hash = hashlib.sha1(
+        json.dumps(dict(sorted(asdict(dataset_settings).items()))).encode("ascii")
+    ).hexdigest()[:8]
+    model_settings_hash = hashlib.sha1(
+        json.dumps(dict(sorted(asdict(model_settings).items()))).encode("ascii")
+    ).hexdigest()[:8]
+
+    config_id = f"{train_settings_hash}-{eval_settings_hash}-{dataset_settings_hash}-{model_settings_hash}"
+
     loader_train, loader_val, test_sets = get_dataset(
         training_settings.batch_size,
         training_settings.test_batch_size,
@@ -502,7 +524,7 @@ def main(
     )
     best_model = None
 
-    writer = SummaryWriter()
+    writer = SummaryWriter(comment=f"_{architecture}_{config_id}")
 
     metrics = {
         "Loss/Train": [],
