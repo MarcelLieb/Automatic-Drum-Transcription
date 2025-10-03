@@ -3,30 +3,39 @@
 // Add parallel processing library
 //: [dependencies]
 //: rayon = "1.10.0"
-//: kdam = { version = "0.6.2", features = ["rayon"] }
+//: kdam = { version = "0.6.3", features = ["rayon"] }
 
+use kdam::{TqdmIterator, TqdmParallelIterator};
 use pyo3::prelude::*;
 use rayon::prelude::*;
-use kdam::{TqdmParallelIterator, TqdmIterator};
+
+type PreRecThreshPerClass = Vec<(Vec<f32>, Vec<f32>, Vec<f32>)>;
 
 #[pyfunction]
+#[pyo3(signature = (predictions, ground_truths, detect_window, cool_down, points=None))]
 fn calculate_pr(
     predictions: Vec<Vec<[f32; 3]>>,
     ground_truths: Vec<Vec<Vec<f32>>>,
     detect_window: f32,
     cool_down: f32,
     points: Option<usize>,
-) -> (Vec<(Vec<f32>, Vec<f32>, Vec<f32>)>, Vec<f32>, f32, f32) {
-
+) -> (PreRecThreshPerClass, Vec<f32>, f32, f32) {
     let _ = rayon::ThreadPoolBuilder::new()
         .num_threads(std::thread::available_parallelism().unwrap().get() - 1)
         .build_global();
 
-    let mut out = Vec::new();
+    let outer_pb = kdam::BarBuilder::default()
+        .dynamic_ncols(true)
+        .position(0)
+        .desc("Classes")
+        .build()
+        .unwrap();
 
+    let mut out = Vec::new();
     predictions
         .into_par_iter()
         .rev()
+        .tqdm_with_bar(outer_pb)
         .with_max_len(1)
         // Assumes beat annotations to be first in ground_truth
         // Filters out extra beat labels if length mismatches
@@ -56,7 +65,15 @@ fn calculate_pr(
                 let mut thresholds = Vec::with_capacity(values.len());
 
                 let mut peaks_by_song = split_songs(&values, labels.len());
-                'calculation: for (i, pred) in values.into_iter().tqdm().enumerate() {
+
+                let inner_pb = kdam::BarBuilder::default()
+                    .dynamic_ncols(true)
+                    .position(1)
+                    .build()
+                    .unwrap();
+                'calculation: for (i, pred) in
+                    values.into_iter().tqdm_with_bar(inner_pb).enumerate()
+                {
                     let [time, score, song] = pred;
                     let song = song as usize;
 
@@ -89,7 +106,7 @@ fn calculate_pr(
                         fp += 1;
                         continue;
                     }
-                    let (index, dist) = find_closest_onset(time, &annotations).unwrap();
+                    let (index, dist) = find_closest_onset(time, annotations).unwrap();
                     if dist < detect_window {
                         tp += 1;
                         r#fn -= 1;
@@ -115,16 +132,25 @@ fn calculate_pr(
                 )
             } else {
                 let points = points.unwrap();
-                let thresholds =(1..=points).map(|i| 1.0 - i as f32 / points as f32).collect::<Vec<f32>>();
+                let thresholds = (1..=points)
+                    .map(|i| 1.0 - i as f32 / points as f32)
+                    .collect::<Vec<f32>>();
+
+                let inner_pb = kdam::BarBuilder::default()
+                    .dynamic_ncols(true)
+                    .position(1)
+                    .desc("Thresholds")
+                    .build()
+                    .unwrap();
 
                 let iter: Vec<_> = thresholds
                     .into_par_iter()
-                    .tqdm()
+                    .tqdm_with_bar(inner_pb)
                     .map(|thresh| {
                         let split_index = values.partition_point(|a| a[1] > thresh);
                         let onsets = &values[..split_index];
 
-                        let peaks_by_songs = split_songs(&onsets, labels.len());
+                        let peaks_by_songs = split_songs(onsets, labels.len());
                         let onsets_by_song: Vec<Vec<f32>> = peaks_by_songs
                             .into_par_iter()
                             .map(|onsets| {
@@ -136,9 +162,8 @@ fn calculate_pr(
                             .map(|onsets| _combine_onsets(&onsets, cool_down, "min"))
                             .collect();
                         let (n_tp, n_fp, n_fn) = onsets_by_song
-                            .iter()
-                            .zip(labels.iter())
-                            .par_bridge()
+                            .par_iter()
+                            .zip(labels.par_iter())
                             .map(|(onsets, labels)| {
                                 // Here the chunk wise differentiates from the direct approach slightly
                                 _evaluate_detections(onsets, labels, detect_window)
@@ -167,7 +192,7 @@ fn calculate_pr(
                             let score = onsets.last().unwrap_or(&[0.0_f32, 0., 0.])[1];
                             let n_unfiltered = onsets.len();
                             let n_filtered: usize = onsets_by_song.iter().map(|v| v.len()).sum();
-                            return (
+                            (
                                 n_tp,
                                 n_fp,
                                 n_fn,
@@ -178,7 +203,7 @@ fn calculate_pr(
                                 n_unfiltered,
                                 n_filtered,
                                 score,
-                            );
+                            )
                         }
                     })
                     .collect();
