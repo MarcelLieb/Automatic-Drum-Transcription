@@ -324,9 +324,29 @@ fn _evaluate_detections(
     labels: &[f32],
     detect_window: f32,
 ) -> (usize, usize, usize) {
-    let mut tp = 0;
-    let mut fp = 0;
-    let mut r#fn = 0;
+    let (tps, fps, fns) = _evaluate_detection_stats(onsets, labels, detect_window);
+    (tps.len(), fps.len(), fns.len())
+}
+
+type LabelWithOffset = (f32, f32);
+
+#[inline(always)]
+fn _evaluate_detection_stats(
+    onsets: &[f32],
+    labels: &[f32],
+    detect_window: f32,
+) -> (Vec<LabelWithOffset>, Vec<f32>, Vec<LabelWithOffset>) {
+    if onsets.is_empty() {
+        return (
+            Vec::new(),
+            Vec::new(),
+            labels.iter().map(|&l| (l, f32::NAN)).collect(),
+        );
+    }
+    if labels.is_empty() {
+        return (Vec::new(), onsets.to_vec(), Vec::new());
+    }
+
     // Assume onsets are sorted ascending
     debug_assert!(
         onsets.windows(2).all(|w| w[0] < w[1]),
@@ -337,6 +357,10 @@ fn _evaluate_detections(
         "Label times are not strictly monotonically increasing"
     );
 
+    let mut tps = Vec::with_capacity(onsets.len().min(labels.len()));
+    let mut fps = Vec::with_capacity(onsets.len());
+    let mut fns = Vec::with_capacity(labels.len());
+
     let mut onset_index = 0;
     let mut label_index = 0;
 
@@ -345,25 +369,41 @@ fn _evaluate_detections(
         let l = labels[label_index];
 
         if (o - l).abs() < detect_window {
-            tp += 1;
+            tps.push((l, o - l)); // o = l + (o - l)
             onset_index += 1;
             label_index += 1;
         } else if o < l {
-            fp += 1;
+            fps.push(o);
             onset_index += 1;
         } else if l < o {
-            r#fn += 1;
+            let prev_onset = onsets[onset_index.saturating_sub(1)];
+            let prev_dist = prev_onset - l;
+            let next_dist = o - l;
+            let min_dist = if prev_dist.abs() < next_dist.abs() {
+                prev_dist
+            } else {
+                next_dist
+            };
+            fns.push((l, min_dist));
             label_index += 1;
         } else {
             unreachable!()
         }
     }
 
-    fp += onsets.len() - onset_index;
-    r#fn += labels.len() - label_index;
+    if onset_index < onsets.len() {
+        fps.extend_from_slice(&onsets[onset_index..]);
+    }
+
+    if label_index < labels.len() {
+        let last_fns = labels[label_index..]
+            .iter()
+            .map(|&l| (l, onsets.last().unwrap() - l));
+        fns.extend(last_fns);
+    }
 
     // Return tp, fp, fn
-    (tp, fp, r#fn)
+    (tps, fps, fns)
 }
 
 #[pyfunction]
@@ -378,6 +418,15 @@ fn evaluate_detections(
     detect_window: f32,
 ) -> (usize, usize, usize) {
     _evaluate_detections(&onsets, &labels, detect_window)
+}
+
+#[pyfunction]
+fn evaluate_detection_stats(
+    onsets: Vec<f32>,
+    labels: Vec<f32>,
+    detect_window: f32,
+) -> (Vec<LabelWithOffset>, Vec<f32>, Vec<LabelWithOffset>) {
+    _evaluate_detection_stats(&onsets, &labels, detect_window)
 }
 
 fn find_closest_onset(onset: f32, labels: &[f32]) -> Option<(usize, f32)> {
