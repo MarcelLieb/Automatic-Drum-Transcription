@@ -2,21 +2,11 @@ from typing import Literal
 
 import torch
 from mamba_ssm import Mamba
+from mamba_ssm.utils.generation import InferenceParams
 from torch import nn
 from torch.nn import functional as f
 
-from model import ResidualBlock
 from model.cnn_feature import CNNFeature
-from model.unet import UNet
-
-try:
-    from mamba_ssm.ops.triton.layer_norm import RMSNorm, layer_norm_fn, rms_norm_fn
-except ImportError:
-    RMSNorm = None
-
-# RMSNorm doesn't work with 1080Ti
-if torch.cuda.get_device_capability(0)[0] <= 6:
-    RMSNorm = None
 
 
 class DenseEncoder(nn.Module):
@@ -48,7 +38,10 @@ class MambaBlock(nn.Module):
         d_state,
         d_conv,
         expand,
+        layer_idx=0,
         dropout=0.1,
+        activation=nn.SiLU(),
+        mlp: bool = False,
     ):
         super(MambaBlock, self).__init__()
 
@@ -57,15 +50,17 @@ class MambaBlock(nn.Module):
             d_state=d_state,
             d_conv=d_conv,
             expand=expand,
+            layer_idx=layer_idx,
         )
-        self.norm = nn.LayerNorm(d_model) if RMSNorm is None else RMSNorm(d_model)
+        self.norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x, inference_params: InferenceParams | None = None):
         residual = x
-        x = self.mamba(x)
+        x = self.norm(x)
+        x = self.mamba(x, inference_params=inference_params)
         x = self.dropout(x)  # Dropout may lead to nan values
-        x = self.norm(x + residual)
+        x = x + residual
         return x
 
 
@@ -98,8 +93,13 @@ class CNNMambaFast(nn.Module):
 
         self.activation = activation
         self.flux = flux
-        self.n_dims = (n_mels // (down_sample_factor ** num_conv_layers)) * num_channels * (
-            channel_multiplication ** (num_conv_layers - 1)) if num_conv_layers > 0 else n_mels * (1 + flux)
+        self.n_dims = (
+            (n_mels // (down_sample_factor**num_conv_layers))
+            * num_channels
+            * (channel_multiplication ** (num_conv_layers - 1))
+            if num_conv_layers > 0
+            else n_mels * (1 + flux)
+        )
         self.causal = causal
 
         # Backward compatibility
@@ -120,18 +120,10 @@ class CNNMambaFast(nn.Module):
                     dropout=cnn_dropout,
                     in_channels=1 + flux,
                 )
-            case "unet":
-                self.backbone = nn.Sequential(
-                    UNet(num_channels // 4, return_features=return_features),
-                    ResidualBlock(
-                        in_channels=num_channels * (2 // 2 ** return_features),
-                        out_channels=num_channels * (2 // 2 ** return_features),
-                        kernel_size=3,
-                        causal=causal,
-                    ),
-                )
             case "dense":
-                self.backbone = DenseEncoder(n_mels, num_channels, activation, dropout, flux)
+                self.backbone = DenseEncoder(
+                    n_mels, num_channels, activation, dropout, flux
+                )
         self.return_features = return_features if backbone == "unet" else -1
         self.proj = nn.Linear(self.n_dims, hidden_units)
         mamba_layers = [
@@ -141,11 +133,14 @@ class CNNMambaFast(nn.Module):
                 d_conv=d_conv,
                 expand=expand,
                 dropout=mamba_dropout,
+                layer_idx=i,
+                activation=activation,
             )
-            for _ in range(n_layers)
+            for i in range(n_layers)
         ]
-        self.mamba = nn.Sequential(*mamba_layers)
+        self.mamba = nn.ModuleList(mamba_layers)
         self.fc = nn.Sequential(
+            nn.LayerNorm(hidden_units),
             nn.Linear(hidden_units, classifier_dim),
             activation,
             nn.Dropout(dense_dropout),
@@ -162,7 +157,32 @@ class CNNMambaFast(nn.Module):
         x = x.reshape(x.size(0), -1, x.size(3))
         x = x.permute(0, 2, 1)
         x = self.proj(x)
-        x = self.mamba(x)
+        for mamba in self.mamba:
+            x = mamba(x)
+        x = self.fc(x)
+        x = x.permute(0, 2, 1)
+        return x
+
+    def recurrent(self, x):
+        x = x.unsqueeze(1)
+        if self.flux:
+            diff = x[..., 1:] - x[..., :-1]
+            diff = f.relu(f.pad(diff, (1, 0), mode="constant", value=0))
+            x = torch.concatenate((x, diff), dim=1)
+        x = self.backbone(x)
+        x = x.reshape(x.size(0), -1, x.size(3))
+        x = x.permute(0, 2, 1)
+        x = self.proj(x)
+        bs, L, d = x.shape
+        infer_params = InferenceParams(max_batch_size=bs, max_seqlen=L)
+        bs, L, d = x.shape
+        outs = []
+        for i in range(L):
+            step = x[:, i : i + 1, :]
+            for mamba in self.mamba:
+                step = mamba(step, inference_params=infer_params)
+            infer_params.seqlen_offset += 1
+            outs.append(step)
         x = self.fc(x)
         x = x.permute(0, 2, 1)
         return x
