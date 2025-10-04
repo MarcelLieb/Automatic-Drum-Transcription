@@ -13,7 +13,7 @@ cargo_path = os.path.join(str(Path.home()), ".cargo", "bin")
 if cargo_path not in os.environ["PATH"]:
     os.environ["PATH"] += os.pathsep + cargo_path
 from speedup import calculate_pr as rust_calculate_pr, combine_onsets as rust_combine_onsets, \
-    evaluate_detections as rust_evaluate_onsets
+    evaluate_detections as rust_evaluate_onsets, evaluate_detection_stats as rust_evaluate_onset_stats
 
 
 def peak_pick_max_mean(
@@ -123,6 +123,14 @@ def evaluate_onsets(onsets: torch.Tensor, groundtruth: torch.Tensor, window: flo
     tp, fp, fn = rust_evaluate_onsets(onsets, groundtruth, window)
     return tp, fp, fn
 
+
+def evaluate_onset_stats(onsets: torch.Tensor, groundtruth: torch.Tensor, window: float):
+    onsets = np.array(onsets)
+    onsets.sort(kind="stable")
+    groundtruth = np.array(groundtruth)
+    groundtruth.sort(kind="stable")
+    tps, fps, fns = rust_evaluate_onset_stats(onsets, groundtruth, window)
+    return tps, fps, fns
 
 def calculate_f_score(precision: torch.Tensor, recall: torch.Tensor) -> torch.Tensor:
     f_score = 2 * (precision * recall) / (precision + recall)

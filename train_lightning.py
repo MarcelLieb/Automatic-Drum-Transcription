@@ -29,6 +29,8 @@ from evallib import (
     peak_pick_max_mean,
     calculate_pr,
     calculate_f_score,
+    evaluate_onset_stats,
+    combine_onsets,
 )
 from model.CRNN import CRNN, CRNN_Vogl
 from model.cnn import CNN
@@ -452,10 +454,145 @@ class LitModel(L.LightningModule):
             )
             self.log(f"{set_key}/F-Score/Avg", f_avg, on_epoch=True)
 
+        self.evaluate_at_thresholds(set_key, best_thresholds.tolist(), False)
+
         self.preds[set_key].clear()
         self.gts[set_key].clear()
         torch.cuda.empty_cache()
         gc.collect()
+
+    def evaluate_at_thresholds(
+        self, set_key: str, thresholds: list[float], calculate_scores: bool = False
+    ):
+        stats_counter = torch.zeros(self.hparams.n_classes, 3)
+        assert len(self.preds[set_key]) == len(self.gts[set_key]), (
+            f"{len(self.preds[set_key])} != {len(self.gts[set_key])}"
+        )
+        detection_errors = defaultdict(list)
+        for song_index in range(len(self.preds[set_key])):
+            offset = 0
+            if self.hparams.ignore_beats:
+                offset = 2
+
+            assert len(self.preds[set_key][song_index]) == len(
+                self.gts[set_key][song_index][offset:]
+            )
+            for cls, (cls_onset, cls_gt) in enumerate(
+                zip(
+                    self.preds[set_key][song_index],
+                    self.gts[set_key][song_index][offset:],
+                )
+            ):
+                cls_onset = combine_onsets(
+                    cls_onset[0, :][cls_onset[1, :] >= thresholds[cls]],
+                    cool_down=self.hparams.onset_cooldown,
+                )
+                tps, fps, fns = evaluate_onset_stats(
+                    cls_onset, cls_gt, window=self.hparams.detect_tolerance
+                )
+                detection_errors[cls].extend([tp[1] for tp in tps])
+                stats_counter[cls] += torch.tensor([len(tps), len(fps), len(fns)])
+
+        prefix = "" if set_key == "val" else f"{set_key}/"
+
+        mean_errors = {
+            f"{prefix}Mean_Deviation/{self.hparams.mapping.get_name(cls_idx)}": np.mean(
+                detection_errors[cls_idx]
+            )
+            if len(detection_errors[cls_idx]) > 0
+            else 0.0
+            for cls_idx in detection_errors.keys()
+        }
+
+        all_errors = list(itertools.chain.from_iterable(detection_errors.values()))
+
+        mean_errors[f"{prefix}Mean_Deviation/Total"] = (
+            np.mean(all_errors) if len(all_errors) > 0 else 0.0
+        )
+
+        self.log_dict(
+            mean_errors, on_epoch=True, prog_bar=False, add_dataloader_idx=False
+        )
+
+        if not calculate_scores:
+            return
+
+        precisions = stats_counter[:, 0] / (
+            stats_counter[:, 0] + stats_counter[:, 1] + 1e-8
+        )
+        recalls = stats_counter[:, 0] / (
+            stats_counter[:, 0] + stats_counter[:, 2] + 1e-8
+        )
+        f_scores = (
+            2
+            * stats_counter[:, 0]
+            / (2 * stats_counter[:, 0] + stats_counter[:, 1] + stats_counter[:, 2])
+        )
+        f_avg = f_scores.mean().item()
+        total_stats = stats_counter.sum(dim=0)
+        prec_sum = (total_stats[0] / (total_stats[0] + total_stats[1])).item()
+        rec_sum = (total_stats[0] / (total_stats[0] + total_stats[2])).item()
+        f_sum = (
+            2 * total_stats[0] / (2 * total_stats[0] + total_stats[1] + total_stats[2])
+        ).item()
+
+        per_class_precisions = {
+            f"{set_key}/Precision/Sum/{self.hparams.mapping.get_name(i)}": precision
+            for i, precision in enumerate(precisions)
+        }
+        self.log_dict(
+            per_class_precisions,
+            on_epoch=True,
+            prog_bar=False,
+            add_dataloader_idx=False,
+        )
+        per_class_recalls = {
+            f"{set_key}/Recall/Sum/{self.hparams.mapping.get_name(i)}": recall
+            for i, recall in enumerate(recalls)
+        }
+        self.log_dict(
+            per_class_recalls, on_epoch=True, prog_bar=False, add_dataloader_idx=False
+        )
+
+        per_class_f_scores = {
+            f"{set_key}/F-Score/Sum/{self.hparams.mapping.get_name(i)}": f_score
+            for i, f_score in enumerate(f_scores)
+        }
+        self.log_dict(
+            per_class_f_scores, on_epoch=True, prog_bar=False, add_dataloader_idx=False
+        )
+
+        ## self.log(f"Stats/{test_sets[key]}", stats_counter, on_epoch=True, prog_bar=True)
+        ## self.log(f"F-Score/Class/{test_sets[key]}", f_scores, on_epoch=True, prog_bar=True)
+
+        self.log(
+            f"{set_key}/Precision/Sum/Total",
+            prec_sum,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
+        )
+        self.log(
+            f"{set_key}/Recall/Sum/Total",
+            rec_sum,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
+        )
+        self.log(
+            f"{set_key}/F-Score/Sum/Total",
+            f_sum,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
+        )
+        self.log(
+            f"{set_key}/F-Score/Avg",
+            f_avg,
+            on_epoch=True,
+            prog_bar=True,
+            add_dataloader_idx=False,
+        )
 
     def on_validation_epoch_start(self) -> None:
         torch.cuda.empty_cache()
@@ -475,61 +612,10 @@ class LitModel(L.LightningModule):
         test_set = self.hparams.test_sets[dataloader_idx]
         return self.evaluate_step(batch, test_set)
 
-        # peaks = [
-        #     [
-        #         combine_onsets(cls[0, :][cls[1, :] >= thresh], cool_down=self.hparams.onset_cooldown)
-        #         for cls, thresh in zip(song, self.thresholds.cpu().detach().float())
-        #     ]
-        #     for song in peaks
-        # ]
-
     def on_test_epoch_end(self):
         for test_set in self.hparams.test_sets:
             self.evaluate_epoch_end(test_set)
             continue
-
-            # stats_counter = torch.zeros(self.hparams.n_classes, 3)
-            # assert len(self.test_pred[key]) == len(self.test_gt[key]), f"{len(self.test_pred[key])} != {len(self.test_gt[key])}"
-            # for song_index in range(len(self.test_pred[key])):
-            #     offset = 0
-            #     if self.hparams.ignore_beats:
-            #         offset = 2
-            #
-            #     assert len(self.test_pred[key][song_index]) == len(self.test_gt[key][song_index][offset:])
-            #     for cls, (cls_onset, cls_gt) in enumerate(
-            #         zip(self.test_pred[key][song_index], self.test_gt[key][song_index][offset:])):
-            #         stats_counter[cls] += torch.tensor(
-            #             evaluate_onsets(cls_onset, cls_gt, window=self.hparams.detect_tolerance))
-            # precisions = stats_counter[:, 0] / (stats_counter[:, 0] + stats_counter[:, 1] + 1e-8)
-            # recalls = stats_counter[:, 0] / (stats_counter[:, 0] + stats_counter[:, 2] + 1e-8)
-            # f_scores = 2 * stats_counter[:, 0] / (2 * stats_counter[:, 0] + stats_counter[:, 1] + stats_counter[:, 2])
-            # f_avg = f_scores.mean().item()
-            # total_stats = stats_counter.sum(dim=0)
-            # prec_sum = (total_stats[0] / (total_stats[0] + total_stats[1])).item()
-            # rec_sum = (total_stats[0] / (total_stats[0] + total_stats[2])).item()
-            # f_sum = (2 * total_stats[0] / (2 * total_stats[0] + total_stats[1] + total_stats[2])).item()
-            #
-            # per_class_precisions = {
-            #     f"{test_sets[key]}/Precision/Sum/{self.hparams.mapping.get_name(i)}": precision for i, precision in enumerate(precisions)
-            # }
-            # self.log_dict(per_class_precisions, on_epoch=True, prog_bar=False, add_dataloader_idx=False)
-            # per_class_recalls = {
-            #     f"{test_sets[key]}/Recall/Sum/{self.hparams.mapping.get_name(i)}": recall for i, recall in enumerate(recalls)
-            # }
-            # self.log_dict(per_class_recalls, on_epoch=True, prog_bar=False, add_dataloader_idx=False)
-            #
-            # per_class_f_scores = {
-            #     f"{test_sets[key]}/F-Score/Sum/{self.hparams.mapping.get_name(i)}": f_score for i, f_score in enumerate(f_scores)
-            # }
-            # self.log_dict(per_class_f_scores, on_epoch=True, prog_bar=False, add_dataloader_idx=False)
-            #
-            # # self.log(f"Stats/{test_sets[key]}", stats_counter, on_epoch=True, prog_bar=True)
-            # # self.log(f"F-Score/Class/{test_sets[key]}", f_scores, on_epoch=True, prog_bar=True)
-            #
-            # self.log(f"{test_sets[key]}/Precision/Sum/Total", prec_sum, on_epoch=True, prog_bar=True, add_dataloader_idx=False)
-            # self.log(f"{test_sets[key]}/Recall/Sum/Total", rec_sum, on_epoch=True, prog_bar=True, add_dataloader_idx=False)
-            # self.log(f"{test_sets[key]}/F-Score/Sum/Total", f_sum, on_epoch=True, prog_bar=True, add_dataloader_idx=False)
-            # self.log(f"{test_sets[key]}/F-Score/Avg", f_avg, on_epoch=True, prog_bar=True, add_dataloader_idx=False)
 
 
 def main(
