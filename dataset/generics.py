@@ -33,7 +33,6 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
         self.hop_size = audio_settings.hop_size
         self.fft_size = audio_settings.fft_size
         self.n_mels = audio_settings.n_mels
-        self.center = audio_settings.center
         self.pad_mode = audio_settings.pad_mode
         self.mel_min = audio_settings.mel_min
         self.mel_max = audio_settings.mel_max
@@ -66,6 +65,17 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
             if self.segment_type == "label"
             else settings.frame_length
         )
+
+        self.total_frames = (
+            int(
+                self._segment_length
+                * audio_settings.sample_rate
+                // audio_settings.hop_size
+            )
+            if self.segment
+            else None
+        )
+
         self.segment_overlap = (
             settings.frame_overlap if self.segment_type == "frame" else 0
         )
@@ -75,7 +85,7 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
             hop_length=self.hop_size,
             win_length=self.fft_size,
             power=self.power,
-            center=self.center,
+            center=True,
             pad_mode=self.pad_mode,
             normalized=True,
             onesided=True,
@@ -199,12 +209,6 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
             else:
                 audio = full_audio
 
-        if not self.center:
-            # align frames with the end of the window
-            audio = torch.nn.functional.pad(
-                audio, (self.fft_size - self.hop_size, 0), mode=self.pad_mode
-            )
-
         # if self.is_train:
         #     augment = A.Compose([
         #         # A.Gain(min_gain_db=-3, max_gain_db=3, p=0.5),
@@ -222,6 +226,9 @@ class ADTDataset(Dataset[tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]],
 
         spectrum = self.spectrum(audio)
         mel = self.filter_bank(spectrum)
+        # stft center padding causes an offset of hop_size // 2
+        if self.total_frames:
+            mel = mel[..., : self.total_frames]
         mel = torch.log1p(mel)
 
         time_offset = start / self.sample_rate

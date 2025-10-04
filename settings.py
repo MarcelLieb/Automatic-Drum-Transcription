@@ -48,7 +48,6 @@ class AudioProcessingSettings(SettingsBase):
     hop_size: int = 441
     fft_size: int = 2048
     n_mels: int = 128
-    center: bool = True
     pad_mode: Literal["constant", "reflect"] = "constant"
     mel_min: float = 20.0
     mel_max: float = 16000.0  # A2MD uses 128 kbps mp3 files, which have a maximum frequency of 16 kHz

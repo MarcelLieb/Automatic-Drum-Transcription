@@ -196,11 +196,11 @@ def get_labels(
 def get_indices(
     time_stamps: np.ndarray, sample_rate: float, hop_size: int
 ) -> np.ndarray:
-    return np.round((time_stamps * sample_rate) / hop_size).astype(int)
+    return np.floor((time_stamps * sample_rate) / hop_size).clip(0).astype(int)
 
 
 def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.ndarray:
-    return (np.arange(length) * hop_size) / sample_rate
+    return (np.arange(length) * hop_size) / sample_rate + (hop_size / sample_rate / 2)
 
 
 def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[np.ndarray]]]):
