@@ -1,11 +1,13 @@
 from collections import defaultdict
 from dataclasses import asdict
 import gc
-from typing import Optional
+from typing import Optional, cast
 import itertools
 
 import matplotlib
 import numpy as np
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 from model import PositionalEncoding
 
@@ -74,6 +76,57 @@ def get_model(
             return CRNN_Vogl(n_classes=n_classes, n_mels=n_mels, causal=settings.causal)
         case _:
             raise ValueError("Invalid model setting")
+
+
+def plot_metric_curve(xs, ys, names, x_label, y_label, dataset_name, style="darkgrid"):
+    with sns.axes_style(style=style), sns.plotting_context(context="paper"):
+        fig = plt.figure()
+        for i, (x, y, name) in enumerate(zip(xs, ys, names)):
+            plt.plot(
+                x,
+                y,
+                label=name,
+            )
+
+        plt.xlim(0, 1)
+        plt.ylim(0, 1)
+        plt.xlabel(x_label)
+        plt.ylabel(y_label)
+        plt.xticks(list(np.arange(0, 1.1, 0.1)))
+        plt.yticks(list(np.arange(0, 1.1, 0.1)))
+        plt.title(f"{y_label}-{x_label} Curve for {dataset_name}")
+        plt.legend()
+        plt.tight_layout()
+    plt.close(fig)
+    return fig
+
+
+def plot_timing_distribution(
+    errors, names, dataset_name, timing_range, plot_type, style="darkgrid"
+):
+    fig = plt.figure()
+    with sns.axes_style(style=style), sns.plotting_context(context="paper"):
+        for errs, name in zip(errors, names):
+            if len(errs) == 0:
+                continue
+            sns.kdeplot(
+                np.array(errs) * 1000,
+                label=name,
+                fill=True,
+                alpha=0.5,
+            )
+        plt.xlim(
+            -timing_range * 1000,
+            timing_range * 1000,
+        )
+        plt.ylim(0)
+        plt.xlabel("Timing Error (ms)")
+        plt.ylabel("Density")
+        plt.title(f"{plot_type} for {dataset_name}")
+        plt.legend()
+        plt.tight_layout()
+    plt.close(fig)
+    return fig
 
 
 class LitModel(L.LightningModule):
@@ -400,6 +453,28 @@ class LitModel(L.LightningModule):
 
         return loss
 
+    def log_figure(self, fig, name):
+        if len(self.loggers) < 2:
+            if len(self.loggers) == 0:
+                return
+            if isinstance(self.logger, TensorBoardLogger):
+                logger = cast(TensorBoardLogger, self.logger)
+                tensorboard_logger = logger.experiment
+                tensorboard_logger.add_figure(name, fig, self.current_epoch)
+            elif isinstance(self.logger, MLFlowLogger):
+                logger = cast(MLFlowLogger, self.logger)
+                mlflow_id = logger.run_id
+                logger.experiment.log_figure(mlflow_id, fig, f"{name}.png")
+            return
+
+        for logger in self.loggers:
+            if isinstance(logger, TensorBoardLogger):
+                tensorboard_logger = logger.experiment
+                tensorboard_logger.add_figure(name, fig, self.current_epoch)
+            elif isinstance(logger, MLFlowLogger):
+                mlflow_id = logger.run_id
+                logger.experiment.log_figure(mlflow_id, fig, f"{name}.png")
+
     def evaluate_epoch_end(self, set_key):
         precisions, recalls, thresholds, f_sum, f_avg, best_thresholds = calculate_pr(
             peaks=self.preds[set_key],
@@ -458,6 +533,26 @@ class LitModel(L.LightningModule):
             )
             self.log(f"{set_key}/F-Score/Avg", f_avg, on_epoch=True)
 
+        fig_pr = plot_metric_curve(
+            xs=[recalls[i].cpu() for i in range(len(recalls))],
+            ys=[precisions[i].cpu() for i in range(len(precisions))],
+            names=[self.hparams.mapping.get_name(i) for i in range(len(precisions))],
+            x_label="Recall",
+            y_label="Precision",
+            dataset_name=set_key,
+        )
+        self.log_figure(fig_pr, f"PR_Curve_{set_key}")
+
+        fig_thresh_f = plot_metric_curve(
+            xs=[thresholds[i].cpu() for i in range(len(thresholds))],
+            ys=[f_scores[i].cpu() for i in range(len(f_scores))],
+            names=[self.hparams.mapping.get_name(i) for i in range(len(f_scores))],
+            x_label="Threshold",
+            y_label="F-Score",
+            dataset_name=set_key,
+        )
+        self.log_figure(fig_thresh_f, f"F_Score_Threshold_Curve_{set_key}")
+
         self.evaluate_at_thresholds(set_key, best_thresholds.tolist(), False)
 
         self.preds[set_key].clear()
@@ -499,13 +594,15 @@ class LitModel(L.LightningModule):
 
         prefix = "" if set_key == "val" else f"{set_key}/"
 
+        cls_ordering = sorted(detection_errors.keys())
+
         mean_errors = {
             f"{prefix}Mean_Deviation/{self.hparams.mapping.get_name(cls_idx)}": np.mean(
                 detection_errors[cls_idx]
             )
             if len(detection_errors[cls_idx]) > 0
             else 0.0
-            for cls_idx in detection_errors.keys()
+            for cls_idx in cls_ordering
         }
 
         all_errors = list(itertools.chain.from_iterable(detection_errors.values()))
@@ -517,6 +614,29 @@ class LitModel(L.LightningModule):
         self.log_dict(
             mean_errors, on_epoch=True, prog_bar=False, add_dataloader_idx=False
         )
+
+        # plot error distribution per class
+        if len(all_errors) > 0:
+            fig_rel_error_dist = plot_timing_distribution(
+                errors=[detection_errors[cls] for cls in cls_ordering],
+                names=[self.hparams.mapping.get_name(cls) for cls in cls_ordering],
+                dataset_name=set_key,
+                timing_range=self.hparams.detect_tolerance,
+                plot_type="Onset Error Distribution relative to Target",
+            )
+            self.log_figure(fig_rel_error_dist, f"rel_onset_errors_{set_key}")
+
+            fig_abs_error_dist = plot_timing_distribution(
+                errors=[
+                    np.array(detection_errors[cls]) + self.hparams.time_shift
+                    for cls in cls_ordering
+                ],
+                names=[self.hparams.mapping.get_name(cls) for cls in cls_ordering],
+                dataset_name=set_key,
+                timing_range=self.hparams.detect_tolerance,
+                plot_type="Onset Error Distribution relative to true Label",
+            )
+            self.log_figure(fig_abs_error_dist, f"abs_onset_errors_{set_key}")
 
         if not calculate_scores:
             return
@@ -666,7 +786,7 @@ def main(
             experiment_name=experiment_name,
             tags=tags,
             tracking_uri="sqlite:///mlruns.db",
-            artifact_location="./models",
+            artifact_location="./models/mlflow_artifacts",
             run_name=comment,
         ),
     ]

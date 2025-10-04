@@ -28,6 +28,7 @@ dependencies = [
     "optuna-integration[pytorch-lightning]>=4.4.0",
     "mlflow>=3.3.2",
     "llvmlite>=0.37.0", # needed for the version resolution for librosa fails
+    "seaborn>=0.13.2",
 ]
 
 [tool.uv]
@@ -66,7 +67,6 @@ dev = [
     "nnaudio>=0.3.3",
     "pandas>=2.3.1",
     "pillow>=11.3.0",
-    "seaborn>=0.13.2",
     "notebook>=7.4.5",
     "madmom",
 ]
