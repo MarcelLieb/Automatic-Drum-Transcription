@@ -1,8 +1,11 @@
 from collections import defaultdict
 from dataclasses import asdict
 import gc
+from typing import Optional
+import itertools
 
 import matplotlib
+import numpy as np
 
 from model import PositionalEncoding
 
@@ -18,6 +21,7 @@ from lightning.pytorch.callbacks import (
     ModelCheckpoint,
     EarlyStopping,
     LearningRateMonitor,
+    DeviceStatsMonitor,
 )
 from lightning.pytorch.tuner.tuning import Tuner
 from lightning.pytorch.loggers import TensorBoardLogger, MLFlowLogger
@@ -45,7 +49,31 @@ from settings import (
     Config,
     asdict as settings_asdict,
     flatten_dict,
+    ModelSettingsBase,
 )
+
+
+def get_model(
+    model_type: str, n_classes: int, n_mels: int, settings: Optional[ModelSettingsBase]
+):
+    match model_type:
+        case "cnn":
+            settings = CNNSettings() if settings is None else settings
+            return CNN(**asdict(settings), n_classes=n_classes, n_mels=n_mels)
+        case "cnn_attention":
+            settings = CNNAttentionSettings() if settings is None else settings
+            return CNNAttention(**asdict(settings), n_classes=n_classes, n_mels=n_mels)
+        case "mamba" | "mamba_fast":
+            settings = CNNMambaSettings() if settings is None else settings
+            return CNNMambaFast(**asdict(settings), n_classes=n_classes, n_mels=n_mels)
+        case "crnn":
+            settings = CRNNSettings() if settings is None else settings
+            return CRNN(**asdict(settings), n_classes=n_classes, n_mels=n_mels)
+        case "vogl" | "crnn_vogl":
+            settings = CRNNSettings() if settings is None else settings
+            return CRNN_Vogl(n_classes=n_classes, n_mels=n_mels, causal=settings.causal)
+        case _:
+            raise ValueError("Invalid model setting")
 
 
 class LitModel(L.LightningModule):
@@ -59,32 +87,7 @@ class LitModel(L.LightningModule):
             self.conf.dataset.audio_settings.n_mels,
         )
 
-        match config["model_settings"]:
-            case "cnn":
-                settings = CNNSettings() if settings is None else settings
-                self.model = CNN(**asdict(settings), n_classes=n_classes, n_mels=n_mels)
-            case "cnn_attention":
-                settings = CNNAttentionSettings() if settings is None else settings
-                self.model = CNNAttention(
-                    **asdict(settings), n_classes=n_classes, n_mels=n_mels
-                )
-            case "mamba" | "mamba_fast":
-                settings = CNNMambaSettings() if settings is None else settings
-                self.model = CNNMambaFast(
-                    **asdict(settings), n_classes=n_classes, n_mels=n_mels
-                )
-            case "crnn":
-                settings = CRNNSettings() if settings is None else settings
-                self.model = CRNN(
-                    **asdict(settings), n_classes=n_classes, n_mels=n_mels
-                )
-            case "vogl" | "crnn_vogl":
-                settings = CRNNSettings() if settings is None else settings
-                self.model = CRNN_Vogl(
-                    n_classes=n_classes, n_mels=n_mels, causal=settings.causal
-                )
-            case _:
-                raise ValueError("Invalid model setting")
+        self.model = get_model(config["model_settings"], n_classes, n_mels, settings)
 
         self.conf.model = settings
 
@@ -321,6 +324,7 @@ class LitModel(L.LightningModule):
         self.log(
             "train_loss",
             loss,
+            on_step=True,
             on_epoch=True,
             prog_bar=True,
             batch_size=self.hparams.batch_size,
@@ -704,6 +708,7 @@ def main(
             verbose=True,
         ),
         LearningRateMonitor(logging_interval="step"),
+        # DeviceStatsMonitor(cpu_stats=True),
     ]
 
     if trial is not None:
