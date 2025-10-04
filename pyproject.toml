@@ -69,4 +69,5 @@ dev = [
     "pillow>=11.3.0",
     "notebook>=7.4.5",
     "madmom",
+    "ruff>=0.13.3",
 ]
