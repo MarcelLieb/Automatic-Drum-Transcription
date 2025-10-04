@@ -161,6 +161,12 @@ class DataModule(L.LightningDataModule):
         # return get_dataloader(self.train, self.batch_size, self.hparams.num_workers, is_train=True)
 
     def val_dataloader(self):
+        prefetch_factor = 4 if self.hparams.num_workers > 0 else None
+        prefetch_factor = (
+            4 // self.test_batch_size
+            if self.hparams.full_length_test
+            else prefetch_factor
+        )
         return torch.utils.data.DataLoader(
             self.val,
             batch_size=self.test_batch_size
@@ -171,7 +177,7 @@ class DataModule(L.LightningDataModule):
             collate_fn=audio_collate,
             drop_last=False,
             pin_memory=True,
-            prefetch_factor=None,
+            prefetch_factor=prefetch_factor,
             persistent_workers=False,
         )
         # return get_dataloader(
@@ -183,6 +189,12 @@ class DataModule(L.LightningDataModule):
 
     def test_dataloader(self):
         test_loaders = {}
+        prefetch_factor = 4 if self.hparams.num_workers > 0 else None
+        prefetch_factor = (
+            4 // self.test_batch_size
+            if self.hparams.full_length_test
+            else prefetch_factor
+        )
         for test_set in self.test_sets:
             loader = torch.utils.data.DataLoader(
                 test_set,
@@ -194,7 +206,7 @@ class DataModule(L.LightningDataModule):
                 collate_fn=audio_collate,
                 drop_last=False,
                 pin_memory=True,
-                prefetch_factor=None,
+                prefetch_factor=prefetch_factor,
                 persistent_workers=False,
             )
             test_loaders[test_set.get_identifier()] = loader

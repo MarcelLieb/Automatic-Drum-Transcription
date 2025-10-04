@@ -467,6 +467,10 @@ class LitModel(L.LightningModule):
     def on_validation_epoch_end(self):
         self.evaluate_epoch_end("val")
 
+    def on_test_epoch_start(self) -> None:
+        torch.cuda.empty_cache()
+        gc.collect()
+
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         test_set = self.hparams.test_sets[dataloader_idx]
         return self.evaluate_step(batch, test_set)
@@ -648,7 +652,7 @@ def main(
         deterministic=True,
         # max_steps=20_000,
         log_every_n_steps=10,
-        # num_sanity_val_steps=0,
+        num_sanity_val_steps=-1,
         # fast_dev_run=30,
         # profiler=profiler,
         # overfit_batches=10,
