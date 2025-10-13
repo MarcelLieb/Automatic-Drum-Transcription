@@ -74,7 +74,7 @@ class AnnotationSettings(SettingsBase):
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         if "mapping" in class_attributes:
-            dic["mapping"] = DrumMapping.from_str(dic["mapping"])
+            dic["mapping"] = DrumMapping.from_str(str(dic["mapping"]))
         attributes = {
             key: dic[key] if dic[key] != "None" else None for key in class_attributes
         }
@@ -110,9 +110,9 @@ class DatasetSettings(SettingsBase):
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         if "splits" in class_attributes:
-            dic["splits"] = make_tuple(dic["splits"])
+            dic["splits"] = make_tuple(str(dic["splits"]))
         if "test_sets" in class_attributes:
-            dic["test_sets"] = make_tuple(dic["test_sets"])
+            dic["test_sets"] = make_tuple(str(dic["test_sets"]))
         class_attributes += ["audio_settings", "annotation_settings"]
         dic["audio_settings"] = AudioProcessingSettings.from_flat_dict(dic)
         dic["annotation_settings"] = AnnotationSettings.from_flat_dict(dic)
@@ -192,7 +192,12 @@ class ModelSettingsBase(SettingsBase):
         keys = dataclass_asdict(cls()).keys()
         class_attributes = [key for key in keys if key in dic]
         if "activation" in class_attributes:
-            dic["activation"] = getattr(nn, dic["activation"])()
+            name = (
+                dic["activation"]
+                if isinstance(dic["activation"], str)
+                else dic["activation"].__class__.__name__
+            )
+            dic["activation"] = getattr(nn, name)()
         attributes = {
             key: dic[key] if dic[key] != "None" else None for key in class_attributes
         }
