@@ -112,8 +112,8 @@ def plot_timing_distribution(
             sns.kdeplot(
                 np.array(errs) * 1000,
                 label=name,
-                fill=True,
-                alpha=0.5,
+                fill=False,
+                alpha=1.0,
             )
         plt.xlim(
             -timing_range * 1000,
