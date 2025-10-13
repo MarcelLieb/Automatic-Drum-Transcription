@@ -155,6 +155,9 @@ class LitModel(L.LightningModule):
         self.preds = defaultdict(list)
         self.gts = defaultdict(list)
 
+    def forward(self, x):
+        return self.model(x)
+
     def configure_optimizers(self):
         # Adapted from https://github.com/Dao-AILab/flash-attention/blob/main/training/src/optim/param_grouping.py
         param_dict = {
@@ -740,6 +743,54 @@ class LitModel(L.LightningModule):
         for test_set in self.hparams.test_sets:
             self.evaluate_epoch_end(test_set)
             continue
+
+    def predict_step(self, batch, batch_idx):
+        pred = self.model(batch).sigmoid().cpu().detach()
+        return pred
+
+    def detect_onsets(
+        self,
+        mels: torch.Tensor,
+        mean_range=None,
+        max_range=None,
+        thresholds=None,
+        time_shift=None,
+    ):
+        mean_range = self.hparams.peak_mean_range if mean_range is None else mean_range
+        max_range = self.hparams.peak_max_range if max_range is None else max_range
+        thresholds = self.thresholds if thresholds is None else thresholds
+        time_shift = self.hparams.time_shift if time_shift is None else time_shift
+        self.eval()
+        with torch.no_grad():
+            pred = self.model(mels)
+            filtered_pred = pred.sigmoid()
+        peaks = peak_pick_max_mean(
+            filtered_pred.cpu().detach().float(),
+            self.hparams.sample_rate,
+            self.hparams.hop_size,
+            self.hparams.fft_size,
+            mean_range,
+            max_range,
+        )
+        for song_idx in range(len(peaks)):
+            for cls_idx in range(len(peaks[song_idx])):
+                peaks[song_idx][cls_idx] -= time_shift
+                # filter out predictions before the start
+                peaks[song_idx][cls_idx] = peaks[song_idx][cls_idx][
+                    :, peaks[song_idx][cls_idx][0, :] >= 0
+                ]
+                is_above_threshold = (
+                    peaks[song_idx][cls_idx][1, :] >= thresholds[cls_idx]
+                )
+                peaks[song_idx][cls_idx] = peaks[song_idx][cls_idx][
+                    :, is_above_threshold
+                ][0, :]
+                peaks[song_idx][cls_idx] = combine_onsets(
+                    peaks[song_idx][cls_idx],
+                    cool_down=self.hparams.onset_cooldown,
+                )
+
+        return peaks
 
 
 def main(

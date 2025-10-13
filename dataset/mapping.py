@@ -157,6 +157,10 @@ class DrumMapping(Enum):
     def get_name(self, item):
         return self.value[1][item]
 
+    def get_midi_note(self, item):
+        drum_class = self.value[0][item][0] # Take the first class in case of multiple
+        return drum_midi_mapping[drum_class][0] # Take the first MIDI note
+
     def __str__(self):
         return self.name.lower().replace("_", " ").capitalize()
 

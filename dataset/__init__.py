@@ -271,6 +271,24 @@ def convert_to_flac(path: str | Path):
     )
 
 
+def write_midi(drum_classes: list[np.ndarray], mapping: DrumMapping, path: str | Path):
+    assert len(drum_classes) == len(mapping), f"{len(drum_classes)} != {len(mapping)}"
+    path = Path(path)
+    midi = pretty_midi.PrettyMIDI()
+    drum_instrument = pretty_midi.Instrument(program=0, is_drum=True, name="Drums")
+    for i, cls in enumerate(drum_classes):
+        for onset in cls:
+            note = pretty_midi.Note(
+                velocity=100,
+                pitch=int(mapping.get_midi_note(i)),
+                start=float(onset),
+                end=float(onset + 0.1),
+            )
+            drum_instrument.notes.append(note)
+    midi.instruments.append(drum_instrument)
+    midi.write(str(path))
+
+
 T = TypeVar("T")
 
 
