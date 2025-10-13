@@ -29,6 +29,7 @@ dependencies = [
     "mlflow>=3.3.2",
     "llvmlite>=0.37.0", # needed for the version resolution for librosa fails
     "seaborn>=0.13.2",
+    "boto3>=1.40.45",
 ]
 
 [tool.uv]
