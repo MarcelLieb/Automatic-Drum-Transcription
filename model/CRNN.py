@@ -37,6 +37,7 @@ class CRNN(nn.Module):
             dropout=cnn_dropout,
             in_channels=1 + flux,
         )
+        self.rnn_norm = nn.LayerNorm(self.n_dims)
         self.rnn = nn.GRU(
             self.n_dims,
             rnn_units,
@@ -45,6 +46,7 @@ class CRNN(nn.Module):
             dropout=rnn_dropout,
             bidirectional=not causal
         )
+        self.fc_norm = nn.LayerNorm(rnn_units * (1 + (not causal)))
         self.fc = nn.Sequential(
             nn.Linear(rnn_units * (1 + (not causal)), classifier_dim),
             activation,
@@ -60,7 +62,9 @@ class CRNN(nn.Module):
             x = torch.concatenate((x, diff), dim=1)
         x = self.conv(x)
         x = x.view(x.size(0), -1, x.size(-1)).permute(0, 2, 1)
+        x = self.rnn_norm(x)
         x, _ = self.rnn(x)
+        x = self.fc_norm(x)
         x = self.activation(x)
         x = self.fc(x)
         x = x.permute(0, 2, 1)
