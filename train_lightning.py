@@ -788,20 +788,30 @@ class LitModel(L.LightningModule):
 
     def detect_onsets(
         self,
-        mels: torch.Tensor,
+        mels: Optional[torch.Tensor] = None,
+        predictions: Optional[torch.Tensor] = None,
         mean_range=None,
         max_range=None,
         thresholds=None,
         time_shift=None,
     ):
+        assert mels is not None or predictions is not None, (
+            "Either mels or predictions must be provided"
+        )
         mean_range = self.hparams.peak_mean_range if mean_range is None else mean_range
         max_range = self.hparams.peak_max_range if max_range is None else max_range
         thresholds = self.thresholds if thresholds is None else thresholds
         time_shift = self.hparams.time_shift if time_shift is None else time_shift
-        self.eval()
-        with torch.no_grad():
-            pred = self.model(mels)
-            filtered_pred = pred.sigmoid()
+        if mels is not None:
+            self.eval()
+            with torch.no_grad():
+                pred = self.model(mels)
+                filtered_pred = pred.sigmoid()
+        else:
+            assert predictions is not None, (
+                "Predictions must be provided if mels is None"
+            )
+            filtered_pred = predictions
         peaks = peak_pick_max_mean(
             filtered_pred.cpu().detach().float(),
             self.hparams.sample_rate,
