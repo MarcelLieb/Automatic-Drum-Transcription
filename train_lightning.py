@@ -276,7 +276,9 @@ class LitModel(L.LightningModule):
         schedulers = []
         milestones = []
         cycle_length = self.trainer.estimated_stepping_batches // cycles
-        steps_per_epoch = self.trainer.estimated_stepping_batches // self.hparams.epochs
+        _steps_per_epoch = (
+            self.trainer.estimated_stepping_batches // self.hparams.epochs
+        )
 
         warmup_steps = 100
         decay_length = cycle_length // 2
@@ -868,7 +870,7 @@ def main(
         "model": config_class.training.model_settings,
         "time_shift": str(config_class.dataset.annotation_settings.time_shift),
         "mapping": str(config_class.dataset.annotation_settings.mapping),
-        # "comment": comment,
+        "comment": comment,
         "a2md_cutoff": str(config_class.dataset.a2md_penalty_cutoff),
     }
     if trial is not None:
@@ -899,25 +901,25 @@ def main(
     callbacks: list[Callback] = [
         ModelCheckpoint(
             monitor="F-Score/Sum/Total",
-            filename=f"{config_class.training.model_settings}/epoch={{epoch}}-val_loss={{val_loss}}-val_score={{F-Score/Sum/Total}}",
+            filename=f"{config_class.training.model_settings}/val_score={{F-Score/Sum/Total:.4f}}-fold={config['fold']}-a2md_cutoff={config['a2md_penalty_cutoff']}-val_loss={{val_loss:.4f}}-epoch={{epoch}}",
             dirpath="./models",
             mode=directions["F-Score/Sum/Total"],
             auto_insert_metric_name=False,
             save_top_k=1,
             verbose=False,
         ),
-        ModelCheckpoint(
-            monitor="train_loss_epoch",
-            mode="min",
-            dirpath="./models",
-            save_top_k=1,
-            save_last="link",
-            filename=f"{config_class.training.model_settings}/last",
-            auto_insert_metric_name=False,
-            save_on_train_epoch_end=True,
-            verbose=False,
-            enable_version_counter=False,
-        ),
+        # ModelCheckpoint(
+        #     monitor="train_loss_epoch",
+        #     mode="min",
+        #     dirpath="./models",
+        #     save_top_k=1,
+        #     save_last="link",
+        #     filename=f"{config_class.training.model_settings}/last",
+        #     auto_insert_metric_name=False,
+        #     save_on_train_epoch_end=True,
+        #     verbose=False,
+        #     enable_version_counter=False,
+        # ),
         EarlyStopping(
             "train_loss_epoch",
             check_finite=True,
@@ -997,7 +999,7 @@ def main(
     # trainer.test(model, datamodule=data_module, ckpt_path="last")
     trainer.test(model, datamodule=data_module, ckpt_path="best")
 
-    return model, scores[metric_to_track]
+    return (model, trainer, data_module), scores[metric_to_track]
 
 if __name__ == '__main__':
-    _model, _trainer = main()
+    (_model, _trainer), _ = main()
