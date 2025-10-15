@@ -175,6 +175,7 @@ class EvaluationSettings(SettingsBase):
     onset_cooldown: int = 0.021
     detect_tolerance: float = 0.05
     ignore_beats: bool = True
+    shift_predictions: float | bool = False
     min_test_score: float = 0.79
     pr_points: int | None = 50
 

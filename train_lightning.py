@@ -8,6 +8,7 @@ import matplotlib
 import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
+import polars as pl
 
 from model import PositionalEncoding
 
@@ -444,9 +445,17 @@ class LitModel(L.LightningModule):
             self.hparams.peak_max_range,
         )
 
+        shift = self.hparams.time_shift
+
+        match self.hparams.shift_predictions:
+            case False:
+                shift = 0.0
+            case _ if isinstance(self.hparams.shift_predictions, (int, float)):
+                shift = self.hparams.shift_predictions
+
         for song_idx in range(len(peaks)):
             for cls_idx in range(len(peaks[song_idx])):
-                peaks[song_idx][cls_idx] -= self.hparams.time_shift
+                peaks[song_idx][cls_idx] -= shift
                 # filter out predictions before the start
                 peaks[song_idx][cls_idx] = peaks[song_idx][cls_idx][
                     :, peaks[song_idx][cls_idx][0, :] >= 0
@@ -620,8 +629,38 @@ class LitModel(L.LightningModule):
 
         # plot error distribution per class
         if len(all_errors) > 0:
+            shift = self.hparams.time_shift
+            match self.hparams.shift_predictions:
+                case False:
+                    shift = 0.0
+                case _ if isinstance(self.hparams.shift_predictions, (int, float)):
+                    shift = self.hparams.shift_predictions
+
+            if set_key != "val":
+                # log all onset errors to mlflow table
+                df = pl.DataFrame()
+                for cls in cls_ordering:
+                    df = df.vstack(
+                        pl.DataFrame(
+                            {
+                                "class": [self.hparams.mapping.get_name(cls)]
+                                * len(detection_errors[cls]),
+                                "onset_error": np.array(detection_errors[cls]) + shift,
+                            }
+                        )
+                    )
+                for logger in self.loggers:
+                    if isinstance(logger, MLFlowLogger):
+                        mlflow_id = logger.run_id
+                        logger.experiment.log_table(
+                            mlflow_id, df.to_pandas(), f"{set_key}_onset_errors.json"
+                        )
+
             fig_rel_error_dist = plot_timing_distribution(
-                errors=[detection_errors[cls] for cls in cls_ordering],
+                errors=[
+                    np.array(detection_errors[cls]) + shift - self.hparams.time_shift
+                    for cls in cls_ordering
+                ],
                 names=[self.hparams.mapping.get_name(cls) for cls in cls_ordering],
                 dataset_name=set_key,
                 timing_range=self.hparams.detect_tolerance,
@@ -631,8 +670,7 @@ class LitModel(L.LightningModule):
 
             fig_abs_error_dist = plot_timing_distribution(
                 errors=[
-                    np.array(detection_errors[cls]) + self.hparams.time_shift
-                    for cls in cls_ordering
+                    np.array(detection_errors[cls]) + shift for cls in cls_ordering
                 ],
                 names=[self.hparams.mapping.get_name(cls) for cls in cls_ordering],
                 dataset_name=set_key,
