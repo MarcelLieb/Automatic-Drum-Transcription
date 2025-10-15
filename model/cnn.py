@@ -27,7 +27,8 @@ class CNN(nn.Module):
         super(CNN, self).__init__()
         self.activation = activation
         self.flux = flux
-        self.n_dims = n_mels
+        self.n_dims = num_channels * (channel_multiplication ** (num_feature_layers - 1)) * (
+                n_mels // (down_sample_factor ** num_feature_layers))
         self.classifier_dim = classifier_dim
         self.down_sample_factor = down_sample_factor
 
@@ -57,12 +58,12 @@ class CNN(nn.Module):
                 )
             )
 
-        self.fc1 = nn.Linear(
-            num_channels * (channel_multiplication ** (num_feature_layers - 1)) * (
-                self.n_dims // (down_sample_factor ** num_feature_layers)), classifier_dim
+        self.fc = nn.Sequential(
+            nn.Linear(self.n_dims, classifier_dim),
+            activation,
+            nn.Dropout(dense_dropout),
+            nn.Linear(classifier_dim, n_classes),
         )
-        self.dropout = nn.Dropout(dense_dropout)
-        self.fc2 = nn.Linear(classifier_dim, n_classes)
         self.num_channels = num_channels
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -77,9 +78,6 @@ class CNN(nn.Module):
         bs, ch, h, w = x.size()
         x = x.reshape(bs, ch * h, w)
         x = x.permute(0, 2, 1)
-        x = self.fc1(x)
-        x = self.activation(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
+        x = self.fc(x)
         x = x.permute(0, 2, 1)
         return x
