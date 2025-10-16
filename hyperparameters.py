@@ -506,7 +506,7 @@ def main():
         print(f"Running model: {model}")
         config = final_experiments[model]
         scores = []
-        for fold in range(1, config["k_folds"]):
+        for fold in range(0, config["k_folds"]):
             config["fold"] = fold
             _, score = train(
                 config=config,
