@@ -199,8 +199,10 @@ def get_indices(
     return np.floor((time_stamps * sample_rate) / hop_size).clip(0).astype(int)
 
 
-def get_time_index(length: int, sample_rate: float, hop_size: int) -> np.ndarray:
-    return (np.arange(length) * hop_size) / sample_rate + (hop_size / sample_rate / 2)
+def get_time_index(
+    length: int, sample_rate: float, hop_size: int, n_fft=2048
+) -> np.ndarray:
+    return (np.arange(length) * hop_size + n_fft // 2) / sample_rate
 
 
 def audio_collate(batch: list[tuple[torch.Tensor, torch.Tensor, list[np.ndarray]]]):
