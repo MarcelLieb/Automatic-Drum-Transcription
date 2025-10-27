@@ -78,7 +78,6 @@ class CNNMambaFast(nn.Module):
         num_channels,
         n_layers,
         backbone: Literal["unet", "cnn"],
-        return_features=1,
         dropout=None,
         cnn_dropout=0.3,
         mamba_dropout=0.5,
@@ -124,7 +123,6 @@ class CNNMambaFast(nn.Module):
                 self.backbone = DenseEncoder(
                     n_mels, num_channels, activation, dropout, flux
                 )
-        self.return_features = return_features if backbone == "unet" else -1
         self.proj = nn.Linear(self.n_dims, hidden_units)
         mamba_layers = [
             MambaBlock(
