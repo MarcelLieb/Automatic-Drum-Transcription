@@ -100,7 +100,22 @@ class DataModule(L.LightningDataModule):
                     self.train = ConcatADTDataset(self.settings, [a2md, rbma, mdb])
 
             self.sample_distribution = self.train.get_sample_distribution()
-
+        if stage == "validate":
+            if self.hparams.k_folds is not None:
+                train_split, val_split, test_split = get_fold(
+                    self.hparams.a2md_penalty_cutoff,
+                    path=path,
+                    n_folds=self.hparams.k_folds,
+                    fold=self.hparams.fold,
+                    seed=self.hparams.seed,
+                )
+            else:
+                train_split, val_split, test_split = get_a2md_splits(
+                    self.hparams.a2md_penalty_cutoff,
+                    self.hparams.splits,
+                    path,
+                    seed=self.hparams.seed,
+                )
             self.val = A2MD(
                 split=val_split,
                 settings=self.settings,
@@ -109,6 +124,7 @@ class DataModule(L.LightningDataModule):
                 is_train=False,
                 segment=not self.hparams.full_length_test,
             )
+
         if stage == "test" or stage is None:
             self.test_sets = []
             for test_set in self.hparams.test_sets:
