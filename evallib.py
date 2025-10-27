@@ -33,7 +33,7 @@ def peak_pick_max_mean(
     maximum: torch.Tensor = max_filter(padded)
     assert maximum.shape == mean.shape and maximum.shape == data.shape
 
-    time = torch.tensor(get_time_index(data.shape[-1], sample_rate, hop_size)).to(
+    time = torch.tensor(get_time_index(data.shape[-1], sample_rate, hop_size, fft_size)).to(
         data.device
     )
 
