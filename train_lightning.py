@@ -452,7 +452,7 @@ class LitModel(L.LightningModule):
         match self.hparams.shift_predictions:
             case False:
                 shift = 0.0
-            case _ if isinstance(self.hparams.shift_predictions, (int, float)):
+            case _ if isinstance(self.hparams.shift_predictions, float):
                 shift = self.hparams.shift_predictions
 
         for song_idx in range(len(peaks)):
@@ -635,7 +635,7 @@ class LitModel(L.LightningModule):
             match self.hparams.shift_predictions:
                 case False:
                     shift = 0.0
-                case _ if isinstance(self.hparams.shift_predictions, (int, float)):
+                case _ if isinstance(self.hparams.shift_predictions, float):
                     shift = self.hparams.shift_predictions
 
             if set_key != "val":
@@ -802,7 +802,7 @@ class LitModel(L.LightningModule):
         )
         mean_range = self.hparams.peak_mean_range if mean_range is None else mean_range
         max_range = self.hparams.peak_max_range if max_range is None else max_range
-        thresholds = self.thresholds if thresholds is None else thresholds
+        thresholds = self.thresholds if thresholds is None else torch.tensor(thresholds)
         time_shift = self.hparams.time_shift if time_shift is None else time_shift
         if mels is not None:
             self.eval()
@@ -850,9 +850,19 @@ def main(
     seed=69,
     experiment_name="debug",
     comment="test",
+    resume_ckpt=None,
 ):
     if config is None:
         config = flatten_dict(settings_asdict(Config()))
+
+    if resume_ckpt is not None:
+        checkpoint = torch.load(
+            resume_ckpt,
+            map_location="cpu",
+            weights_only=False,
+        )
+        config = checkpoint["hyper_parameters"]
+
     config_class = Config.from_flat_dict(config)
     print(config_class)
     seed_everything(seed, workers=True)
@@ -959,7 +969,7 @@ def main(
         logger=loggers,
         gradient_clip_val=config["gradient_clip_norm"],
         gradient_clip_algorithm="norm",
-        benchmark=True,
+        # benchmark=True,
         accumulate_grad_batches=1,
         deterministic=True,
         # max_steps=20_000,
@@ -989,7 +999,7 @@ def main(
     # if lr_finder is not None:
     #     lr_finder.plot(show=True, suggest=True)
 
-    trainer.fit(model, datamodule=data_module) #, ckpt_path="models/13-7714.ckpt")
+    trainer.fit(model, datamodule=data_module, ckpt_path=resume_ckpt)
 
     if trial is not None and not torch.isfinite(trainer.callback_metrics["train_loss_epoch"]):
         raise optuna.TrialPruned()
@@ -1002,4 +1012,4 @@ def main(
     return (model, trainer, data_module), scores[metric_to_track]
 
 if __name__ == '__main__':
-    (_model, _trainer), _ = main()
+    (_model, _trainer, _), _ = main()
